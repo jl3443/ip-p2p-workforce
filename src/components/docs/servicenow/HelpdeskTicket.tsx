@@ -88,8 +88,8 @@ export function HelpdeskTicket({ ticket = helpdeskBelt }: { ticket?: HelpdeskCas
       <SectionBand>Auto-resolution</SectionBand>
       <div className="px-4 py-3 space-y-3">
         <p className="text-[12.5px] text-ink leading-relaxed">{ticket.resolution}</p>
-        <div className="flex items-start gap-3 rounded-md bg-surface-mint/40 border border-surface-deep/15 px-3 py-2.5">
-          <span className="text-[11px] tracking-[0.06em] uppercase text-surface-deep font-bold shrink-0 mt-0.5">
+        <div className="flex items-start gap-3 rounded-md bg-[#eaf2fb] border border-[#cfe0f5] px-3 py-2.5">
+          <span className="text-[11px] tracking-[0.06em] uppercase text-[#0a6ed1] font-bold shrink-0 mt-0.5">
             Cited KB
           </span>
           <p className="text-[12.5px] text-ink leading-snug">

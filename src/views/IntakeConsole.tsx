@@ -424,10 +424,10 @@ function EmailModal({ email, onClose }: { email: IntakeEmail; onClose: () => voi
           {/* Analyzing */}
           {phase === "analyzing" && (
             <SpringIn>
-              <div className="rounded-md border border-surface-deep/15 bg-surface-mint/30 p-4 space-y-3">
+              <div className="rounded-md border border-[#e1e6ec] bg-[#f4f6f9] p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <AIDot size={6} tone="deep" pulse />
-                  <span className="text-[11px] tracking-[0.08em] uppercase text-surface-deep font-bold">
+                  <span className="text-[11px] tracking-[0.08em] uppercase text-[#0a6ed1] font-bold">
                     Intake agent · analysing the request
                   </span>
                 </div>
@@ -440,8 +440,8 @@ function EmailModal({ email, onClose }: { email: IntakeEmail; onClose: () => voi
           {phase === "done" && (
             <SpringIn>
               <div className="space-y-3">
-                <div className="flex items-center gap-2 rounded-md bg-surface-mint border border-surface-deep/20 px-3 py-2.5">
-                  <span className="w-5 h-5 rounded-md bg-surface-deep text-ink-inverse flex items-center justify-center shrink-0">
+                <div className="flex items-center gap-2 rounded-md bg-[#eaf2fb] border border-[#cfe0f5] px-3 py-2.5">
+                  <span className="w-5 h-5 rounded-md bg-[#0a6ed1] text-white flex items-center justify-center shrink-0">
                     <Check size={12} strokeWidth={3} />
                   </span>
                   <p className="text-[12.5px] text-ink leading-snug">

@@ -67,7 +67,7 @@ export const vendorMergeBelt: VendorMerge = {
 
 const MATCH_META: Record<VendorMatchRow["match"], { label: string; cls: string }> = {
   exact: { label: "Exact", cls: "bg-surface-deep text-ink-inverse" },
-  fuzzy: { label: "Fuzzy", cls: "bg-surface-sage/25 text-surface-deep" },
+  fuzzy: { label: "Fuzzy", cls: "bg-[#fef0e6] text-[#a25b00]" },
   differ: { label: "Differs", cls: "bg-surface-rose/50 text-mark-red" },
 };
 
@@ -86,8 +86,8 @@ export function VendorMaster({ merge = vendorMergeBelt }: { merge?: VendorMerge 
       {/* Candidate pair */}
       <SectionBand>Duplicate pair</SectionBand>
       <div className="px-4 py-3 grid grid-cols-2 gap-3">
-        <div className="rounded-md border border-surface-deep/40 bg-surface-mint/30 px-3 py-2.5">
-          <div className="text-[10px] tracking-[0.06em] uppercase text-surface-deep font-bold">Golden record · keep</div>
+        <div className="rounded-md border border-[#cfe0f5] bg-[#eaf2fb] px-3 py-2.5">
+          <div className="text-[10px] tracking-[0.06em] uppercase text-[#0a6ed1] font-bold">Golden record · keep</div>
           <div className="text-[13px] font-bold text-ink mt-0.5">{merge.goldenName}</div>
           <div className="text-[11px] text-mute tabular-nums">Vendor {merge.goldenCode}</div>
         </div>

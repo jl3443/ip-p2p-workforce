@@ -44,7 +44,7 @@ export function SourceArtifactModal({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="ui-pill w-8 h-8 rounded-full bg-surface-fog text-ink hover:bg-surface-mint flex items-center justify-center shrink-0"
+              className="ui-pill w-8 h-8 rounded-full bg-surface-fog text-ink hover:bg-[#e3e8ef] flex items-center justify-center shrink-0"
             >
               <X size={16} />
             </button>
