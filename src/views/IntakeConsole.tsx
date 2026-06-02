@@ -353,7 +353,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "ui-pill flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2.5 text-[13px] font-bold",
+        "ui-pill flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2.5 text-[13px] font-bold whitespace-nowrap",
         cls,
       )}
     >
@@ -484,13 +484,15 @@ function EmailModal({ email, onClose }: { email: IntakeEmail; onClose: () => voi
               <div className="text-[11px] tracking-[0.06em] uppercase text-mute font-medium">
                 Decide on the output
               </div>
-              <div className="flex items-stretch gap-2">
+              <div className="flex">
                 <ActionButton
                   tone="approve"
                   icon={<Check size={15} strokeWidth={2.4} />}
                   label="Approve & hand off"
                   onClick={() => decide("approved")}
                 />
+              </div>
+              <div className="flex items-stretch gap-2">
                 <ActionButton
                   tone="pending"
                   icon={<Clock size={15} strokeWidth={2.2} />}
