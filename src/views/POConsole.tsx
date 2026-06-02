@@ -1,0 +1,336 @@
+import * as React from "react";
+import { useApp, type AgentOutputStatus } from "@/state";
+import { cn } from "@/lib/utils";
+import { PurchaseOrder } from "@/components/docs/sap/PurchaseOrder";
+import {
+  AgentConsole,
+  CardHeader,
+  QueuePanel,
+  CeremonyModal,
+  type ConsoleConfig,
+  type OutputMeta,
+  type QueueItem,
+} from "@/components/agents/ConsoleKit";
+import type { ChatTurn } from "@/components/agents/AgentChat";
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Purchase Order Agent console.
+ *
+ * Reads an approved requisition, binds it to the contract, checks budget
+ * headroom and drafts a contract-bound SAP PO. Data surface: approved-PR queue ·
+ * selected supplier+contract · contract terms · budget-headroom bar · historical
+ * PO patterns. The ceremony reveals PO-77310 and hands it to Fulfillment.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const queue: QueueItem[] = [
+  {
+    id: "pr-48201",
+    primary: "PR-48201 · double-backer belt",
+    secondary: "BeltPro Industrial · 88-DBX · $48,200 · on framework 4600001207",
+    meta: "09:04",
+    readyTag: "Ready to draft PO",
+    actionable: true,
+  },
+  {
+    id: "pr-48190",
+    primary: "PR-48190 · hydraulic hose assy",
+    secondary: "Grainger · punchout catalog · $1,240",
+    meta: "08:30",
+    handledTag: "PO-77305 posted",
+  },
+  {
+    id: "pr-48177",
+    primary: "PR-48177 · drive bearing set",
+    secondary: "Apex Power Transmission · $9,860 · framework 4600000934",
+    meta: "Yesterday",
+    handledTag: "PO-77298 posted",
+  },
+];
+
+type Term = { label: string; value: string };
+const contractTerms: Term[] = [
+  { label: "Price", value: "$48,200 net · −8% vs list (PB00/RA01)" },
+  { label: "Lead time", value: "5 days · framework standard" },
+  { label: "Quality", value: "A · 99.1% OTIF · inspection waived" },
+  { label: "Payment", value: "Net 30 · NT30" },
+  { label: "SLA", value: "On-time ≥ 98% · 24h ack" },
+];
+
+type HistRow = { po: string; item: string; value: string; lead: string };
+const history: HistRow[] = [
+  { po: "PO-77188", item: "Double-backer belt 88-DBX", value: "$47,900", lead: "5d · on time" },
+  { po: "PO-76920", item: "Idler roller set", value: "$12,400", lead: "4d · on time" },
+  { po: "PO-76551", item: "Corrugator wear strips", value: "$6,180", lead: "6d · on time" },
+];
+
+const BUDGET = { used: 312_400, commit: 48_200, total: 500_000 };
+
+const outputMeta: OutputMeta = {
+  none: { label: "No PO yet", kind: "neutral", note: "Open the approved requisition to draft a purchase order." },
+  pending: { label: "On pending", kind: "neutral", note: "PO-77310 parked — resume it from the queue when ready." },
+  approved: {
+    label: "Approved · posted to SAP",
+    kind: "active",
+    note: "PO-77310 posted and handed to the Fulfillment agent for delivery tracking.",
+  },
+  rejected: { label: "Rejected", kind: "critical", note: "PO-77310 was rejected — nothing posted." },
+  escalated: { label: "Escalated", kind: "critical", note: "Routed to the buyer for approval with the draft PO attached." },
+};
+
+const chatScript: ChatTurn[] = [
+  {
+    reply: [
+      {
+        kind: "agent",
+        tone: "mint",
+        text: "I'm the Purchase Order Agent — I turn an approved requisition into a contract-bound PO, budget-check it and post to SAP. Ask me about the order.",
+        children: (
+          <div className="text-[12.5px] text-ink leading-[19px]">
+            <div className="text-mute mb-1">For example —</div>
+            <ul className="space-y-0.5">
+              <li>· How the PO is priced from the contract</li>
+              <li>· Whether budget covers it</li>
+              <li>· What needs an approver</li>
+            </ul>
+          </div>
+        ),
+      },
+    ],
+    chips: ["How is PO-77310 priced?", "Is there budget?", "Why does this need approval?"],
+  },
+  {
+    reply: [
+      {
+        kind: "agent",
+        tone: "mint",
+        text: "Off the BeltPro framework 4600001207, item 10 — list $52,391.30 less the −8% RA01 discount lands the net at $48,200.00. No manual price entry; it's all condition records.",
+      },
+    ],
+    chips: ["Is there budget?", "Why does this need approval?"],
+  },
+  {
+    reply: [
+      {
+        kind: "agent",
+        tone: "fog",
+        text: "Cost center 0000041702 has $187,600 headroom this period; the $48,200 commitment leaves $139,400. Comfortably within budget, so no over-run flag.",
+      },
+    ],
+    chips: ["Why does this need approval?"],
+  },
+  {
+    reply: [
+      {
+        kind: "agent",
+        tone: "mint",
+        text: "I run at L2 by default — I draft and wait. The order's contract-compliant and in budget, so it's a one-click approve; raise the dial to L3 and contract-clean orders under the ceiling post on their own.",
+      },
+    ],
+  },
+];
+
+const config: ConsoleConfig = {
+  id: "po",
+  statLabel: "Orders",
+  artifactLabel: "Purchase order · PO-77310",
+  outputMeta,
+  chatName: "Purchase Order agent",
+  chatScript,
+  runRole: "Drafts purchase order PO-77310, bound to the framework contract.",
+  openRunLabel: "Open the approved PR",
+};
+
+const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
+
+function SupplierContractPanel() {
+  return (
+    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
+      <CardHeader label="Selected supplier & contract" />
+      <div className="mt-3 space-y-3 flex-1">
+        <div className="rounded-md border border-surface-deep/40 bg-surface-mint/30 px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-bold text-ink">BeltPro Industrial</span>
+            <span className="text-[9px] tracking-[0.06em] uppercase font-bold bg-surface-deep text-ink-inverse px-1.5 py-0.5 rounded">
+              Contracted
+            </span>
+            <span className="ml-auto text-[10px] text-mute tabular-nums">Vendor 100482</span>
+          </div>
+          <div className="text-[11px] text-mute mt-1 leading-snug">
+            Conveyor & belting (MRO-CONV) · sole on-contract source for this part
+          </div>
+        </div>
+        <div className="rounded-md border border-divider bg-surface-fog/60 px-3 py-2.5">
+          <div className="text-[10px] tracking-[0.05em] uppercase text-mute font-medium">Outline agreement</div>
+          <div className="text-[13px] font-bold text-ink tabular-nums mt-0.5">4600001207 · item 10</div>
+          <div className="text-[11px] text-mute mt-0.5">MRO framework · −8% vs list · valid to 2026-12-31</div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ContractTermsPanel() {
+  return (
+    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
+      <CardHeader label="Contract terms" />
+      <div className="mt-3 divide-y divide-divider flex-1">
+        {contractTerms.map((t) => (
+          <div key={t.label} className="flex items-baseline gap-3 py-2">
+            <span className="text-[11px] tracking-[0.04em] uppercase text-mute font-medium w-20 shrink-0">
+              {t.label}
+            </span>
+            <span className="text-[12.5px] text-ink leading-snug">{t.value}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function BudgetHeadroomPanel() {
+  const usedPct = (BUDGET.used / BUDGET.total) * 100;
+  const commitPct = (BUDGET.commit / BUDGET.total) * 100;
+  const headroom = BUDGET.total - BUDGET.used - BUDGET.commit;
+  return (
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader
+        label="Budget headroom · cost center 0000041702"
+        right={<span className="text-[11px] text-mute">MRO maintenance · this period</span>}
+      />
+      <div className="mt-4">
+        <div className="flex items-end justify-between mb-2">
+          <div>
+            <span className="text-[22px] font-bold text-surface-deep tabular-nums leading-none">{usd(headroom)}</span>
+            <span className="text-[12px] text-mute ml-2">headroom after this PO</span>
+          </div>
+          <span className="text-[11px] text-mute tabular-nums">of {usd(BUDGET.total)}</span>
+        </div>
+        <div className="h-3 w-full rounded-full bg-surface-fog overflow-hidden flex">
+          <div className="h-full bg-surface-deep" style={{ width: `${usedPct}%` }} title="Committed to date" />
+          <div className="h-full bg-surface-sage" style={{ width: `${commitPct}%` }} title="This PO" />
+        </div>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2.5 text-[11px]">
+          <span className="flex items-center gap-1.5 text-mute">
+            <span className="w-2.5 h-2.5 rounded-sm bg-surface-deep" /> Committed {usd(BUDGET.used)}
+          </span>
+          <span className="flex items-center gap-1.5 text-mute">
+            <span className="w-2.5 h-2.5 rounded-sm bg-surface-sage" /> This PO {usd(BUDGET.commit)}
+          </span>
+          <span className="flex items-center gap-1.5 text-mute">
+            <span className="w-2.5 h-2.5 rounded-sm bg-surface-fog border border-divider" /> Free {usd(headroom)}
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function HistoryPanel() {
+  return (
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader
+        label="Historical PO patterns · BeltPro Industrial"
+        right={<span className="text-[11px] text-mute">avg lead 5d · 99% on time</span>}
+      />
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[440px] text-[12px] border-collapse">
+          <thead>
+            <tr className="text-left text-mute">
+              {["PO", "Item", "Value", "Lead"].map((h) => (
+                <th
+                  key={h}
+                  className="px-2 py-1.5 text-[10px] tracking-[0.04em] uppercase font-medium border-b border-divider whitespace-nowrap"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((r) => (
+              <tr key={r.po} className="text-ink">
+                <td className="px-2 py-2 border-b border-divider tabular-nums whitespace-nowrap">{r.po}</td>
+                <td className="px-2 py-2 border-b border-divider">{r.item}</td>
+                <td className="px-2 py-2 border-b border-divider tabular-nums text-right whitespace-nowrap">{r.value}</td>
+                <td className="px-2 py-2 border-b border-divider whitespace-nowrap text-mute">{r.lead}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  );
+}
+
+function POContext() {
+  return (
+    <div className={cn("rounded-md border border-divider bg-surface-fog/60 px-4 py-3")}>
+      <div className="text-[11px] tracking-[0.05em] uppercase text-surface-deep font-bold">Approved requisition</div>
+      <div className="text-[13px] font-bold text-ink mt-1">PR-48201 · double-backer belt 88-DBX</div>
+      <p className="text-[12.5px] text-ink leading-snug mt-1">
+        Released by the Intake agent · supplier BeltPro Industrial on framework 4600001207 · $48,200 · delivery
+        2026-06-10 to the Containerboard mill (M042). Ready to convert to a purchase order.
+      </p>
+    </div>
+  );
+}
+
+export function POConsole() {
+  const { setAgentOutput, go } = useApp();
+  const [open, setOpen] = React.useState(false);
+
+  const decide = (status: AgentOutputStatus) => {
+    setAgentOutput("po", status);
+    if (status === "approved") go({ kind: "workspace", flow: "belt" });
+    else setOpen(false);
+  };
+
+  return (
+    <>
+      <AgentConsole config={config} onOpenRun={() => setOpen(true)}>
+        <QueuePanel
+          title="Approved requisitions · ready for PO"
+          badge="1 ready"
+          items={queue}
+          onOpen={() => setOpen(true)}
+        />
+        <div className="grid grid-cols-2 gap-3 items-stretch">
+          <SupplierContractPanel />
+          <ContractTermsPanel />
+        </div>
+        <BudgetHeadroomPanel />
+        <HistoryPanel />
+      </AgentConsole>
+
+      {open && (
+        <CeremonyModal
+          title="PR-48201 · build the purchase order"
+          subtitle="Approved by Intake · BeltPro Industrial · $48,200 · 2026-06-03"
+          context={<POContext />}
+          ceremony={{
+            agentLabel: "PO agent · building the order",
+            steps: [
+              "Reading approved requisition PR-48201",
+              "Binding to BeltPro framework 4600001207 · item 10",
+              "Pricing the line from contract conditions — −8% vs list",
+              "Checking budget headroom — cost center 0000041702",
+              "Populating PO fields · compliance check vs contract",
+              "Drafting purchase order PO-77310",
+            ],
+            doneSummary: (
+              <>
+                Contract-bound · <span className="font-bold">$48,200</span> net at −8% · within budget headroom and
+                the L2 limit. PO-77310 drafted and ready to post to SAP.
+              </>
+            ),
+            document: <PurchaseOrder />,
+            footerIntro: "The agent will bind contract terms, price the line, budget-check and populate every PO field.",
+            approveLabel: "Approve & post to SAP",
+          }}
+          onClose={() => setOpen(false)}
+          onDecide={decide}
+        />
+      )}
+    </>
+  );
+}
