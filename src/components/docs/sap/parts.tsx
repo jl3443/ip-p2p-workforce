@@ -9,7 +9,9 @@
  */
 
 import * as React from "react";
+import { Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { exportElementAsHtml, fileStem } from "@/lib/exportDoc";
 
 /** SAP display field — label above a read-only boxed value, as in a GUI form. */
 export function Field({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
@@ -54,6 +56,10 @@ export function DocTitleBand({
   createdOn: string;
   createdBy: string;
 }) {
+  const onExport = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const shell = (e.currentTarget as HTMLElement).closest("[data-doc-shell]") as HTMLElement | null;
+    if (shell) exportElementAsHtml(shell, `${fileStem(number)}.html`);
+  };
   return (
     <div className="bg-[#354a5f] text-white px-4 py-3 flex items-start justify-between gap-4">
       <div className="leading-tight">
@@ -65,10 +71,21 @@ export function DocTitleBand({
         </div>
         <div className="text-[11px] opacity-80 mt-1">{docType}</div>
       </div>
-      <div className="text-right text-[11px] opacity-85 leading-snug shrink-0">
-        <div>{system}</div>
-        <div className="mt-0.5">Created {createdOn}</div>
-        <div className="mt-0.5">by {createdBy}</div>
+      <div className="flex items-start gap-3 shrink-0">
+        <div className="text-right text-[11px] opacity-85 leading-snug">
+          <div>{system}</div>
+          <div className="mt-0.5">Created {createdOn}</div>
+          <div className="mt-0.5">by {createdBy}</div>
+        </div>
+        <button
+          type="button"
+          data-export-control
+          onClick={onExport}
+          title="Export this document"
+          className="ui-pill inline-flex items-center gap-1.5 rounded bg-white/15 hover:bg-white/25 text-white text-[11px] font-medium px-2.5 py-1.5 shrink-0"
+        >
+          <Download size={13} strokeWidth={2} /> Export
+        </button>
       </div>
     </div>
   );
@@ -76,5 +93,9 @@ export function DocTitleBand({
 
 /** Wrapper that gives a document the white card + rounded border shell. */
 export function DocShell({ children }: { children: React.ReactNode }) {
-  return <div className="bg-white border border-divider rounded-md overflow-hidden">{children}</div>;
+  return (
+    <div data-doc-shell className="bg-white border border-divider rounded-md overflow-hidden">
+      {children}
+    </div>
+  );
 }
