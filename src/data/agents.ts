@@ -1,8 +1,10 @@
 /**
- * Agent catalog — the authoritative spec for the 7 specialist agents and the
- * orchestrator, transcribed from the TCS → IP procure-to-pay workforce brief.
- * Every agent surface (work-menu pages, cockpit fleet, belt-run accountability)
- * reads from here so names, stats and autonomy levels stay consistent.
+ * Agent catalog — the authoritative spec for the five specialist agents and the
+ * orchestrator that make up IP's 6-tower procure-to-pay workforce: PR Processing ·
+ * Tactical & Spot Buying · PO Management · Invoice Resolution · MDM Support, with
+ * the orchestrator owning Reporting & CI. Transcribed from the TCS → IP brief and
+ * aligned to the official scope deck. Every agent surface (work-menu pages, cockpit
+ * fleet, run accountability) reads from here so names and autonomy stay consistent.
  */
 
 import type { LucideIcon } from "lucide-react";
@@ -10,10 +12,8 @@ import {
   Inbox,
   Search,
   FileText,
-  Truck,
   ReceiptText,
   Building2,
-  MessagesSquare,
   Workflow,
 } from "lucide-react";
 
@@ -21,10 +21,8 @@ export type AgentId =
   | "intake"
   | "sourcing"
   | "po"
-  | "fulfillment"
   | "invoice"
   | "vendor"
-  | "helpdesk"
   | "orchestrator";
 
 export type AgentStatus = "running" | "review" | "idle";
@@ -66,11 +64,11 @@ export type AgentSpec = {
 export const agents: AgentSpec[] = [
   {
     id: "intake",
-    name: "Intake Agent",
-    menuLabel: "Intake",
+    name: "PR Processing Agent",
+    menuLabel: "PR processing",
     icon: Inbox,
     purpose:
-      "Turns an employee's plain-language need into a structured, compliant purchase requisition routed through LevelPath.",
+      "Turns an employee's plain-language need into a structured, compliant purchase requisition — PR gatekeeping, compliance checks and approval routing through LevelPath.",
     inputs: [
       "Employee request (chat, email or LevelPath form)",
       "IP category tree and spending policy",
@@ -101,8 +99,8 @@ export const agents: AgentSpec[] = [
   },
   {
     id: "sourcing",
-    name: "Tactical Sourcing & Spot-Buy Agent",
-    menuLabel: "Sourcing",
+    name: "Tactical & Spot Buying Agent",
+    menuLabel: "Spot buying",
     icon: Search,
     purpose:
       "Runs operational tactical buying within thresholds — auto-RFQs, three-bid mini-tenders and spot buys — while strategic categories escalate to human sourcing managers.",
@@ -136,24 +134,24 @@ export const agents: AgentSpec[] = [
   },
   {
     id: "po",
-    name: "Purchase Order Agent",
-    menuLabel: "Purchase orders",
+    name: "PO Management Agent",
+    menuLabel: "PO management",
     icon: FileText,
     purpose:
-      "Creates the purchase order from an approved requisition, binds it to contract terms, routes it for approval and posts it to SAP.",
+      "Owns the purchase order end-to-end — creates it from an approved requisition, binds it to contract terms, posts it to SAP, then monitors, follows up and expedites open orders to on-time delivery.",
     inputs: [
       "Approved PR",
       "Selected supplier and contract",
       "Contract terms (price, lead time, quality, payment, SLAs)",
       "Real-time budget headroom",
-      "Historical PO patterns for the supplier",
+      "Supplier acknowledgements, shipment status and open-order ageing",
     ],
     outputs: [
       "Contract-bound PO with every required field populated",
       "Compliance check — PO vs contract terms and budget",
       "Approval workflow routed to the right approvers",
-      "Posted to SAP on final approval",
-      "Supplier-facing PO transmission on the approved channel",
+      "Posted to SAP and transmitted to the supplier on the approved channel",
+      "Expedite worklist + status chases on orders at risk of late delivery",
     ],
     tech: ["GenAI contract-PO alignment", "Structured workflow", "SAP API", "LevelPath orchestration"],
     autonomy: 2,
@@ -164,51 +162,18 @@ export const agents: AgentSpec[] = [
       "Contract-term deviation",
       "Budget over-run",
       "Supplier not in the master",
-      "Foreign-currency exposure",
+      "Confirmed late delivery or quality hold",
     ],
     stat: "210 orders",
     status: "running",
   },
   {
-    id: "fulfillment",
-    name: "Fulfillment & Expediting Agent",
-    menuLabel: "Fulfillment",
-    icon: Truck,
-    purpose:
-      "Tracks open orders to on-time delivery, expedites slipping orders and prompts requestors to confirm service completion.",
-    inputs: [
-      "PO and contracted delivery schedule (SAP)",
-      "Supplier acknowledgements and shipment status",
-      "Open-order ageing",
-      "Service-completion status from requestors",
-    ],
-    outputs: [
-      "Prioritized expedite worklist (orders at risk of late delivery)",
-      "Auto-drafted status-chase notes to suppliers",
-      "Delivery-discrepancy flags routed to the right owner",
-      "Service-completion prompts so goods receipt posts on time",
-      "On-time-delivery and ageing signal to the orchestrator",
-    ],
-    tech: ["GenAI supplier comms", "ML delivery-risk prediction", "SAP MM / SRM APIs"],
-    autonomy: 4,
-    autonomyRule:
-      "Auto-sends the status chase and logs it once an order passes its ship milestone with the supplier on an approved channel — otherwise it surfaces a recommended action to the buyer.",
-    escalation: [
-      "Confirmed late delivery beyond terms",
-      "Quality hold",
-      "Repeated supplier non-response",
-      "Supply-risk on a critical line",
-    ],
-    stat: "1,940 open lines",
-    status: "running",
-  },
-  {
     id: "invoice",
-    name: "Invoice Resolution & Match Agent",
-    menuLabel: "Invoices",
+    name: "Invoice Resolution Agent",
+    menuLabel: "Invoice resolution",
     icon: ReceiptText,
     purpose:
-      "Resolves procurement-side invoice blocks and runs three- and four-way matching across contract, PO, goods receipt and invoice; clean items release to AP, exceptions get a classified fix.",
+      "Resolves procurement-side invoice blocks, runs the four-way match across contract, PO, goods receipt and invoice, and manages buyer and supplier queries on those blocks; clean items release to AP, exceptions get a classified fix.",
     inputs: [
       "Invoice (PDF, EDI, portal or scanned paper)",
       "Matching PO and goods receipt",
@@ -221,7 +186,7 @@ export const agents: AgentSpec[] = [
       "Four-way match result — contract, PO, goods receipt, invoice",
       "Clean invoices posted to SAP and scheduled for payment",
       "Exception root-cause + proposed resolution + draft note",
-      "Fraud score and anomaly flags",
+      "Auto-resolved buyer / supplier / AP queries on the block, with the cited policy",
     ],
     tech: ["Document intelligence (IDP)", "GenAI for unstructured fields", "ML matching & fraud", "Viki LLM", "SAP API"],
     autonomy: 3,
@@ -232,7 +197,7 @@ export const agents: AgentSpec[] = [
       "Low extraction confidence",
       "Fraud signal",
       "Dispute history with the supplier",
-      "Regulatory flag (sanctions, tax)",
+      "Query beyond invoice authority (master-data or PO change)",
     ],
     stat: "91% matched",
     status: "review",
@@ -240,11 +205,11 @@ export const agents: AgentSpec[] = [
   },
   {
     id: "vendor",
-    name: "Vendor Master & Records Agent",
-    menuLabel: "Vendor master",
+    name: "MDM Support Agent",
+    menuLabel: "Master data",
     icon: Building2,
     purpose:
-      "Continuously maintains vendor-master quality — detecting duplicates, flagging risk and proposing merges — and keeps purchasing-info records aligned on price, source lists and contracts.",
+      "Master-data management for procurement — maintains vendor-master quality (duplicates, risk, merges), processes add/change requests, and keeps purchasing-info records (PIR) and item pricing aligned to contracts and source lists.",
     inputs: [
       "Live vendor master (SAP)",
       "Vendor onboarding requests",
@@ -275,47 +240,12 @@ export const agents: AgentSpec[] = [
     note: "Directly attacks the DS Smith duplicate-vendor problem (TCS estimate: 30–40% duplicates) — part of unlocking $117M of IP's $514M DS Smith synergy target.",
   },
   {
-    id: "helpdesk",
-    name: "Procurement Helpdesk Agent",
-    menuLabel: "Helpdesk",
-    icon: MessagesSquare,
-    purpose:
-      "Resolves first-line buyer and supplier questions inside the workflow — deflecting repetitive tickets and cutting response time across the procurement helpdesk.",
-    inputs: [
-      "Inbound query (email, portal, ServiceNow, chat)",
-      "PR / PO / invoice context (SAP, Ariba, LevelPath)",
-      "Policy, SOP and FAQ knowledge base",
-      "Supplier and contract records",
-      "Open-ticket history and SLA targets",
-    ],
-    outputs: [
-      "Auto-resolution for known queries with the cited policy",
-      "Draft response for the analyst to approve on judgment calls",
-      "Ticket classification, priority and routing",
-      "Deflection and first-response-time metrics",
-      "Knowledge-gap flags where the base needs updating",
-    ],
-    tech: ["GenAI + retrieval over the policy base", "Viki LLM + graph", "ServiceNow / SAP / Ariba"],
-    autonomy: 4,
-    autonomyRule:
-      "Auto-resolves and closes known query types above 0.9 confidence with the cited policy — otherwise it drafts a response or routes to the owning agent.",
-    escalation: [
-      "Low confidence",
-      "Policy exception",
-      "Dispute",
-      "VIP / strategic supplier",
-      "Master-data or PO change beyond helpdesk authority",
-    ],
-    stat: "523 chats",
-    status: "running",
-  },
-  {
     id: "orchestrator",
     name: "P2P Process Orchestrator",
     menuLabel: "Orchestrator",
     icon: Workflow,
     purpose:
-      "Coordinates the seven agents end-to-end — managing handoffs, keeping shared context and routing exceptions — and owns reporting and continuous improvement.",
+      "Coordinates the five specialist agents end-to-end — managing handoffs, keeping shared context and routing exceptions — and owns the Reporting & CI tower (process reporting and continuous improvement).",
     inputs: [
       "Every agent's output and state",
       "Process-level policies and SLAs",
@@ -348,5 +278,5 @@ export const agentsById: Record<AgentId, AgentSpec> = agents.reduce(
   {} as Record<AgentId, AgentSpec>,
 );
 
-/** The seven specialists, in pipeline order (orchestrator excluded). */
+/** The five specialists, in pipeline order (orchestrator excluded). */
 export const specialistAgents: AgentSpec[] = agents.filter((a) => a.id !== "orchestrator");

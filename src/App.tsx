@@ -7,10 +7,8 @@ import { DocView } from "@/views/DocView";
 import { IntakeConsole } from "@/views/IntakeConsole";
 import { SourcingConsole } from "@/views/SourcingConsole";
 import { POConsole } from "@/views/POConsole";
-import { FulfillmentConsole } from "@/views/FulfillmentConsole";
 import { InvoiceConsole } from "@/views/InvoiceConsole";
 import { VendorConsole } from "@/views/VendorConsole";
-import { HelpdeskConsole } from "@/views/HelpdeskConsole";
 import { OrchestratorConsole } from "@/views/OrchestratorConsole";
 
 function Router() {
@@ -31,14 +29,10 @@ function Router() {
           return <SourcingConsole />;
         case "po":
           return <POConsole />;
-        case "fulfillment":
-          return <FulfillmentConsole />;
         case "invoice":
           return <InvoiceConsole />;
         case "vendor":
           return <VendorConsole />;
-        case "helpdesk":
-          return <HelpdeskConsole />;
         case "orchestrator":
           return <OrchestratorConsole />;
       }

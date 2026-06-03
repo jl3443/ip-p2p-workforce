@@ -38,13 +38,12 @@ const sections: Section[] = [
       agentItem("intake"),
       agentItem("sourcing"),
       agentItem("po"),
-      agentItem("fulfillment"),
       agentItem("invoice"),
     ],
   },
   {
-    title: "Suppliers",
-    items: [agentItem("vendor"), agentItem("helpdesk")],
+    title: "Master data",
+    items: [agentItem("vendor")],
   },
   {
     title: "System",

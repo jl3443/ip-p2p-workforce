@@ -103,7 +103,7 @@ export function AiWorkspacePanel({
           </span>
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.08em] text-mute font-medium leading-none">
-              Step {step.n} · AI workspace
+              Step {step.n} · Process run
             </div>
             <div className="text-[15px] font-bold text-ink leading-tight mt-0.5 truncate">
               {agent.name}

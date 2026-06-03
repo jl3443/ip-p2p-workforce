@@ -413,7 +413,7 @@ export function KbArticleDoc() {
         docType="Knowledge article"
         system="ServiceNow KB"
         createdOn="rev. 2026-04"
-        createdBy="Procurement Helpdesk"
+        createdBy="Invoice Resolution"
       />
       <SectionBand>Checking the status of an MRO purchase order</SectionBand>
       <div className="px-4 py-3 space-y-2.5">
@@ -424,7 +424,7 @@ export function KbArticleDoc() {
         <ul className="text-[12.5px] text-ink leading-relaxed space-y-1.5 pl-1">
           <li>· On-contract MRO orders deliver within the framework lead time on the agreement.</li>
           <li>· If the confirmed date is on or before the requested date, no expedite is needed.</li>
-          <li>· The Fulfillment agent monitors the order and alerts the requestor if the date slips.</li>
+          <li>· The PO management agent monitors the order and alerts the requestor if the date slips.</li>
         </ul>
       </div>
     </DocShell>

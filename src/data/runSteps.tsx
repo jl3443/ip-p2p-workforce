@@ -1,16 +1,17 @@
 /**
- * The belt run — five gated agent steps in process order.
+ * The belt run — four gated agent steps in process order.
  *
  * Each step is one specialist agent doing its job on the same double-backer-belt
  * transaction: it reads upstream evidence (clickable source files), streams its
  * reasoning, produces a faithful SAP artifact, and pauses for a human decision
  * (approve · pending · escalate · reject). Approve hands the output to the next
- * agent. Two steps run an email round-trip (Sourcing's RFQ, Fulfillment's status
- * chase) whose reply lands as a new source card.
+ * agent. Two steps run an email round-trip (Sourcing's RFQ, Invoice's remittance
+ * advice) whose reply lands as a new source card.
  *
- * Process order — Intake → Sourcing → PO → Fulfillment → Invoice. Data is lifted
- * from the agents' own console ceremonies so the run and the desks stay in
- * lockstep.
+ * Process order — PR Processing → Sourcing → PO management → Invoice. PO
+ * management owns expediting, and the goods receipt is plant-posted evidence the
+ * Invoice agent matches against. Data is lifted from the agents' own console
+ * ceremonies so the run and the desks stay in lockstep.
  */
 
 import * as React from "react";
@@ -27,8 +28,6 @@ import {
   BudgetDoc,
   SupplierPoolDoc,
   VendorRecordDoc,
-  EdiAsnDoc,
-  DeliveryNoteDoc,
   VendorInvoiceDoc,
 } from "@/components/docs/sources";
 
@@ -555,101 +554,11 @@ const poStep: RunStep = {
   ],
 };
 
-/* ── Step 4 · Fulfillment — GR-77310 ─────────────────────────────────────── */
-
-const fulfillmentStep: RunStep = {
-  id: "fulfillment",
-  n: 4,
-  title: "Fulfillment & expediting",
-  sub: "Tracks to delivery and posts the goods receipt",
-  reasoning: [
-    "Tracking PO-77310 against the contracted date 2026-06-10",
-    "Chasing the supplier for a ship confirmation",
-    "Receiving the ASN — shipped 06-08, ETA 06-09",
-    "Prompting the requestor to confirm receipt",
-    "Posting goods receipt GR-77310 (movement 101) to the Maintenance store",
-  ],
-  docLabel: "GR-77310 · Goods receipt",
-  document: <GoodsReceipt />,
-  sources: [
-    {
-      id: "po-handoff",
-      label: "PO-77310",
-      meta: "from PO agent · SAP ME23N",
-      kind: "sap",
-      handoff: true,
-      body: <PurchaseOrder />,
-    },
-    {
-      id: "delivery-note",
-      label: "Delivery note",
-      meta: "BPI-DN-5567",
-      kind: "sap",
-      body: <DeliveryNoteDoc />,
-    },
-  ],
-  email: {
-    cta: "Send a status chase to BeltPro",
-    to: "BeltPro Industrial · dispatch@beltpro.com",
-    subject: "PO-77310 — ship confirmation for 88-DBX",
-    lines: [
-      "Confirming the ship date for PO-77310 (1 EA 88-DBX), contracted delivery 2026-06-10 to International Paper M042.",
-      "Please send the ASN and tracking so we can stage the maintenance window. Thanks.",
-    ],
-    toastTitle: "ASN received",
-    toastBody: "BeltPro confirmed shipment — EDI 856 added to your sources.",
-    reply: {
-      from: "BeltPro Industrial",
-      receivedMeta: "EDI 856 · 11:42",
-      subject: "ASN — PO-77310 shipped",
-      lines: [
-        "Shipped 2026-06-08 via FedEx Freight (PRO 4471), BOL MEMPHIS-4471-2026. ETA 2026-06-09 — one day ahead of contract.",
-        "Advance ship notice transmitted as EDI 856.",
-      ],
-      source: {
-        id: "asn-edi",
-        label: "ASN · EDI 856",
-        meta: "received 11:42",
-        kind: "edi",
-        body: <EdiAsnDoc />,
-      },
-    },
-  },
-  recommendation:
-    "Belt received and inspected OK, posted to unrestricted-use stock at MNT1. On time, ahead of the maintenance window.",
-  stages: [
-    {
-      sourceId: "po-handoff",
-      reasoning: "Tracking PO-77310 against the contracted date 2026-06-10",
-      title: "Receipt header",
-      fields: [
-        { label: "Movement type", value: "101 · GR goods receipt for PO" },
-        { label: "PO reference", value: "PO-77310 · item 10" },
-        { label: "Delivery note", value: "BPI-DN-5567" },
-        { label: "Posting date", value: "2026-06-09" },
-        { label: "Document date", value: "2026-06-09" },
-      ],
-    },
-    {
-      sourceId: "delivery-note",
-      reasoning: "Posting goods receipt GR-77310 (movement 101) to the Maintenance store",
-      title: "Where — stock posting",
-      fields: [
-        { label: "Material", value: "88-DBX · 1 EA" },
-        { label: "Plant", value: "M042 · Containerboard mill" },
-        { label: "Storage location", value: "MNT1 · Maintenance store" },
-        { label: "Stock type", value: "Unrestricted use" },
-        { label: "OK indicator", value: "Inspected OK · 1 of 1 received" },
-      ],
-    },
-  ],
-};
-
-/* ── Step 5 · Invoice — INV-BPI-5567 ─────────────────────────────────────── */
+/* ── Step 4 · Invoice — INV-BPI-5567 ─────────────────────────────────────── */
 
 const invoiceStep: RunStep = {
   id: "invoice",
-  n: 5,
+  n: 4,
   title: "Invoice match & release",
   sub: "Four-way matches and releases to AP",
   reasoning: [
@@ -679,9 +588,8 @@ const invoiceStep: RunStep = {
     {
       id: "gr-match",
       label: "GR-77310",
-      meta: "from Fulfillment · MIGO",
+      meta: "SAP MIGO · plant-posted",
       kind: "sap",
-      handoff: true,
       body: <GoodsReceipt />,
     },
     {
@@ -739,6 +647,5 @@ export const runSteps: RunStep[] = [
   intakeStep,
   sourcingStep,
   poStep,
-  fulfillmentStep,
   invoiceStep,
 ];

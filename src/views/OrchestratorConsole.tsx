@@ -16,7 +16,7 @@ import { CardHeader } from "@/components/agents/ConsoleKit";
  * P2P Process Orchestrator console.
  *
  * The coordinator — no autonomy dial, no ceremony. It keeps shared context
- * across the seven agents, sequences handoffs and routes the few exceptions a
+ * across the five agents, sequences handoffs and routes the few exceptions a
  * person must own. Data surface: process metrics · the live agent-flow map ·
  * each agent's current output state · the cross-agent exception queue · chat.
  * ────────────────────────────────────────────────────────────────────────── */
@@ -51,7 +51,7 @@ const chatScript: ChatTurn[] = [
       {
         kind: "agent",
         tone: "mint",
-        text: "I'm the P2P Process Orchestrator — I sequence the seven agents, keep shared context and route the exceptions that need you. Ask me where things stand.",
+        text: "I'm the P2P Process Orchestrator — I sequence the five agents, keep shared context and route the exceptions that need you. Ask me where things stand.",
         children: (
           <div className="text-[12.5px] text-ink leading-[19px]">
             <div className="text-mute mb-1">For example —</div>
@@ -142,7 +142,7 @@ function PipelineStatusPanel() {
   const { agentOutputs, go } = useApp();
   return (
     <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Pipeline status · live" right={<span className="text-[11px] text-mute">7 agents</span>} />
+      <CardHeader label="Pipeline status · live" right={<span className="text-[11px] text-mute">5 agents</span>} />
       <div className="mt-3 divide-y divide-divider flex-1">
         {specialistAgents.map((a) => {
           const Icon = a.icon;
@@ -229,7 +229,7 @@ export function OrchestratorConsole() {
             <div className="min-w-0">
               <div className="text-[13px] font-bold text-ink">See the workforce in the live run</div>
               <p className="text-[12px] text-mute leading-snug mt-0.5">
-                The orchestrator sequences all seven agents and routes the one decision to you.
+                The orchestrator sequences all five agents and routes the one decision to you.
               </p>
             </div>
             <PillButton variant="deep" size="sm" arrow onClick={() => go({ kind: "workspace", flow: "belt" })}>

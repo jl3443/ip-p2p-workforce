@@ -4,7 +4,8 @@ import { agentsById, type AgentId } from "@/data/agents";
 import { AIDot } from "@/components/ai/AIDot";
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Agent-flow diagram — the orchestrator's live map of the 7+1 workforce.
+ * Agent-flow diagram — the orchestrator's live map of the 6-tower workforce
+ * (five specialist agents + the orchestrator that owns Reporting & CI).
  *
  * HTML nodes (clickable → each agent's page) sit on top of an SVG connector
  * layer in a fixed 1200×470 coordinate space. The container holds that aspect
@@ -32,13 +33,12 @@ function node(cx: number, cy: number, w: number, h: number): CSSProperties {
 
 type Stage = { id: AgentId; n: number; cx: number; auto: string; esc: string };
 
-// The 5-stage core pipeline, evenly spaced (cx step = 194).
+// The 4-stage core pipeline (PR → Sourcing → PO management → Invoice), evenly spaced.
 const STAGES: Stage[] = [
-  { id: "intake", n: 1, cx: 118, auto: "On-contract · under limit", esc: "Else → approver" },
-  { id: "sourcing", n: 2, cx: 312, auto: "Routine buy · under limit", esc: "Strategic / new → manager" },
-  { id: "po", n: 3, cx: 506, auto: "Compliant + budget", esc: "Deviation / over → you" },
-  { id: "fulfillment", n: 4, cx: 700, auto: "On-time delivery", esc: "Late / discrepancy → expedite" },
-  { id: "invoice", n: 5, cx: 894, auto: "Clean match > 0.95", esc: "Exception → analyst" },
+  { id: "intake", n: 1, cx: 140, auto: "On-contract · under limit", esc: "Else → approver" },
+  { id: "sourcing", n: 2, cx: 370, auto: "Routine buy · under limit", esc: "Strategic / new → manager" },
+  { id: "po", n: 3, cx: 600, auto: "Compliant + on-time", esc: "Over limit / late → you" },
+  { id: "invoice", n: 4, cx: 830, auto: "Clean match > 0.95", esc: "Exception → analyst" },
 ];
 
 const STAGE_CY = 170;
@@ -48,11 +48,10 @@ const STAGE_BOTTOM = STAGE_CY + STAGE_H / 2; // 223
 
 // Horizontal green links between consecutive stages, plus invoice → release.
 const greenLinks = [
-  [197, 233],
-  [391, 427],
-  [585, 621],
-  [779, 815],
-  [973, 1026],
+  [224, 286],
+  [454, 516],
+  [684, 746],
+  [914, 1006],
 ];
 
 function StageNode({ stage }: { stage: Stage }) {
@@ -137,7 +136,7 @@ export function AgentFlowDiagram() {
           Agent flow
         </span>
         <span className="text-[10px] font-bold text-surface-deep bg-surface-mint px-2 py-0.5 rounded-full">
-          7 agents + orchestrator
+          5 agents + orchestrator
         </span>
         <span className="ml-auto text-[11px] text-mute">Click any agent to open its page</span>
       </header>
@@ -196,12 +195,11 @@ export function AgentFlowDiagram() {
               />
             ))}
 
-            {/* Dashed support — always-on agents feed the pipeline */}
+            {/* Dashed support — the always-on MDM agent feeds the pipeline */}
             {[
-              "M360 371 C 280 330, 170 290, 118 225",
-              "M360 371 C 520 320, 760 300, 894 225",
-              "M846 371 C 800 330, 740 290, 700 225",
-              "M846 371 C 720 320, 560 300, 506 225",
+              "M600 371 C 420 330, 230 285, 140 225",
+              "M600 371 C 540 330, 620 285, 600 225",
+              "M600 371 C 780 330, 940 285, 830 225",
             ].map((d) => (
               <path
                 key={d}
@@ -234,7 +232,7 @@ export function AgentFlowDiagram() {
 
           {/* Release to AP — terminal outcome */}
           <div
-            style={node(1090, STAGE_CY, 128, 72)}
+            style={node(1075, STAGE_CY, 128, 72)}
             className="absolute z-10 flex flex-col items-center justify-center rounded-md bg-surface-deep text-ink-inverse px-2 text-center"
           >
             <span className="text-[12.5px] font-bold leading-tight">Release to AP</span>
@@ -255,16 +253,11 @@ export function AgentFlowDiagram() {
             <span className="text-[11px] font-bold text-surface-deep">Open the run ↗</span>
           </button>
 
-          {/* Always-on support agents */}
+          {/* Always-on support agent — MDM feeds every stage */}
           <SupportNode
             id="vendor"
-            cx={360}
-            blurb="Dedupes the vendor master and flags risk — feeds every stage."
-          />
-          <SupportNode
-            id="helpdesk"
-            cx={846}
-            blurb="Answers buyer and supplier questions alongside the run."
+            cx={600}
+            blurb="MDM Support — dedupes the vendor master, keeps PIR & pricing aligned, feeds every stage."
           />
         </div>
       </div>

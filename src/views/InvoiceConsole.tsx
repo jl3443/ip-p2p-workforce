@@ -8,7 +8,7 @@ import {
   VendorRecordDoc,
   ExternalMatchDoc,
 } from "@/components/docs/sources";
-import { DataTable } from "@/components/blocks/DataTable";
+import { DataTable, CellTag } from "@/components/blocks/DataTable";
 import {
   AgentConsole,
   CardHeader,
@@ -21,12 +21,13 @@ import {
 import type { ChatTurn } from "@/components/agents/AgentChat";
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Invoice Resolution & Match Agent console.
+ * Invoice Resolution Agent console.
  *
- * Resolves procurement-side invoice blocks and runs the four-way match across
- * contract · PO · goods receipt · invoice. Data surface: IDP extraction with
- * confidence · the four match sources · supplier remittance master · fraud and
- * anomaly signal. The ceremony posts INV-BPI-5567 and releases it to AP.
+ * Resolves procurement-side invoice blocks, runs the four-way match across
+ * contract · PO · goods receipt · invoice, and manages buyer/supplier/AP queries
+ * on those blocks. Data surface: IDP extraction with confidence · the four match
+ * sources · supplier remittance master · fraud signal · query deflection. The
+ * ceremony posts INV-BPI-5567 and releases it to AP.
  * ────────────────────────────────────────────────────────────────────────── */
 
 const queue: QueueItem[] = [
@@ -274,6 +275,35 @@ function FraudPanel() {
   );
 }
 
+type Query = { id: string; q: string; status: string; tone: "sage" | "neutral" };
+const queries: Query[] = [
+  { id: "PRC-3322", q: "When does the No.2 double-backer belt arrive?", status: "Auto-resolved · KB-PROC-0148", tone: "sage" },
+  { id: "PRC-3316", q: "Why is invoice INV-ADS-4419 on hold?", status: "Routed to fraud review", tone: "neutral" },
+  { id: "PRC-3309", q: "Has BeltPro invoice BPI-5567 been paid?", status: "Auto-resolved · remittance sent", tone: "sage" },
+];
+
+function QueriesPanel() {
+  return (
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader
+        label="Buyer & supplier queries · on the block"
+        right={<span className="text-[11px] text-mute">71% deflected · 2m first response</span>}
+      />
+      <div className="mt-4">
+        <DataTable
+          rows={queries}
+          rowKey={(r) => r.id}
+          columns={[
+            { header: "Ticket", className: "w-28", cell: (r) => <span className="font-semibold text-surface-deep tabular-nums">{r.id}</span> },
+            { header: "Query", cell: (r) => r.q },
+            { header: "Resolution", align: "right", cell: (r) => <CellTag tone={r.tone}>{r.status}</CellTag> },
+          ]}
+        />
+      </div>
+    </article>
+  );
+}
+
 function InvoiceContext() {
   return (
     <div className="rounded-md border border-divider bg-surface-fog/60 px-4 py-3">
@@ -305,6 +335,7 @@ export function InvoiceConsole() {
         <MatchSourcesPanel />
         <RemittancePanel />
         <FraudPanel />
+        <QueriesPanel />
       </AgentConsole>
 
       {open && (

@@ -69,7 +69,7 @@ export const pipelineStages: PipelineStage[] = [
   { n: 1, name: "Requisitions", agent: "intake", volume: "142 today", detail: "118 auto-submitted", status: "running" },
   { n: 2, name: "Sourcing & RFQ", agent: "sourcing", volume: "38 tenders", detail: "6 need sign-off", status: "review" },
   { n: 3, name: "Purchase orders", agent: "po", volume: "210 issued", detail: "94% on-contract", status: "running" },
-  { n: 4, name: "Expediting", agent: "fulfillment", volume: "1,940 open", detail: "47 chased today", status: "running" },
+  { n: 4, name: "Expediting", agent: "po", volume: "1,940 open", detail: "47 chased today", status: "running" },
   { n: 5, name: "Invoice match", agent: "invoice", volume: "1,610 matched", detail: "22 on hold", status: "review" },
   { n: 6, name: "Payment ready", agent: null, volume: "188 scheduled", detail: "$4.6M to Treasury", status: "idle" },
 ];
@@ -143,10 +143,10 @@ export type ChaseRow = {
 
 export const expediting = {
   rows: [
-    { id: "PO-76840", subject: "Winder drum motor", action: "Sent expedite note #2 to supplier", lateLabel: "4 days late", amount: "$48K", tone: "critical", target: { kind: "agent", id: "fulfillment" } },
-    { id: "PO-76980", subject: "Roll wrapping film", action: "Chasing supplier acknowledgement", lateLabel: "2 days late", amount: "$128K", tone: "high", target: { kind: "agent", id: "fulfillment" } },
-    { id: "INV-55012", subject: "Late freight invoice", action: "Requested proof of delivery", lateLabel: "6 days open", amount: "$31K", tone: "high", target: { kind: "agent", id: "fulfillment" } },
-    { id: "PO-75540", subject: "MRO bearings", action: "Short 12 units · flagged to buyer", lateLabel: "3 days late", amount: "$9.4K", tone: "medium", target: { kind: "agent", id: "fulfillment" } },
+    { id: "PO-76840", subject: "Winder drum motor", action: "Sent expedite note #2 to supplier", lateLabel: "4 days late", amount: "$48K", tone: "critical", target: { kind: "agent", id: "po" } },
+    { id: "PO-76980", subject: "Roll wrapping film", action: "Chasing supplier acknowledgement", lateLabel: "2 days late", amount: "$128K", tone: "high", target: { kind: "agent", id: "po" } },
+    { id: "INV-55012", subject: "Late freight invoice", action: "Requested proof of delivery", lateLabel: "6 days open", amount: "$31K", tone: "high", target: { kind: "agent", id: "po" } },
+    { id: "PO-75540", subject: "MRO bearings", action: "Short 12 units · flagged to buyer", lateLabel: "3 days late", amount: "$9.4K", tone: "medium", target: { kind: "agent", id: "po" } },
   ] as ChaseRow[],
   footer: "$216K at risk being worked · 47 chases auto-sent today · 9 cleared",
 };

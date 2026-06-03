@@ -2,7 +2,7 @@
  * Faithful SAP MIGO-style goods-receipt material document (movement type 101,
  * GR for purchase order). Header (posting/document date · delivery note ·
  * bill of lading), item with PO reference, movement type, quantity in receipt
- * UoM, plant, storage location and the stock-type posting. The Fulfillment
+ * UoM, plant, storage location and the stock-type posting. The PO management
  * agent posts this once the belt is received — it hands GR-77310 to Invoice.
  */
 
@@ -37,7 +37,7 @@ export const grBelt: SapGR = {
   number: "GR-77310 · 5000031882",
   status: "Posted",
   createdOn: "2026-06-09 · 07:42",
-  createdBy: "Fulfillment Agent",
+  createdBy: "PO Management Agent",
   movementType: "101 · GR goods receipt for PO",
   postingDate: "2026-06-09",
   documentDate: "2026-06-09",

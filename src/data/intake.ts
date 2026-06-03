@@ -16,7 +16,7 @@ export type IntakeEmail = {
   unread: boolean;
   flagged?: boolean;
   priority?: "high" | "normal";
-  /** Tag shown on already-handled mail (Helpdesk-resolved, routed, etc.). */
+  /** Tag shown on already-handled mail (query-resolved, routed, etc.). */
   handledTag?: string;
   /** Only the live request runs the AI-analysis → requisition ceremony. */
   actionable?: boolean;
@@ -43,7 +43,7 @@ export const intakeInbox: IntakeEmail[] = [
   },
   {
     id: "mail-gloves",
-    from: "Procurement Helpdesk",
+    from: "Invoice Resolution",
     fromRole: "Ticket #PRC-3318",
     subject: "Re: Safety gloves reorder — auto-resolved",
     preview:
@@ -54,7 +54,7 @@ export const intakeInbox: IntakeEmail[] = [
     ],
     time: "08:42",
     unread: false,
-    handledTag: "Resolved by Helpdesk",
+    handledTag: "Auto-resolved · query",
   },
   {
     id: "mail-laptops",

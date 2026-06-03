@@ -2,9 +2,9 @@
  * Per-flow run registry — three distinct procure-to-pay transactions, each a
  * gated agent run the buyer can open from the cockpit.
  *
- *  ① belt    — happy path · runs clean to Paid (unchanged, imported as-is).
+ *  ① belt    — happy path · runs clean to Paid (PR → Sourcing → PO → Invoice).
  *  ② pump    — front-office exceptions · Intake → Sourcing → PO, blocked at PO.
- *  ③ gearbox — back-office exceptions · Fulfillment → Invoices, payment blocked.
+ *  ③ gearbox — back-office exceptions · PO management → Invoices, payment blocked.
  *
  * The exception flows reuse the same RunStep shape and the same prop-driven SAP
  * documents as the belt run — only the data and the recommended decision change.
@@ -384,7 +384,7 @@ const pumpPoStep: RunStep = {
 };
 
 /* ════════════════════════════════════════════════════════════════════════
- * ③ GEARBOX — back-office exceptions (Fulfillment · Invoices)
+ * ③ GEARBOX — back-office exceptions (PO management · Invoices)
  * Drive gearbox · Containerboard · Apex Drive Systems · PO-77642 · $72k · 2 EA
  * ════════════════════════════════════════════════════════════════════════ */
 
@@ -437,7 +437,7 @@ const grGearbox: SapGR = {
   number: "GR-77642 · 5000032914",
   status: "Partial · quality hold",
   createdOn: "2026-06-09 · 08:15",
-  createdBy: "Fulfillment Agent",
+  createdBy: "PO Management Agent",
   movementType: "101 · GR goods receipt for PO",
   postingDate: "2026-06-09",
   documentDate: "2026-06-09",
@@ -490,7 +490,7 @@ const gearboxCarrier = (
   <EmailDoc
     from="Apex Drive Systems"
     fromAddr="dispatch@apexdrives.com"
-    to="Fulfillment"
+    to="PO Management"
     sent="2026-06-09 · 07:50"
     subject="PO-77642 — one of two gearboxes damaged in transit"
     tone="inbound"
@@ -517,15 +517,15 @@ const gearboxBankChange = (
 );
 
 const gearboxFulfillmentStep: RunStep = {
-  id: "fulfillment",
+  id: "po",
   n: 1,
-  title: "Fulfillment — short delivery",
-  sub: "One of two units damaged — quality hold",
+  title: "PO management — short delivery",
+  sub: "Expediting PO-77642 · one of two units damaged — quality hold",
   reasoning: [
-    "Tracking PO-77642 against the contracted date 2026-06-09",
+    "Monitoring PO-77642 against the contracted date 2026-06-09",
     "Receiving the carrier notice — unit 2 damaged in transit",
-    "Inspecting on the dock — unit 1 sound, unit 2 housing cracked",
-    "Posting a partial goods receipt for 1 of 2 — quality hold on unit 2",
+    "Confirming on the dock — unit 1 sound, unit 2 housing cracked",
+    "Plant posts a partial goods receipt for 1 of 2 — quality hold on unit 2",
     "Raising a delivery discrepancy and prompting the buyer",
   ],
   docLabel: "GR-77642 · Goods receipt (partial)",
@@ -578,7 +578,7 @@ const gearboxInvoiceStep: RunStep = {
   document: <InvoiceMatch invoice={invGearbox} />,
   sources: [
     { id: "gbx-bank", label: "Bank-change email", meta: "Apex AR · 09:12", kind: "email", body: gearboxBankChange },
-    { id: "gr-gbx-handoff", label: "GR-77642", meta: "from Fulfillment · MIGO", kind: "sap", handoff: true, body: <GoodsReceipt gr={grGearbox} /> },
+    { id: "gr-gbx-handoff", label: "GR-77642", meta: "from PO management · MIGO", kind: "sap", handoff: true, body: <GoodsReceipt gr={grGearbox} /> },
   ],
   recommendation:
     "Bank detail changed to an unverified account and the receipt is short. Recommend reject and route to Supplier onboarding to re-verify before any payment.",
@@ -652,7 +652,7 @@ export const flowRuns: Record<FlowId, FlowRun> = {
     id: "belt",
     contextTitle: "Corrugator No.2 · double-backer belt",
     contextSub: "Maintenance flagged a worn belt at 9:01 AM · production-critical",
-    reviewPill: "Agent run · in review",
+    reviewPill: "Process run · in review",
     completeNote: "Run complete · invoice released to AP, audit envelope closed",
     steps: beltSteps,
     terminal: () => ({ label: "Paid · audit closed", kind: "ready" }),
@@ -662,7 +662,7 @@ export const flowRuns: Record<FlowId, FlowRun> = {
       routedTo: "Orchestrator",
       routedSub: "audit close",
       stats: [
-        { value: "5", label: "agents handed off" },
+        { value: "4", label: "agents handed off" },
         { value: "$48,200", label: "paid to AP" },
         { value: "4/4", label: "controls clear" },
       ],

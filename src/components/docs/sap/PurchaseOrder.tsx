@@ -6,7 +6,7 @@
  * Item overview table, Item detail (material group · plant · storage), a
  * Conditions block (gross price · discount · freight · net value) and the
  * Delivery schedule. Bound to the BeltPro framework — the PO agent's output,
- * handed to Fulfillment. Presentational — takes a `po`.
+ * posted and tracked through delivery. Presentational — takes a `po`.
  */
 
 import { DocShell, DocTitleBand, SectionBand, Field } from "./parts";

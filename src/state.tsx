@@ -92,10 +92,8 @@ const DEFAULT_THRESHOLD: Record<AgentId, number> = {
   intake: 5000,
   sourcing: 25000,
   po: 25000,
-  fulfillment: 50000,
   invoice: 10000,
   vendor: 0,
-  helpdesk: 0,
   orchestrator: 0,
 };
 

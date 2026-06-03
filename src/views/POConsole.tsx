@@ -16,12 +16,14 @@ import {
 import type { ChatTurn } from "@/components/agents/AgentChat";
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Purchase Order Agent console.
+ * PO Management Agent console.
  *
- * Reads an approved requisition, binds it to the contract, checks budget
- * headroom and drafts a contract-bound SAP PO. Data surface: approved-PR queue ·
- * selected supplier+contract · contract terms · budget-headroom bar · historical
- * PO patterns. The ceremony reveals PO-77310 and hands it to Fulfillment.
+ * Owns the order end-to-end: reads an approved requisition, binds it to the
+ * contract, checks budget headroom, drafts a contract-bound SAP PO, then
+ * monitors and expedites open orders to on-time delivery. Data surface:
+ * approved-PR queue · supplier+contract · contract terms · budget-headroom bar ·
+ * open-order expediting. The ceremony reveals PO-77310 and tracks it to the
+ * Invoice agent.
  * ────────────────────────────────────────────────────────────────────────── */
 
 const queue: QueueItem[] = [
@@ -73,7 +75,7 @@ const outputMeta: OutputMeta = {
   approved: {
     label: "Approved · posted to SAP",
     kind: "active",
-    note: "PO-77310 posted and handed to the Fulfillment agent for delivery tracking.",
+    note: "PO-77310 posted, tracked through delivery, and handed to the Invoice agent for matching.",
   },
   rejected: { label: "Rejected", kind: "critical", note: "PO-77310 was rejected — nothing posted." },
   escalated: { label: "Escalated", kind: "critical", note: "Routed to the buyer for approval with the draft PO attached." },
@@ -263,6 +265,39 @@ function HistoryPanel() {
   );
 }
 
+type Expedite = { po: string; item: string; status: string; due: string; tone: "ok" | "warn" | "risk" };
+const expediting: Expedite[] = [
+  { po: "PO-77310", item: "Double-backer belt 88-DBX", status: "Acknowledged · shipped, ETA on time", due: "On track", tone: "ok" },
+  { po: "PO-76840", item: "Winder drum motor", status: "Expedite note #2 sent to supplier", due: "4 days late", tone: "risk" },
+  { po: "PO-76980", item: "Roll wrapping film", status: "Chasing supplier acknowledgement", due: "2 days late", tone: "warn" },
+  { po: "PO-75540", item: "MRO bearings", status: "Short 12 units · flagged to buyer", due: "3 days late", tone: "warn" },
+];
+
+function ExpeditingPanel() {
+  const toneTag = { ok: "sage", warn: "amber", risk: "red" } as const;
+  return (
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader
+        label="Expediting · open orders to delivery"
+        right={<span className="text-[11px] text-mute">1,940 open · 47 chased today</span>}
+      />
+      <div className="mt-4">
+        <DataTable
+          rows={expediting}
+          rowKey={(e) => e.po}
+          highlight={(e) => e.po === "PO-77310"}
+          columns={[
+            { header: "Order", cell: (e) => <span className="font-semibold text-surface-deep">{e.po}</span> },
+            { header: "Item", cell: (e) => e.item },
+            { header: "Status", cell: (e) => <span className="text-mute">{e.status}</span> },
+            { header: "Delivery", align: "right", cell: (e) => <CellTag tone={toneTag[e.tone]}>{e.due}</CellTag> },
+          ]}
+        />
+      </div>
+    </article>
+  );
+}
+
 function POContext() {
   return (
     <div className={cn("rounded-md border border-divider bg-surface-fog/60 px-4 py-3")}>
@@ -298,6 +333,7 @@ export function POConsole() {
         <SupplierContractPanel />
         <ContractTermsPanel />
         <BudgetHeadroomPanel />
+        <ExpeditingPanel />
         <HistoryPanel />
       </AgentConsole>
 
