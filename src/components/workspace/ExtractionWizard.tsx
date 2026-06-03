@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Check, CornerUpRight, RotateCcw, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ai/Spinner";
 import { SpringIn } from "@/components/ai/SpringIn";
 import type { ExtractStage, SourceArtifact } from "@/data/runSteps";
@@ -7,22 +8,24 @@ import type { ExtractStage, SourceArtifact } from "@/data/runSteps";
 /**
  * The staged-extraction wizard for agent steps 1–4. The agent reads its source
  * files one at a time: the current source shows on the right; on the left the
- * active reasoning line spins for a beat while the agent "extracts", then the
- * auto-filled, editable form box (one section of the produced document) springs
- * in with Validate & Proceed / Discard. Each proceed advances to the next source
- * + box; after the last one the parent reveals the complete document.
+ * form box appears immediately with EMPTY cells, the active reasoning line
+ * spins, and after a beat the agent auto-fills the fields one by one (each with
+ * a brief highlight). Once filled, the fields are editable. Validate & Proceed
+ * advances to the next source; after the last one the parent reveals the doc.
  */
 
-const EXTRACT_MS = 1000;
-const REEXTRACT_MS = 1000;
+const FILL_DELAY = 1000; // empty for ~1s, then auto-fill
+const FIELD_STAGGER = 120; // gap between fields filling in
 
 function EditableField({
   label,
   value,
+  hot,
   onChange,
 }: {
   label: string;
   value: string;
+  hot: boolean;
   onChange: (v: string) => void;
 }) {
   return (
@@ -33,7 +36,12 @@ function EditableField({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-[#f4f6f9] border border-[#dfe3e8] rounded px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-[#0a6ed1] focus:bg-white"
+        className={cn(
+          "w-full rounded px-2.5 py-1.5 text-[12.5px] text-ink transition-all duration-300 focus:outline-none focus:border-[#0a6ed1] focus:bg-white",
+          hot
+            ? "bg-surface-mint/50 border border-surface-deep/55 ring-2 ring-surface-deep/20"
+            : "bg-[#f4f6f9] border border-[#dfe3e8]",
+        )}
       />
     </label>
   );
@@ -49,40 +57,50 @@ export function ExtractionWizard({
   onComplete: () => void;
 }) {
   const [stageIdx, setStageIdx] = React.useState(0);
-  // True while the agent is "reading" the source — the box appears after this beat.
-  const [extracting, setExtracting] = React.useState(true);
   const [vals, setVals] = React.useState<string[]>(() => stages[0].fields.map(() => ""));
+  const [filled, setFilled] = React.useState(false);
+  const [hot, setHot] = React.useState(-1);
+  // Bumping this re-runs the empty → auto-fill animation (used by Discard).
+  const [fillKey, setFillKey] = React.useState(0);
 
   const stage = stages[stageIdx];
   const source = sources.find((s) => s.id === stage.sourceId);
 
-  // On entering each stage: spin for a beat, then fill the box from the source.
+  // On each stage (or re-extract): blank the box, wait a beat, then fill field
+  // by field. The active reasoning line keeps spinning throughout.
   React.useEffect(() => {
-    setExtracting(true);
-    setVals(stages[stageIdx].fields.map(() => ""));
-    const t = window.setTimeout(() => {
-      setVals(stages[stageIdx].fields.map((f) => f.value));
-      setExtracting(false);
-    }, EXTRACT_MS);
-    return () => window.clearTimeout(t);
-  }, [stageIdx, stages]);
+    const fields = stages[stageIdx].fields;
+    setFilled(false);
+    setHot(-1);
+    setVals(fields.map(() => ""));
+    const timers: number[] = [];
+    timers.push(
+      window.setTimeout(() => {
+        fields.forEach((f, i) => {
+          timers.push(
+            window.setTimeout(() => {
+              setVals((prev) => prev.map((v, j) => (j === i ? f.value : v)));
+              setHot(i);
+              timers.push(window.setTimeout(() => setHot((h) => (h === i ? -1 : h)), 450));
+            }, i * FIELD_STAGGER),
+          );
+        });
+        timers.push(
+          window.setTimeout(() => setFilled(true), fields.length * FIELD_STAGGER + 150),
+        );
+      }, FILL_DELAY),
+    );
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [stageIdx, fillKey, stages]);
 
   const proceed = () => {
-    if (extracting) return;
+    if (!filled) return;
     if (stageIdx < stages.length - 1) setStageIdx((i) => i + 1);
     else onComplete();
   };
 
-  // Discard = re-extract: spin again, then re-fill from the source.
-  const discard = () => {
-    if (extracting) return;
-    setExtracting(true);
-    setVals(stages[stageIdx].fields.map(() => ""));
-    window.setTimeout(() => {
-      setVals(stages[stageIdx].fields.map((f) => f.value));
-      setExtracting(false);
-    }, REEXTRACT_MS);
-  };
+  // Discard = re-extract: blank and auto-fill again.
+  const discard = () => setFillKey((k) => k + 1);
 
   return (
     <div className="grid grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-4 items-start">
@@ -104,55 +122,56 @@ export function ExtractionWizard({
           })}
         </div>
 
-        {extracting ? (
-          <div className="flex items-center gap-2 text-[12px] text-mute pl-[21px]">
-            <Spinner size={12} className="shrink-0" />
-            Extracting fields from {source?.label}…
-          </div>
-        ) : (
-          <SpringIn key={stageIdx}>
-            <div className="bg-white border border-divider rounded-md overflow-hidden">
-              <div className="flex items-center gap-2 px-3.5 py-2 bg-[#eef1f5] border-b border-divider border-l-[3px] border-l-[#354a5f]">
-                <Sparkles size={12} className="text-[#354a5f] shrink-0" />
-                <span className="text-[10.5px] uppercase tracking-[0.06em] text-[#354a5f] font-bold">
-                  {stage.title}
-                </span>
-                <span className="ml-auto text-[10px] text-mute whitespace-nowrap">
-                  auto-filled · editable
-                </span>
-              </div>
-              <div className="p-4 grid grid-cols-2 gap-x-3 gap-y-3">
-                {stage.fields.map((f, i) => (
-                  <EditableField
-                    key={f.label}
-                    label={f.label}
-                    value={vals[i] ?? ""}
-                    onChange={(v) => setVals((arr) => arr.map((x, j) => (j === i ? v : x)))}
-                  />
-                ))}
-              </div>
-              <div className="px-4 py-3 border-t border-divider flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={proceed}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-surface-deep text-ink-inverse hover:bg-accent-green"
-                >
-                  <CornerUpRight size={14} /> Validate &amp; proceed
-                </button>
-                <button
-                  type="button"
-                  onClick={discard}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
-                >
-                  <RotateCcw size={14} /> Discard
-                </button>
-                <span className="ml-auto text-[11px] text-mute tabular-nums">
-                  {stageIdx + 1} / {stages.length}
-                </span>
-              </div>
+        <SpringIn key={stageIdx}>
+          <div className="bg-white border border-divider rounded-md overflow-hidden">
+            <div className="flex items-center gap-2 px-3.5 py-2 bg-[#eef1f5] border-b border-divider border-l-[3px] border-l-[#354a5f]">
+              <Sparkles size={12} className="text-[#354a5f] shrink-0" />
+              <span className="text-[10.5px] uppercase tracking-[0.06em] text-[#354a5f] font-bold">
+                {stage.title}
+              </span>
+              <span className="ml-auto flex items-center gap-1.5 text-[10px] text-mute whitespace-nowrap">
+                {filled ? (
+                  "auto-filled · editable"
+                ) : (
+                  <>
+                    <Spinner size={9} className="shrink-0" /> auto-filling…
+                  </>
+                )}
+              </span>
             </div>
-          </SpringIn>
-        )}
+            <div className="p-4 grid grid-cols-2 gap-x-3 gap-y-3">
+              {stage.fields.map((f, i) => (
+                <EditableField
+                  key={f.label}
+                  label={f.label}
+                  value={vals[i] ?? ""}
+                  hot={hot === i}
+                  onChange={(v) => setVals((arr) => arr.map((x, j) => (j === i ? v : x)))}
+                />
+              ))}
+            </div>
+            <div className="px-4 py-3 border-t border-divider flex items-center gap-2">
+              <button
+                type="button"
+                onClick={proceed}
+                disabled={!filled}
+                className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-surface-deep text-ink-inverse hover:bg-accent-green disabled:opacity-45"
+              >
+                <CornerUpRight size={14} /> Validate &amp; proceed
+              </button>
+              <button
+                type="button"
+                onClick={discard}
+                className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
+              >
+                <RotateCcw size={14} /> Discard
+              </button>
+              <span className="ml-auto text-[11px] text-mute tabular-nums">
+                {stageIdx + 1} / {stages.length}
+              </span>
+            </div>
+          </div>
+        </SpringIn>
       </div>
 
       {/* Right — the source the agent is reading right now */}
