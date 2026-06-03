@@ -73,6 +73,41 @@ export type EmailAction = {
   toastBody: string;
 };
 
+/** One evaluated control in the do-not-execute / do-not-pay envelope. */
+export type ControlGate = {
+  name: string;
+  result: string;
+  /** "clear" = passed · "tripped" = this control caught the exception. */
+  state: "clear" | "tripped";
+};
+
+/**
+ * The resolution surface a step shows once it halts on an exception. It turns a
+ * one-line "run halted" into the audit-grade payoff a Controller acts on:
+ * which control tripped, the evidence bundled, where it routes, and the
+ * immutable audit record.
+ */
+export type ExceptionResolution = {
+  /** Headline for the resolution card (e.g. "Payment held · do-not-pay envelope"). */
+  title: string;
+  /** Every control evaluated — tripped ones render red, clear ones deep. */
+  gates: ControlGate[];
+  /** The evidence the agent bundled for the human reviewer. */
+  evidence: { label: string; detail: string }[];
+  /** The controlled handoff — who receives it, the SLA, and the next action. */
+  handoff: { to: string; sla: string; nextStep: string };
+  /** The immutable audit record written when the run halted. */
+  audit: { id: string; logged: string; note: string };
+  /** The controlled response the agent drafted — review and send, no reply. */
+  draft?: {
+    to: string;
+    subject: string;
+    lines: string[];
+    sendLabel: string;
+    sentLabel: string;
+  };
+};
+
 export type RunStep = {
   id: AgentId;
   n: number;
@@ -86,6 +121,8 @@ export type RunStep = {
   email?: EmailAction;
   /** One-line AI verdict shown above the decision buttons. */
   recommendation: string;
+  /** Resolution surface shown when this step halts the run (escalate / reject). */
+  exception?: ExceptionResolution;
 };
 
 /* ── Step 1 · Intake — PR-48201 ──────────────────────────────────────────── */
@@ -147,6 +184,45 @@ const intakeStep: RunStep = {
       body: <BudgetDoc />,
     },
   ],
+  email: {
+    cta: "Send the requisition confirmation",
+    to: "Dale Whitfield · Reliability",
+    subject: "PR-48201 raised — double-backer belt routed to sourcing",
+    lines: [
+      "Turned your note into requisition PR-48201 — matched the belt to catalog part 88-DBX on the BeltPro framework 4600001207, charged to cost center 41702.",
+      "On-contract and under the $50k MRO ceiling, so it auto-submitted to sourcing. I'll keep this thread updated as the order moves.",
+    ],
+    toastTitle: "Requester confirmed",
+    toastBody: "Dale Whitfield acknowledged the requisition — added to your sources.",
+    reply: {
+      from: "Dale Whitfield",
+      receivedMeta: "Outlook · 09:14",
+      subject: "RE: PR-48201 raised",
+      lines: [
+        "Thanks — that's the right part. We need it before the maintenance window on 2026-06-10.",
+      ],
+      source: {
+        id: "intake-ack",
+        label: "Requester reply",
+        meta: "Outlook · 09:14",
+        kind: "email",
+        body: (
+          <EmailDoc
+            from="Dale Whitfield"
+            fromAddr="dwhitfield@ipaper.com"
+            to="Procurement Intake"
+            sent="2026-06-03 · 09:14"
+            subject="RE: PR-48201 raised"
+            tone="inbound"
+            lines={[
+              "Thanks — that's the right part. We need it before the maintenance window on 2026-06-10.",
+              "Appreciate the quick turn.",
+            ]}
+          />
+        ),
+      },
+    },
+  },
   recommendation:
     "On-contract · $48,200 under the $50k MRO ceiling · budget available. Met the L3 auto-submit rule — requisition drafted.",
 };
@@ -285,6 +361,45 @@ const poStep: RunStep = {
       body: <BudgetDoc />,
     },
   ],
+  email: {
+    cta: "Transmit the PO to BeltPro",
+    to: "BeltPro Industrial · orders@beltpro.com",
+    subject: "PO-77310 issued — 1 EA 88-DBX to International Paper M042",
+    lines: [
+      "Issuing PO-77310 against framework 4600001207 · item 10 — 1 EA of 88-DBX at $48,200.00 net, FCA Memphis DC, Net 30.",
+      "Requested delivery 2026-06-10 to the Containerboard mill (M042). Please acknowledge and confirm the ship date.",
+    ],
+    toastTitle: "Order acknowledged",
+    toastBody: "BeltPro confirmed PO-77310 — order acknowledgement added to your sources.",
+    reply: {
+      from: "BeltPro Industrial",
+      receivedMeta: "Outlook · 14:22",
+      subject: "RE: PO-77310 — order confirmed",
+      lines: [
+        "PO-77310 acknowledged. Confirmed to ship 2026-06-08, delivery 06-09 — one day ahead of contract.",
+      ],
+      source: {
+        id: "po-ack",
+        label: "Order acknowledgement",
+        meta: "BPI-OC-8841 · 14:22",
+        kind: "email",
+        body: (
+          <EmailDoc
+            from="BeltPro Industrial"
+            fromAddr="orders@beltpro.com"
+            to="Purchase Order Agent"
+            sent="2026-06-03 · 14:22"
+            subject="RE: PO-77310 — order confirmed"
+            tone="inbound"
+            lines={[
+              "PO-77310 acknowledged. Confirmed to ship 2026-06-08, delivery 06-09 — one day ahead of contract.",
+              "Order confirmation BPI-OC-8841 attached. Net 30 as agreed.",
+            ]}
+          />
+        ),
+      },
+    },
+  },
   recommendation:
     "Contract-bound, budget available, every required field populated. Under the threshold — ready to post and transmit.",
 };
@@ -400,6 +515,45 @@ const invoiceStep: RunStep = {
       body: <OutlineAgreementDoc />,
     },
   ],
+  email: {
+    cta: "Send the remittance advice",
+    to: "BeltPro Industrial · ar@beltpro.com",
+    subject: "Remittance advice — invoice BPI-5567 cleared for payment",
+    lines: [
+      "Invoice BPI-5567 ($48,200.00) passed the four-way match with $0 variance and cleared the fraud check (score 0.02). Released to AP for payment on Net 30.",
+      "Payment settles on the due date to the account on file. This is your remittance advice — no action needed.",
+    ],
+    toastTitle: "Remittance confirmed",
+    toastBody: "BeltPro confirmed the remittance — added to your sources.",
+    reply: {
+      from: "BeltPro Industrial",
+      receivedMeta: "Outlook · 15:02",
+      subject: "RE: Remittance advice — BPI-5567",
+      lines: [
+        "Thank you — remittance received and matched to BPI-5567. Account on file confirmed.",
+      ],
+      source: {
+        id: "inv-remit",
+        label: "Remittance confirmation",
+        meta: "Outlook · 15:02",
+        kind: "email",
+        body: (
+          <EmailDoc
+            from="BeltPro Industrial"
+            fromAddr="ar@beltpro.com"
+            to="Invoice Resolution Agent"
+            sent="2026-06-03 · 15:02"
+            subject="RE: Remittance advice — BPI-5567"
+            tone="inbound"
+            lines={[
+              "Thank you — remittance received and matched to BPI-5567. Account on file confirmed.",
+              "We'll mark the invoice paid on settlement.",
+            ]}
+          />
+        ),
+      },
+    },
+  },
   recommendation:
     "Four-way match clean, $0 variance, fraud score 0.02, under the threshold. Auto-posted and released to AP.",
 };

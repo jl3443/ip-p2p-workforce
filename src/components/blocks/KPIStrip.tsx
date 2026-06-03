@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useApp, type View } from "@/state";
 import { CountUp } from "@/components/ai/CountUp";
 import { Sparkline } from "@/components/ai/Sparkline";
 
@@ -12,6 +13,8 @@ export type KPI = {
   trend?: { delta: string; direction: "up" | "down" | "flat" };
   /** 8 points for the inline sparkline. */
   spark?: number[];
+  /** Optional deep-link to the evidence behind the number. */
+  target?: View;
 };
 
 const trendTone = {
@@ -21,15 +24,23 @@ const trendTone = {
 };
 
 export function KPIStrip({ items, className }: { items: KPI[]; className?: string }) {
+  const { go } = useApp();
   return (
     <div className={cn("grid grid-cols-4 gap-3", className)}>
       {items.map((k, i) => (
         <article
           key={k.label}
-          className="bg-white border border-divider rounded-md px-4 py-3 flex flex-col justify-between h-[92px]"
+          onClick={k.target ? () => go(k.target!) : undefined}
+          className={cn(
+            "bg-white border border-divider rounded-md px-4 py-3 flex flex-col justify-between h-[92px]",
+            k.target && "ui-pill cursor-pointer hover:border-surface-deep/40 hover:bg-surface-mint/25",
+          )}
         >
-          <div className="text-[12px] tracking-[0.08em] uppercase text-mute font-medium">
-            {k.label}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[12px] tracking-[0.08em] uppercase text-mute font-medium">
+              {k.label}
+            </span>
+            {k.target && <span aria-hidden className="text-mute text-[12px] shrink-0">↗</span>}
           </div>
           <div className="flex items-end justify-between gap-3">
             <div className="leading-none">

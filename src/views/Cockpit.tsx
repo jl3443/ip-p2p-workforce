@@ -14,7 +14,7 @@ export function Cockpit() {
 
       <HeroBanner
         eyebrow="Autonomous procure-to-pay"
-        summary="3 decisions need you today · 7 agents working under one orchestrator · 82% of orders run touchless · requisition-to-order median 4.2 hours, down from 11 days."
+        summary="This quarter the workforce kept $1.24M of maverick spend on-contract and blocked a $72,000 payment-redirection fraud this week — while running 82% of orders touchless and cutting requisition-to-order from 11 days to 4.2 hours. 3 decisions need you today."
         cta={<PillButton variant="deep" size="sm">+ New request</PillButton>}
         meta="Updated 1 min ago"
       />

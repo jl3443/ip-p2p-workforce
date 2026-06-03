@@ -35,6 +35,12 @@ export type FlowRun = {
   steps: RunStep[];
   /** Terminal pill once the run settles (halted or completed). */
   terminal: (decisions: Record<number, Decision>) => TerminalPill;
+  /** Happy-path close ceremony — the center "flow complete" card (belt only). */
+  completion?: {
+    title: string;
+    stats: { value: string; label: string }[];
+    caption: string;
+  };
 };
 
 const halted = (d: Record<number, Decision>) =>
@@ -247,7 +253,7 @@ const pumpPoStep: RunStep = {
   reasoning: [
     "Reading the single-source award for Cascade Fluid Systems",
     "No framework to bind — pricing has no contract reference",
-    "Comparing $96,400 to the $78,500 last comparable buy — 24% over",
+    "Comparing the $97,600 landed cost to the $78,500 benchmark — 24% over",
     "Value above the touchless limit, supplier off-contract",
     "Blocking PO-77688 before release — routing to the buyer",
   ],
@@ -259,6 +265,42 @@ const pumpPoStep: RunStep = {
   ],
   recommendation:
     "24% over the last comparable buy, no framework and above the touchless limit. Recommend escalate to the category manager before any order is placed.",
+  exception: {
+    title: "Order held · do-not-execute envelope",
+    gates: [
+      { name: "Three-bid rule", state: "tripped", result: "Only Cascade returned a compliant quote — Hydratech and Gulf Rotating declined, below the three-bid threshold." },
+      { name: "Price variance", state: "tripped", result: "$97,600 landed is 24% over the $78,500 last comparable buy." },
+      { name: "Framework coverage", state: "tripped", result: "No framework agreement covers rotating-equipment pumps — pricing has no contract reference." },
+      { name: "Approval limit", state: "tripped", result: "$96,400 is above the $50k MRO touchless ceiling — cannot auto-issue." },
+      { name: "Budget", state: "clear", result: "PM maintenance order 800051144 has headroom on cost center 51180." },
+    ],
+    evidence: [
+      { label: "RFQ-6600-2390", detail: "single-source justification · two suppliers declined to quote" },
+      { label: "PO-77688", detail: "drafted and blocked before release · net $97,600" },
+      { label: "Benchmark", detail: "last comparable buy $78,500 · 24% delta" },
+    ],
+    handoff: {
+      to: "Category Manager · Rotating equipment",
+      sla: "decision due in 4 business hours",
+      nextStep: "negotiate a framework or approve the single-source buy on record before any order is placed.",
+    },
+    audit: {
+      id: "EXC-48630-PO",
+      logged: "2026-06-03 · 14:05",
+      note: "off-contract escalation · nothing ordered · full evidence bundle attached.",
+    },
+    draft: {
+      to: "Category Manager · Rotating equipment",
+      subject: "Approval needed — boiler feed pump PR-48630 · single-source, 24% over benchmark",
+      lines: [
+        "Escalating the Power House Unit 1 boiler feed pump for your decision. Only Cascade Fluid Systems returned a compliant quote — Hydratech and Gulf Rotating declined — so this is a single-source award below the three-bid threshold.",
+        "At $97,600 landed it is 24% over the $78,500 last comparable buy, and no framework agreement covers rotating-equipment pumps. PO-77688 is drafted and held — nothing is ordered until you approve the single-source buy or direct us to renegotiate.",
+        "Evidence bundle attached: RFQ-6600-2390, the two declines, and the benchmark. Audit ref EXC-48630-PO.",
+      ],
+      sendLabel: "Send the escalation",
+      sentLabel: "Sent · logged to the case",
+    },
+  },
 };
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -436,6 +478,41 @@ const gearboxInvoiceStep: RunStep = {
   ],
   recommendation:
     "Bank detail changed to an unverified account and the receipt is short. Recommend reject and route to Supplier onboarding to re-verify before any payment.",
+  exception: {
+    title: "Payment blocked · do-not-pay envelope",
+    gates: [
+      { name: "Bank verification", state: "tripped", result: "New IBAN ·· 9920 unverified — callback unanswered, no signed bank letter, beneficiary name differs from vendor master 201185." },
+      { name: "Fraud score", state: "tripped", result: "0.86 high — a mid-stream bank change on a supplier with an open invoice is the classic redirection-fraud pattern." },
+      { name: "Three-way quantity", state: "tripped", result: "Invoiced 2 units, received 1 — unit 2 damaged in transit and on quality hold." },
+      { name: "Vendor master", state: "clear", result: "Single record 201185 · account of record remains IBAN ·· 4471." },
+    ],
+    evidence: [
+      { label: "INV-ADS-4419", detail: "four-way match · quantity and bank-account mismatches · $72,000" },
+      { label: "Bank-change email", detail: "ar@apex-drives-billing.com · look-alike domain · no signed letter" },
+      { label: "GR-77642", detail: "partial goods receipt · 1 of 2 · quality hold on unit 2" },
+    ],
+    handoff: {
+      to: "Supplier onboarding · fraud desk",
+      sla: "payment stays held until a verified bank letter clears",
+      nextStep: "re-verify the beneficiary by callback and signed letter, or pay the account of record IBAN ·· 4471 only.",
+    },
+    audit: {
+      id: "EXC-ADS-4419-PAY",
+      logged: "2026-06-10 · 09:34",
+      note: "$72,000 payment blocked · routed to the fraud desk with the evidence bundle.",
+    },
+    draft: {
+      to: "Apex Drive Systems · Accounts",
+      subject: "INV-ADS-4419 — payment held pending bank-change verification",
+      lines: [
+        "We received a request to remit invoice ADS-4419 ($72,000) to a new account, IBAN ·· 9920. We cannot action a mid-stream bank change without verification, so this payment is on hold.",
+        "To release it we need a signed bank-change letter on your letterhead and a successful callback to the AR contact on our vendor master — the beneficiary name on the new account does not match record 201185. Until then the account of record remains IBAN ·· 4471.",
+        "This is a routine fraud-prevention control. Audit ref EXC-ADS-4419-PAY.",
+      ],
+      sendLabel: "Send the held-payment notice",
+      sentLabel: "Sent · routed to the fraud desk",
+    },
+  },
 };
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -451,6 +528,16 @@ export const flowRuns: Record<FlowId, FlowRun> = {
     completeNote: "Run complete · invoice released to AP, audit envelope closed",
     steps: beltSteps,
     terminal: () => ({ label: "Paid · audit closed", kind: "ready" }),
+    completion: {
+      title: "PO-77310 · paid and audit-closed",
+      stats: [
+        { value: "5", label: "agents handed off" },
+        { value: "$48,200", label: "paid to AP" },
+        { value: "4/4", label: "controls clear" },
+      ],
+      caption:
+        "Posted to SAP · payment released to AP on net 30 · audit envelope closed with every artifact attached · 0 exceptions.",
+    },
   },
   pump: {
     id: "pump",

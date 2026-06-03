@@ -1,11 +1,13 @@
 import * as React from "react";
-import { Check, ThumbsUp, PauseCircle, ArrowUpRight, X, Sparkles, Mail } from "lucide-react";
+import { Check, ThumbsUp, PauseCircle, ArrowUpRight, X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIDot } from "@/components/ai/AIDot";
 import { Spinner } from "@/components/ai/Spinner";
 import { SpringIn } from "@/components/ai/SpringIn";
 import { StreamingText } from "@/components/ai/StreamingText";
 import { EmailReplyModal } from "@/components/workspace/EmailReplyModal";
+import { AiDraftEmailCard } from "@/components/workspace/AiDraftEmailCard";
+import { ExceptionResolutionCard } from "@/components/workspace/ExceptionResolutionCard";
 import { agentsById } from "@/data/agents";
 import type { AgentOutputStatus } from "@/state";
 import type { RunStep } from "@/data/runSteps";
@@ -65,10 +67,10 @@ export function AiWorkspacePanel({
 
   const decided = status !== "none";
 
-  const openEmail = () => {
-    setEmailOpen(true);
+  const sendEmail = () => {
     if (!replied) onReplyReceived();
   };
+  const viewThread = () => setEmailOpen(true);
 
   return (
     <section className="bg-white border border-divider rounded-md overflow-hidden flex flex-col">
@@ -128,17 +130,15 @@ export function AiWorkspacePanel({
               {step.document}
             </div>
 
-            {/* Email round-trip — one button opens the thread in a center modal */}
+            {/* Email round-trip — the agent drafts it, the buyer reviews and sends */}
             {step.email && (
-              <button
-                type="button"
-                onClick={openEmail}
-                className="ui-pill inline-flex items-center gap-2 rounded-md border border-divider bg-white px-3.5 py-2.5 text-[13px] font-medium text-ink hover:border-[#354a5f] hover:bg-surface-fog"
-              >
-                <Mail size={15} className="text-[#0a6ed1]" />
-                View supplier reply
-                {replied && <span className="text-[11px] font-bold text-[#107e3e]">· received</span>}
-              </button>
+              <AiDraftEmailCard
+                email={step.email}
+                sent={replied}
+                onSend={sendEmail}
+                onViewThread={viewThread}
+                sendLabel={step.email.cta}
+              />
             )}
 
             {/* Recommendation + decision */}
@@ -156,6 +156,11 @@ export function AiWorkspacePanel({
                   ? completeNote
                   : noteFor[status as Decision].label}
               </div>
+            )}
+
+            {/* Exception payoff — the halt resolves into an audit-grade envelope */}
+            {decided && (status === "escalated" || status === "rejected") && step.exception && (
+              <ExceptionResolutionCard ex={step.exception} />
             )}
 
             {!(decided && status === "approved") && (

@@ -7,8 +7,31 @@ import type { View } from "@/state";
 import type { AgentId } from "@/data/agents";
 import type { KPI } from "@/components/blocks/KPIStrip";
 
-/** Top KPI strip — all framed so "up" is good (green tone). */
+/**
+ * Top KPI strip — outcome-led, money first. The two left tiles carry the
+ * value story (maverick spend kept on-contract · fraud blocked this week) and
+ * deep-link to the evidence; the two right tiles read operational health.
+ */
 export const cockpitKpis: KPI[] = [
+  {
+    label: "Spend under control",
+    value: 1.24,
+    prefix: "$",
+    suffix: "M",
+    decimals: 2,
+    trend: { delta: "this quarter", direction: "up" },
+    spark: [0.41, 0.55, 0.68, 0.81, 0.94, 1.06, 1.16, 1.24],
+    target: { kind: "workspace", flow: "pump" },
+  },
+  {
+    label: "Fraud blocked",
+    value: 72,
+    prefix: "$",
+    suffix: "K",
+    trend: { delta: "this week", direction: "up" },
+    spark: [0, 0, 0, 0, 0, 0, 0, 72],
+    target: { kind: "workspace", flow: "gearbox" },
+  },
   {
     label: "Touchless rate",
     value: 82,
@@ -17,25 +40,11 @@ export const cockpitKpis: KPI[] = [
     spark: [61, 64, 68, 70, 73, 77, 80, 82],
   },
   {
-    label: "Roles redeployed",
+    label: "Capacity freed",
     value: 86,
-    suffix: " of 139",
+    suffix: " roles",
     trend: { delta: "+18", direction: "up" },
     spark: [40, 48, 55, 61, 68, 74, 81, 86],
-  },
-  {
-    label: "On-contract spend",
-    value: 94,
-    suffix: "%",
-    trend: { delta: "+11 pts", direction: "up" },
-    spark: [80, 82, 84, 86, 88, 90, 92, 94],
-  },
-  {
-    label: "Exceptions auto-resolved",
-    value: 78,
-    suffix: "%",
-    trend: { delta: "+14 pts", direction: "up" },
-    spark: [55, 58, 62, 66, 69, 72, 75, 78],
   },
 ];
 
@@ -134,10 +143,10 @@ export type ChaseRow = {
 
 export const expediting = {
   rows: [
-    { id: "PO-77310", subject: "Corrugator belt", action: "Sent expedite note #2 to supplier", lateLabel: "4 days late", amount: "$48.2K", tone: "critical", target: { kind: "workspace", flow: "belt" } },
-    { id: "PO-76980", subject: "Roll wrapping film", action: "Chasing supplier acknowledgement", lateLabel: "2 days late", amount: "$128K", tone: "high" },
-    { id: "INV-55012", subject: "Late freight invoice", action: "Requested proof of delivery", lateLabel: "6 days open", amount: "$31K", tone: "high" },
-    { id: "PO-75540", subject: "MRO bearings", action: "Short 12 units · flagged to buyer", lateLabel: "3 days late", amount: "$9.4K", tone: "medium" },
+    { id: "PO-76840", subject: "Winder drum motor", action: "Sent expedite note #2 to supplier", lateLabel: "4 days late", amount: "$48K", tone: "critical", target: { kind: "agent", id: "fulfillment" } },
+    { id: "PO-76980", subject: "Roll wrapping film", action: "Chasing supplier acknowledgement", lateLabel: "2 days late", amount: "$128K", tone: "high", target: { kind: "agent", id: "fulfillment" } },
+    { id: "INV-55012", subject: "Late freight invoice", action: "Requested proof of delivery", lateLabel: "6 days open", amount: "$31K", tone: "high", target: { kind: "agent", id: "fulfillment" } },
+    { id: "PO-75540", subject: "MRO bearings", action: "Short 12 units · flagged to buyer", lateLabel: "3 days late", amount: "$9.4K", tone: "medium", target: { kind: "agent", id: "fulfillment" } },
   ] as ChaseRow[],
   footer: "$216K at risk being worked · 47 chases auto-sent today · 9 cleared",
 };

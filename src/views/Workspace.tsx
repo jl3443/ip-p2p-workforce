@@ -15,19 +15,21 @@
 import * as React from "react";
 import { flowRuns } from "@/data/flowRuns";
 import { useApp, type FlowId, type Decision } from "@/state";
-import { agentsById } from "@/data/agents";
+import { agentsById, type AgentId } from "@/data/agents";
 import { type SourceArtifact } from "@/data/runSteps";
 import { WorkspaceTopbar } from "@/components/workspace/WorkspaceTopbar";
 import { RunStepsRail } from "@/components/workspace/RunStepsRail";
 import { SourceFilesPanel } from "@/components/workspace/SourceFilesPanel";
 import { AiWorkspacePanel } from "@/components/workspace/AiWorkspacePanel";
+import { HandoffOverlay } from "@/components/workspace/HandoffOverlay";
+import { FlowCompleteModal } from "@/components/workspace/FlowCompleteModal";
 import { SourceArtifactModal } from "@/components/workspace/SourceArtifactModal";
 import { Toast } from "@/components/workspace/Toast";
 
 type ToastState = { id: number; title: string; body: string } | null;
 
 export function Workspace({ flow }: { flow: FlowId }) {
-  const { flowProgress, setFlowProgress } = useApp();
+  const { flowProgress, setFlowProgress, go } = useApp();
   const run = flowRuns[flow];
   const steps = run.steps;
   const LAST = steps.length - 1;
@@ -39,6 +41,8 @@ export function Workspace({ flow }: { flow: FlowId }) {
   const [openSource, setOpenSource] = React.useState<SourceArtifact | null>(null);
   const [replies, setReplies] = React.useState<Record<number, boolean>>({});
   const [toast, setToast] = React.useState<ToastState>(null);
+  const [handoff, setHandoff] = React.useState<{ from: AgentId; to: AgentId } | null>(null);
+  const [showComplete, setShowComplete] = React.useState(false);
 
   const step = steps[selectedStep];
   const replied = !!replies[selectedStep];
@@ -55,12 +59,17 @@ export function Workspace({ flow }: { flow: FlowId }) {
     if (status === "approved") {
       if (selectedStep < LAST) {
         const next = selectedStep + 1;
-        setFlowProgress(flow, { decisions: nextDecisions, activeStep: Math.max(activeStep, next) });
-        setSelectedStep(next);
-        fireToast(
-          "Output approved",
-          `${agentsById[step.id].name} handed off to ${agentsById[steps[next].id].menuLabel}.`,
-        );
+        // Fire the visible baton-pass, then advance the run after the beat.
+        setHandoff({ from: step.id, to: steps[next].id });
+        window.setTimeout(() => {
+          setFlowProgress(flow, { decisions: nextDecisions, activeStep: Math.max(activeStep, next) });
+          setSelectedStep(next);
+          setHandoff(null);
+          fireToast(
+            "Output approved",
+            `${agentsById[step.id].name} handed off to ${agentsById[steps[next].id].menuLabel}.`,
+          );
+        }, 1300);
       } else {
         setFlowProgress(flow, {
           decisions: nextDecisions,
@@ -69,6 +78,7 @@ export function Workspace({ flow }: { flow: FlowId }) {
           settled: true,
         });
         fireToast("Run complete", run.terminal(nextDecisions).label);
+        if (run.completion) setShowComplete(true);
       }
       return;
     }
@@ -112,10 +122,14 @@ export function Workspace({ flow }: { flow: FlowId }) {
               decisions={decisions}
               onSelect={setSelectedStep}
             />
-            <SourceFilesPanel sources={sources} onOpen={setOpenSource} />
+            <SourceFilesPanel
+              sources={sources}
+              onOpen={setOpenSource}
+              newSourceId={step.email && replied ? step.email.reply.source.id : undefined}
+            />
           </div>
 
-          <div className="min-h-0 overflow-y-auto">
+          <div className="relative min-h-0 overflow-y-auto">
             <AiWorkspacePanel
               key={selectedStep}
               step={step}
@@ -126,9 +140,19 @@ export function Workspace({ flow }: { flow: FlowId }) {
               onReplyReceived={onReplyReceived}
               onDecision={onDecision}
             />
+            {handoff && <HandoffOverlay from={handoff.from} to={handoff.to} />}
           </div>
         </div>
       </div>
+
+      {showComplete && run.completion && (
+        <FlowCompleteModal
+          run={run}
+          onOpenArtifact={setOpenSource}
+          onBackToCockpit={() => go({ kind: "cockpit" })}
+          onClose={() => setShowComplete(false)}
+        />
+      )}
 
       <SourceArtifactModal source={openSource} onClose={() => setOpenSource(null)} />
 
