@@ -11,10 +11,14 @@ import {
   LogIn,
 } from "lucide-react";
 
-// Single full-bleed hero photograph — a paper-manufacturing shot, served
+// Tri-panel hero photography — manufacturing & procurement imagery, served
 // locally from /public so the page works on corporate networks that block
 // remote image CDNs.
-const HERO_IMAGE = "/hero-paper.jpg";
+const HERO_COLUMNS = [
+  { label: "Sourcing & Spot-Buy", src: "/hero-factory.jpg" },
+  { label: "Orders & delivery", src: "/hero-boxes.jpg" },
+  { label: "Invoices & Suppliers", src: "/hero-paper.jpg" },
+];
 
 const ACCENT = { hex: "#14b8a6", halo: "rgba(20,184,166,0.45)" };
 
@@ -59,21 +63,29 @@ export function Login() {
 }
 
 function HeroBackground({ heavyOverlay = false }: { heavyOverlay?: boolean }) {
-  const tint = heavyOverlay ? "bg-black/72" : "bg-black/55";
+  const colTint = heavyOverlay ? "bg-black/68" : "bg-black/48";
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url('${HERO_IMAGE}')` }}
-      />
-      <div className={cn("absolute inset-0 transition-colors duration-500", tint)} />
-      <div className="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/50 to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/65 to-transparent" />
-      {!heavyOverlay && (
-        <span className="absolute inset-x-0 bottom-16 z-10 text-center text-[11px] font-bold uppercase tracking-[0.32em] text-white/55">
-          Sourcing · Orders · Invoices · Suppliers
-        </span>
-      )}
+      <div className="absolute inset-0 grid grid-cols-3">
+        {HERO_COLUMNS.map((col) => (
+          <div key={col.label} className="relative overflow-hidden">
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url('${col.src}')` }}
+            />
+            <div className={cn("absolute inset-0 transition-colors duration-500", colTint)} />
+            <div className="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/40 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/55 to-transparent" />
+            {!heavyOverlay && (
+              <span className="absolute inset-x-0 bottom-20 z-10 text-center text-[11px] font-bold uppercase tracking-[0.32em] text-white/60">
+                {col.label}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-y-0 left-1/3 w-px bg-white/10" />
+      <div className="absolute inset-y-0 left-2/3 w-px bg-white/10" />
     </div>
   );
 }
