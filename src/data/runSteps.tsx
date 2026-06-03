@@ -108,6 +108,24 @@ export type ExceptionResolution = {
   };
 };
 
+/**
+ * One stage of the staged-extraction wizard. The agent reads a single source
+ * file (sourceId), shows the reasoning line for it (spinner while active), and
+ * fills one section of the produced document as an editable form box. When a
+ * step carries `stages`, the workspace plays this wizard one source at a time
+ * before revealing the complete document.
+ */
+export type ExtractStage = {
+  /** Must match one of the step's sources[].id — rendered on the right. */
+  sourceId: string;
+  /** The reasoning line for this stage (spins until Proceed). */
+  reasoning: string;
+  /** The form-box section title (a section of the produced doc). */
+  title: string;
+  /** Auto-filled, editable fields extracted from the source. */
+  fields: { label: string; value: string }[];
+};
+
 export type RunStep = {
   id: AgentId;
   n: number;
@@ -123,6 +141,8 @@ export type RunStep = {
   recommendation: string;
   /** Resolution surface shown when this step halts the run (escalate / reject). */
   exception?: ExceptionResolution;
+  /** Staged auto-fill wizard — one stage per source. Omit for auto-reveal steps. */
+  stages?: ExtractStage[];
 };
 
 /* ── Step 1 · Intake — PR-48201 ──────────────────────────────────────────── */
@@ -225,6 +245,54 @@ const intakeStep: RunStep = {
   },
   recommendation:
     "On-contract · $48,200 under the $50k MRO ceiling · budget available. Met the L3 auto-submit rule — requisition drafted.",
+  stages: [
+    {
+      sourceId: "maintenance-note",
+      reasoning: "Reading the maintenance note from the Containerboard mill",
+      title: "Item — what's needed",
+      fields: [
+        { label: "Material", value: "88-DBX" },
+        { label: "Short text", value: "Belt, double-backer — Corrugator No.2" },
+        { label: "Quantity", value: "1 EA" },
+        { label: "Delivery date", value: "2026-06-10" },
+        { label: "Plant", value: "M042 · Containerboard mill" },
+        { label: "Requisitioner", value: "R. Alvarez · Reliability" },
+      ],
+    },
+    {
+      sourceId: "policy-mro",
+      reasoning: "Checking the spending policy — on-contract, under the $50k MRO ceiling",
+      title: "Release strategy",
+      fields: [
+        { label: "Purchasing org", value: "IP01 · IP North America" },
+        { label: "Purchasing group", value: "P12 · MRO & Spares" },
+        { label: "Release strategy", value: "MRO1 — auto-released · under the L3 limit" },
+        { label: "Policy", value: "POL-MRO-04 · maintenance-spend" },
+      ],
+    },
+    {
+      sourceId: "framework-intake",
+      reasoning: "Matching to the BeltPro framework 4600001207 — −8% vs list",
+      title: "Source of supply",
+      fields: [
+        { label: "Fixed vendor", value: "BeltPro Industrial · 100482" },
+        { label: "Outline agreement", value: "4600001207 · item 10" },
+        { label: "Net price", value: "$48,200.00 (−8% vs list)" },
+        { label: "Info record", value: "5300008841" },
+      ],
+    },
+    {
+      sourceId: "budget-intake",
+      reasoning: "Checking budget — cost center 0000041702 · headroom available",
+      title: "Account assignment",
+      fields: [
+        { label: "Account category", value: "K · Cost center" },
+        { label: "G/L account", value: "510000 · Repairs & maintenance" },
+        { label: "Cost center", value: "0000041702 · Corrugating No.2" },
+        { label: "Recipient", value: "R. Alvarez" },
+      ],
+    },
+  ],
 };
 
 /* ── Step 2 · Sourcing — RFQ-6600-2241 ───────────────────────────────────── */
@@ -312,6 +380,41 @@ const sourcingStep: RunStep = {
   },
   recommendation:
     "BeltPro Industrial wins — lowest delivered cost ($48,200), shortest lead (5 days), the only on-contract bid (−8% vs list). Recommended for award.",
+  stages: [
+    {
+      sourceId: "pr-48201-handoff",
+      reasoning: "Reading approved requisition PR-48201",
+      title: "Tender header",
+      fields: [
+        { label: "RFQ", value: "RFQ-6600-2241" },
+        { label: "Material", value: "88-DBX · double-backer belt" },
+        { label: "Quantity", value: "1 EA" },
+        { label: "Plant", value: "M042 · Containerboard mill" },
+      ],
+    },
+    {
+      sourceId: "supplier-pool",
+      reasoning: "Building the three-bid shortlist from the approved pool",
+      title: "Bidders & scope",
+      fields: [
+        { label: "Bidders", value: "BeltPro · Heartland Rubber · Midwest Belting" },
+        { label: "Pool", value: "3 qualified · MRO-CONV" },
+        { label: "Evaluation", value: "Delivered cost · lead time · quality/OTIF" },
+        { label: "Terms", value: "Net 30" },
+      ],
+    },
+    {
+      sourceId: "framework-sourcing",
+      reasoning: "Scoring quotations — BeltPro wins on delivered cost, lead and contract",
+      title: "Recommended award",
+      fields: [
+        { label: "Award to", value: "BeltPro Industrial · 100482" },
+        { label: "Delivered cost", value: "$48,200.00 (−8% vs list)" },
+        { label: "Lead time", value: "5 days · delivery 2026-06-09" },
+        { label: "On-contract", value: "Yes · framework 4600001207" },
+      ],
+    },
+  ],
 };
 
 /* ── Step 3 · PO — PO-77310 ──────────────────────────────────────────────── */
@@ -402,6 +505,54 @@ const poStep: RunStep = {
   },
   recommendation:
     "Contract-bound, budget available, every required field populated. Under the threshold — ready to post and transmit.",
+  stages: [
+    {
+      sourceId: "rfq-handoff",
+      reasoning: "Reading the award — BeltPro for PR-48201",
+      title: "Header & terms",
+      fields: [
+        { label: "Vendor", value: "BeltPro Industrial · 100482" },
+        { label: "Company code", value: "1000 · International Paper" },
+        { label: "Payment terms", value: "NT30 · Net 30 days" },
+        { label: "Incoterms", value: "FCA · Memphis DC" },
+        { label: "Reference agreement", value: "4600001207 · item 10" },
+        { label: "Tax code", value: "U1 · self-assessed use tax" },
+      ],
+    },
+    {
+      sourceId: "vendor-clean",
+      reasoning: "Resolving the vendor master — 100482 golden, bank verified",
+      title: "Vendor",
+      fields: [
+        { label: "Vendor", value: "100482 · BeltPro Industrial" },
+        { label: "Record", value: "Golden · SAP XK03" },
+        { label: "Bank", value: "Verified · account on file" },
+        { label: "Status", value: "Active · no duplicate" },
+      ],
+    },
+    {
+      sourceId: "framework-po",
+      reasoning: "Binding to framework 4600001207 — net $48,200",
+      title: "Conditions — pricing",
+      fields: [
+        { label: "Gross price (list)", value: "$52,391.30 / 1 EA" },
+        { label: "Framework discount", value: "−8.0%" },
+        { label: "Freight (FCA)", value: "$0.00" },
+        { label: "Net value", value: "$48,200.00" },
+      ],
+    },
+    {
+      sourceId: "budget-po",
+      reasoning: "Compliance check — PO vs contract terms and budget",
+      title: "Account assignment",
+      fields: [
+        { label: "G/L account", value: "510000 · Repairs & maintenance" },
+        { label: "Cost center", value: "0000041702 · Corrugating No.2" },
+        { label: "Budget after", value: "Headroom available" },
+        { label: "Delivery date", value: "2026-06-10" },
+      ],
+    },
+  ],
 };
 
 /* ── Step 4 · Fulfillment — GR-77310 ─────────────────────────────────────── */
@@ -466,6 +617,32 @@ const fulfillmentStep: RunStep = {
   },
   recommendation:
     "Belt received and inspected OK, posted to unrestricted-use stock at MNT1. On time, ahead of the maintenance window.",
+  stages: [
+    {
+      sourceId: "po-handoff",
+      reasoning: "Tracking PO-77310 against the contracted date 2026-06-10",
+      title: "Receipt header",
+      fields: [
+        { label: "Movement type", value: "101 · GR goods receipt for PO" },
+        { label: "PO reference", value: "PO-77310 · item 10" },
+        { label: "Delivery note", value: "BPI-DN-5567" },
+        { label: "Posting date", value: "2026-06-09" },
+        { label: "Document date", value: "2026-06-09" },
+      ],
+    },
+    {
+      sourceId: "delivery-note",
+      reasoning: "Posting goods receipt GR-77310 (movement 101) to the Maintenance store",
+      title: "Where — stock posting",
+      fields: [
+        { label: "Material", value: "88-DBX · 1 EA" },
+        { label: "Plant", value: "M042 · Containerboard mill" },
+        { label: "Storage location", value: "MNT1 · Maintenance store" },
+        { label: "Stock type", value: "Unrestricted use" },
+        { label: "OK indicator", value: "Inspected OK · 1 of 1 received" },
+      ],
+    },
+  ],
 };
 
 /* ── Step 5 · Invoice — INV-BPI-5567 ─────────────────────────────────────── */

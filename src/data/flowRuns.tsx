@@ -35,9 +35,14 @@ export type FlowRun = {
   steps: RunStep[];
   /** Terminal pill once the run settles (halted or completed). */
   terminal: (decisions: Record<number, Decision>) => TerminalPill;
-  /** Happy-path close ceremony — the center "flow complete" card (belt only). */
+  /** Close ceremony — the center terminal card shown when the run settles. */
   completion?: {
     title: string;
+    /** "ready" = green happy close · "critical" = red halted/blocked close. */
+    tone: "ready" | "critical";
+    /** The final owner the last step hands off to (control / human reviewer). */
+    routedTo: string;
+    routedSub: string;
     stats: { value: string; label: string }[];
     caption: string;
   };
@@ -221,6 +226,32 @@ const pumpIntakeStep: RunStep = {
   ],
   recommendation:
     "Off-contract and above the $50k MRO ceiling — drafted and routed to you, not auto-submitted. Approve to send it to sourcing.",
+  stages: [
+    {
+      sourceId: "pump-note",
+      reasoning: "Reading the maintenance note from Power House reliability",
+      title: "Item — what's needed",
+      fields: [
+        { label: "Material", value: "PMP-440BF" },
+        { label: "Short text", value: "Boiler feed pump — Power House Unit 1" },
+        { label: "Quantity", value: "1 EA" },
+        { label: "Delivery date", value: "2026-06-11" },
+        { label: "Plant", value: "P051 · Power House" },
+        { label: "Requisitioner", value: "T. Okafor · Powerhouse reliability" },
+      ],
+    },
+    {
+      sourceId: "pump-policy",
+      reasoning: "Checking policy — $96,400 is above the $50k MRO ceiling, off-contract",
+      title: "Policy flag",
+      fields: [
+        { label: "Release strategy", value: "MRO2 — held · off-contract, above the ceiling" },
+        { label: "Valuation", value: "96,400.00 USD" },
+        { label: "Framework", value: "— · no agreement" },
+        { label: "Cost center", value: "0000051180 · Power House Unit 1" },
+      ],
+    },
+  ],
 };
 
 const pumpSourcingStep: RunStep = {
@@ -243,6 +274,30 @@ const pumpSourcingStep: RunStep = {
   ],
   recommendation:
     "Only one compliant bid returned — below the three-bid threshold. Approve the single-source justification to proceed, or escalate to the category manager.",
+  stages: [
+    {
+      sourceId: "pr-pump-handoff",
+      reasoning: "Reading PR-48630 and building the supplier shortlist",
+      title: "Tender",
+      fields: [
+        { label: "RFQ", value: "RFQ-6600-2390" },
+        { label: "Material", value: "PMP-440BF · boiler feed pump" },
+        { label: "Quantity", value: "1 EA" },
+        { label: "Plant", value: "P051 · Power House" },
+      ],
+    },
+    {
+      sourceId: "pump-decline",
+      reasoning: "Two suppliers declined — only Cascade returned a compliant quote",
+      title: "Bids returned",
+      fields: [
+        { label: "Invited", value: "Cascade · Hydratech · Gulf Rotating" },
+        { label: "Declines", value: "Hydratech (capacity) · Gulf Rotating (lead time)" },
+        { label: "Compliant", value: "Cascade only — single source" },
+        { label: "Quote", value: "$96,400 + $1,200 freight · 8-day lead" },
+      ],
+    },
+  ],
 };
 
 const pumpPoStep: RunStep = {
@@ -265,6 +320,31 @@ const pumpPoStep: RunStep = {
   ],
   recommendation:
     "24% over the last comparable buy, no framework and above the touchless limit. Recommend escalate to the category manager before any order is placed.",
+  stages: [
+    {
+      sourceId: "rfq-pump-handoff",
+      reasoning: "Reading the single-source award for Cascade Fluid Systems",
+      title: "Header & terms",
+      fields: [
+        { label: "Vendor", value: "Cascade Fluid Systems · 200914" },
+        { label: "Payment terms", value: "NT30 · Net 30 days" },
+        { label: "Incoterms", value: "FCA · Cascade Houston DC" },
+        { label: "Agreement", value: "— · no framework" },
+      ],
+    },
+    {
+      sourceId: "pump-policy-po",
+      reasoning: "24% over benchmark, no framework, above the limit — blocking PO-77688",
+      title: "Price & block",
+      fields: [
+        { label: "Gross price", value: "$96,400.00" },
+        { label: "Freight", value: "$1,200.00" },
+        { label: "Net value", value: "$97,600.00" },
+        { label: "Benchmark", value: "$78,500 last buy · 24% over" },
+        { label: "Status", value: "Blocked · not released" },
+      ],
+    },
+  ],
   exception: {
     title: "Order held · do-not-execute envelope",
     gates: [
@@ -456,6 +536,30 @@ const gearboxFulfillmentStep: RunStep = {
   ],
   recommendation:
     "1 of 2 received, unit 2 damaged in transit. Approve the partial receipt to proceed on the good unit, or hold for the full delivery.",
+  stages: [
+    {
+      sourceId: "po-gbx-handoff",
+      reasoning: "Tracking PO-77642 against the contracted date 2026-06-09",
+      title: "Receipt header",
+      fields: [
+        { label: "Movement type", value: "101 · GR goods receipt for PO" },
+        { label: "PO reference", value: "PO-77642 · item 10" },
+        { label: "Delivery note", value: "ADS-DN-2207" },
+        { label: "Posting date", value: "2026-06-09" },
+      ],
+    },
+    {
+      sourceId: "gbx-carrier",
+      reasoning: "Carrier notice — unit 2 damaged; posting a partial receipt (1 of 2)",
+      title: "Where — partial receipt",
+      fields: [
+        { label: "Material", value: "GBX-220K · 2 ordered" },
+        { label: "Received", value: "1 of 2 EA" },
+        { label: "Stock type", value: "Quality inspection" },
+        { label: "OK indicator", value: "Unit 2 damaged in transit · quality hold" },
+      ],
+    },
+  ],
 };
 
 const gearboxInvoiceStep: RunStep = {
@@ -478,6 +582,30 @@ const gearboxInvoiceStep: RunStep = {
   ],
   recommendation:
     "Bank detail changed to an unverified account and the receipt is short. Recommend reject and route to Supplier onboarding to re-verify before any payment.",
+  stages: [
+    {
+      sourceId: "gbx-bank",
+      reasoning: "Bank account changed — IBAN ·· 9920 does not match vendor master 201185",
+      title: "Bank-change flag",
+      fields: [
+        { label: "Invoice", value: "ADS-4419 · $72,000" },
+        { label: "Account of record", value: "IBAN ·· 4471" },
+        { label: "Requested", value: "IBAN ·· 9920 (new)" },
+        { label: "Verification", value: "Unverified · beneficiary differs" },
+      ],
+    },
+    {
+      sourceId: "gr-gbx-handoff",
+      reasoning: "Quantity mismatch + bank change → fraud 0.86, blocking payment",
+      title: "Four-way match",
+      fields: [
+        { label: "Quantity", value: "invoiced 2 · received 1" },
+        { label: "Net value", value: "invoiced $72,000 · received $36,000" },
+        { label: "Fraud score", value: "0.86 · high" },
+        { label: "Decision", value: "Block payment — fraud hold" },
+      ],
+    },
+  ],
   exception: {
     title: "Payment blocked · do-not-pay envelope",
     gates: [
@@ -530,6 +658,9 @@ export const flowRuns: Record<FlowId, FlowRun> = {
     terminal: () => ({ label: "Paid · audit closed", kind: "ready" }),
     completion: {
       title: "PO-77310 · paid and audit-closed",
+      tone: "ready",
+      routedTo: "Orchestrator",
+      routedSub: "audit close",
       stats: [
         { value: "5", label: "agents handed off" },
         { value: "$48,200", label: "paid to AP" },
@@ -550,6 +681,19 @@ export const flowRuns: Record<FlowId, FlowRun> = {
       halted(d)
         ? { label: "Escalated · buyer review", kind: "critical" }
         : { label: "Order released", kind: "ready" },
+    completion: {
+      title: "PR-48630 · escalated to buyer review",
+      tone: "critical",
+      routedTo: "Category Manager",
+      routedSub: "buyer review",
+      stats: [
+        { value: "3", label: "agents reviewed" },
+        { value: "$96,400", label: "order held" },
+        { value: "24%", label: "over benchmark" },
+      ],
+      caption:
+        "Single-source, 24% over the benchmark, no framework · nothing ordered · routed to the category manager · EXC-48630-PO logged.",
+    },
   },
   gearbox: {
     id: "gearbox",
@@ -562,5 +706,18 @@ export const flowRuns: Record<FlowId, FlowRun> = {
       halted(d)
         ? { label: "Payment blocked · fraud review", kind: "critical" }
         : { label: "Released to AP", kind: "ready" },
+    completion: {
+      title: "INV-ADS-4419 · payment blocked",
+      tone: "critical",
+      routedTo: "Fraud desk",
+      routedSub: "payment review",
+      stats: [
+        { value: "$72,000", label: "payment held" },
+        { value: "0.86", label: "fraud score" },
+        { value: "3 of 4", label: "gates tripped" },
+      ],
+      caption:
+        "Bank change unverified and short receipt · nothing paid · routed to the fraud desk · EXC-ADS-4419-PAY logged.",
+    },
   },
 };

@@ -8,6 +8,7 @@ import { StreamingText } from "@/components/ai/StreamingText";
 import { EmailReplyModal } from "@/components/workspace/EmailReplyModal";
 import { AiDraftEmailCard } from "@/components/workspace/AiDraftEmailCard";
 import { ExceptionResolutionCard } from "@/components/workspace/ExceptionResolutionCard";
+import { ExtractionWizard } from "@/components/workspace/ExtractionWizard";
 import { agentsById } from "@/data/agents";
 import type { AgentOutputStatus } from "@/state";
 import type { RunStep } from "@/data/runSteps";
@@ -31,6 +32,8 @@ export function AiWorkspacePanel({
   completeNote = "Run complete · invoice released to AP, audit envelope closed",
   onReplyReceived,
   onDecision,
+  onWizardActive,
+  staged = false,
 }: {
   step: RunStep;
   status: AgentOutputStatus;
@@ -40,15 +43,20 @@ export function AiWorkspacePanel({
   completeNote?: string;
   onReplyReceived: () => void;
   onDecision: (status: Decision) => void;
+  /** Tells the workspace whether the staged wizard is running (to hide the rail). */
+  onWizardActive?: (active: boolean) => void;
+  /** True when this step plays the staged wizard (L2/L3); false reveals directly (L4). */
+  staged?: boolean;
 }) {
   const agent = agentsById[step.id];
-  // Always replay the thinking beat: reasoning streams, then the document lands.
-  const [revealed, setRevealed] = React.useState(false);
+  // Steps with a staged-extraction wizard reveal the document only after the
+  // buyer proceeds through every source; a decided step skips straight to it.
+  const [revealed, setRevealed] = React.useState(() => staged && status !== "none");
   const [shownLines, setShownLines] = React.useState(0);
   const [emailOpen, setEmailOpen] = React.useState(false);
 
   React.useEffect(() => {
-    if (revealed) return;
+    if (revealed || staged) return;
     let n = 0;
     let revealTimer = 0;
     const iv = window.setInterval(() => {
@@ -65,7 +73,21 @@ export function AiWorkspacePanel({
     };
   }, [revealed, step.reasoning.length]);
 
+  // While the staged wizard is running, ask the workspace to hide the rail so
+  // the form + source pane get the full width.
+  React.useEffect(() => {
+    onWizardActive?.(staged && !revealed && status === "none");
+    return () => onWizardActive?.(false);
+  }, [revealed, status, staged, onWizardActive]);
+
   const decided = status !== "none";
+
+  // For wizard steps the reasoning checklist mirrors the stages (all done once
+  // revealed); otherwise it streams the step's reasoning lines.
+  const reasoningLines =
+    staged && step.stages
+      ? step.stages.map((s) => s.reasoning)
+      : step.reasoning.slice(0, shownLines);
 
   const sendEmail = () => {
     if (!replied) onReplyReceived();
@@ -102,15 +124,30 @@ export function AiWorkspacePanel({
       </header>
 
       <div className="p-5 space-y-4">
-        {/* Reasoning trace */}
+        {staged && step.stages && !revealed ? (
+          <ExtractionWizard
+            stages={step.stages}
+            sources={step.sources}
+            onComplete={() => setRevealed(true)}
+          />
+        ) : (
+        <>
+        {/* Reasoning trace — the line in progress spins, finished lines check */}
         <div className="space-y-1.5">
-          {step.reasoning.slice(0, shownLines).map((line, i) => (
-            <div key={i} className="flex items-start gap-2 text-[12.5px] text-ink leading-snug">
-              <Check size={13} className="text-surface-deep mt-[3px] shrink-0" strokeWidth={3} />
-              {revealed ? <span>{line}</span> : <StreamingText text={line} cps={90} />}
-            </div>
-          ))}
-          {!revealed && shownLines < step.reasoning.length && (
+          {reasoningLines.map((line, i) => {
+            const streaming = !revealed && i === reasoningLines.length - 1;
+            return (
+              <div key={i} className="flex items-start gap-2 text-[12.5px] text-ink leading-snug">
+                {streaming ? (
+                  <Spinner size={13} className="mt-[2px] shrink-0" />
+                ) : (
+                  <Check size={13} className="text-surface-deep mt-[3px] shrink-0" strokeWidth={3} />
+                )}
+                {revealed ? <span>{line}</span> : <StreamingText text={line} cps={90} />}
+              </div>
+            );
+          })}
+          {!revealed && !staged && shownLines < step.reasoning.length && (
             <div className="flex items-center gap-2 text-[12px] text-mute pl-[21px]">
               <AIDot size={6} tone="deep" pulse /> reasoning…
             </div>
@@ -196,6 +233,8 @@ export function AiWorkspacePanel({
               </div>
             )}
           </SpringIn>
+        )}
+        </>
         )}
       </div>
 

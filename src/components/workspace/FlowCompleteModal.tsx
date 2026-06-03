@@ -1,15 +1,17 @@
 import * as React from "react";
-import { Check, X, FileText } from "lucide-react";
+import { Check, ShieldAlert, X, FileText } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { SpringIn } from "@/components/ai/SpringIn";
 import type { FlowRun } from "@/data/flowRuns";
 import type { SourceArtifact } from "@/data/runSteps";
 
 /**
- * The happy-path close ceremony — a centered "flow complete" card that lands
- * when the final agent hands off. Mirrors the OTM "FLOW COMPLETE" modal: green
- * tick, headline, three stat tiles, and the run's produced artifacts (PR · RFQ ·
- * PO · GR · invoice) as clickable chips that open the real document. Two actions:
- * stay on the run, or return to the cockpit.
+ * The close ceremony — a centered card that lands when a run settles. Reused
+ * across all three flows: the happy path closes green ("flow complete · paid"),
+ * the exception flows close red ("exception raised · escalated / blocked"). Each
+ * shows three stat tiles, the run's produced artifacts (PR · RFQ · PO · GR ·
+ * invoice) stacked as clickable chips that open the real document, and two
+ * actions: stay on the run, or return to the cockpit.
  */
 export function FlowCompleteModal({
   run,
@@ -30,6 +32,7 @@ export function FlowCompleteModal({
 
   const c = run.completion;
   if (!c) return null;
+  const critical = c.tone === "critical";
 
   // Each agent step's produced document becomes a clickable artifact chip.
   const artifacts: SourceArtifact[] = run.steps.map((s) => ({
@@ -45,10 +48,10 @@ export function FlowCompleteModal({
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4"
       onClick={onClose}
     >
-      <SpringIn className="w-full max-w-[560px]">
+      <SpringIn className="w-full max-w-[420px]">
         <div
           onClick={(e) => e.stopPropagation()}
-          className="relative bg-white rounded-2xl shadow-xl px-8 pt-9 pb-7 text-center"
+          className="relative bg-white rounded-2xl shadow-xl px-7 pt-8 pb-6 text-center"
         >
           <button
             type="button"
@@ -59,54 +62,81 @@ export function FlowCompleteModal({
             <X size={18} />
           </button>
 
-          {/* Green tick */}
+          {/* Tone icon — green tick for a clean close, red shield for a halt */}
           <div className="flex justify-center">
-            <span className="w-[72px] h-[72px] rounded-full bg-surface-mint flex items-center justify-center">
-              <span className="w-[56px] h-[56px] rounded-full bg-surface-deep text-ink-inverse flex items-center justify-center">
-                <Check size={30} strokeWidth={3} />
+            <span
+              className={cn(
+                "w-[64px] h-[64px] rounded-full flex items-center justify-center",
+                critical ? "bg-surface-rose" : "bg-surface-mint",
+              )}
+            >
+              <span
+                className={cn(
+                  "w-[50px] h-[50px] rounded-full text-ink-inverse flex items-center justify-center",
+                  critical ? "bg-mark-red" : "bg-surface-deep",
+                )}
+              >
+                {critical ? <ShieldAlert size={26} /> : <Check size={28} strokeWidth={3} />}
               </span>
             </span>
           </div>
 
-          <div className="text-[11px] uppercase tracking-[0.1em] text-surface-deep font-bold mt-4">
-            Flow complete
+          <div
+            className={cn(
+              "text-[11px] uppercase tracking-[0.1em] font-bold mt-4",
+              critical ? "text-mark-red" : "text-surface-deep",
+            )}
+          >
+            {critical ? "Exception raised" : "Flow complete"}
           </div>
-          <div className="text-[24px] font-bold text-ink tracking-[-0.01em] mt-1">{c.title}</div>
+          <div className="text-[20px] font-bold text-ink tracking-[-0.01em] mt-1 leading-tight">
+            {c.title}
+          </div>
 
           {/* Stat tiles */}
-          <div className="grid grid-cols-3 gap-3 mt-5">
+          <div className="grid grid-cols-3 gap-2 mt-4">
             {c.stats.map((s) => (
-              <div key={s.label} className="rounded-lg border border-divider bg-surface-fog/60 py-3">
-                <div className="text-[22px] font-bold text-surface-deep leading-none">{s.value}</div>
-                <div className="text-[11px] text-mute mt-1 leading-tight">{s.label}</div>
+              <div key={s.label} className="rounded-lg border border-divider bg-surface-fog/60 py-2.5 px-1">
+                <div
+                  className={cn(
+                    "text-[18px] font-bold leading-none",
+                    critical ? "text-mark-red" : "text-surface-deep",
+                  )}
+                >
+                  {s.value}
+                </div>
+                <div className="text-[10px] text-mute mt-1 leading-tight">{s.label}</div>
               </div>
             ))}
           </div>
 
-          <p className="text-[13px] text-mute leading-snug mt-4 px-2">{c.caption}</p>
+          <p className="text-[12.5px] text-mute leading-snug mt-3.5">{c.caption}</p>
 
-          {/* Clickable artifacts */}
-          <div className="mt-5 text-left">
+          {/* Clickable artifacts — stacked vertically */}
+          <div className="mt-4 text-left">
             <div className="text-[11px] uppercase tracking-[0.07em] text-mute font-medium mb-2">
               Artifacts · click to open
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2">
               {artifacts.map((a) => (
                 <button
                   key={a.id}
                   type="button"
                   onClick={() => onOpenArtifact(a)}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-md border border-divider bg-white px-2.5 py-1.5 text-[12px] font-medium text-ink hover:border-surface-deep hover:bg-surface-mint/40"
+                  className="ui-pill w-full inline-flex items-center gap-2 rounded-md border border-divider bg-white px-3 py-2 text-[12.5px] text-ink hover:border-surface-deep hover:bg-surface-mint/40"
                 >
-                  <FileText size={13} className="text-surface-deep" />
-                  {a.label}
+                  <FileText size={14} className="text-surface-deep shrink-0" />
+                  <span className="font-medium">{a.label}</span>
+                  <span className="text-mute text-[11px] ml-auto truncate">
+                    {a.meta.split(" · ")[1] ?? ""}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3 mt-7">
+          <div className="flex items-center gap-3 mt-6">
             <button
               type="button"
               onClick={onClose}

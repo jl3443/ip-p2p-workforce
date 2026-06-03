@@ -20,14 +20,19 @@ export function Spinner({
       : tone === "mint"
         ? "var(--surface-mint)"
         : "var(--accent-green-deep)";
+  const faint = `color-mix(in srgb, ${colour} 20%, transparent)`;
   return (
     <span
       className={cn("inline-block", className)}
       style={{
         width: size,
         height: size,
-        border: `2px solid ${colour}33`,
+        borderWidth: "2px",
+        borderStyle: "solid",
         borderTopColor: colour,
+        borderRightColor: faint,
+        borderBottomColor: faint,
+        borderLeftColor: faint,
         borderRadius: "9999px",
         animation: "hr-spin 900ms linear infinite",
       }}
