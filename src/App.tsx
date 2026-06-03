@@ -2,7 +2,7 @@ import { AppProvider, useApp } from "@/state";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Login } from "@/views/Login";
 import { Cockpit } from "@/views/Cockpit";
-import { WorkspaceBelt } from "@/views/WorkspaceBelt";
+import { Workspace } from "@/views/Workspace";
 import { DocView } from "@/views/DocView";
 import { IntakeConsole } from "@/views/IntakeConsole";
 import { SourcingConsole } from "@/views/SourcingConsole";
@@ -22,7 +22,7 @@ function Router() {
     case "cockpit":
       return <Cockpit />;
     case "workspace":
-      return <WorkspaceBelt />;
+      return <Workspace flow={view.flow} />;
     case "agent":
       switch (view.id) {
         case "intake":

@@ -2,6 +2,8 @@ import * as React from "react";
 import { useApp, type AgentOutputStatus } from "@/state";
 import { cn } from "@/lib/utils";
 import { RfqComparison } from "@/components/docs/sap/RfqComparison";
+import { SupplierPoolDoc, ExternalMatchDoc, OutlineAgreementDoc } from "@/components/docs/sources";
+import { DataTable, CellTag } from "@/components/blocks/DataTable";
 import {
   AgentConsole,
   CardHeader,
@@ -151,40 +153,41 @@ const config: ConsoleConfig = {
   openRunLabel: "Open the sourcing event",
 };
 
+const tagTone = { Contracted: "deep", Preferred: "sage", Spot: "neutral" } as const;
+
+function AwardNote() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[12px] text-surface-deep font-medium">
+      <span className="w-3 h-3 rounded-sm bg-surface-mint border border-surface-deep/40" />
+      Recommended award
+    </span>
+  );
+}
+
 function SupplierPoolPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Qualified supplier pool" />
-      <div className="mt-3 space-y-2 flex-1">
-        {pool.map((s) => (
-          <div
-            key={s.code}
-            className={cn(
-              "rounded-md border px-3 py-2.5",
-              s.match ? "border-surface-deep/40 bg-surface-mint/30" : "border-divider bg-surface-fog/60",
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-bold text-ink truncate">{s.name}</span>
-              <span
-                className={cn(
-                  "text-[9px] tracking-[0.06em] uppercase font-bold px-1.5 py-0.5 rounded shrink-0",
-                  s.tag === "Contracted"
-                    ? "bg-surface-deep text-ink-inverse"
-                    : s.tag === "Preferred"
-                      ? "bg-surface-sage/25 text-surface-deep"
-                      : "bg-surface-fog text-mute border border-divider",
-                )}
-              >
-                {s.tag}
-              </span>
-              {s.match && <span className="ml-auto text-[10px] font-bold text-surface-deep">Award ✓</span>}
-            </div>
-            <div className="text-[11px] text-mute mt-1 leading-snug">
-              {s.perf} · {s.health}
-            </div>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Qualified supplier pool" right={<AwardNote />} />
+      <div className="mt-4">
+        <DataTable
+          rows={pool}
+          rowKey={(s) => s.code}
+          highlight={(s) => !!s.match}
+          openDoc={(_s, i) => (i === 0 ? <SupplierPoolDoc /> : null)}
+          openTitle={() => "Approved supplier pool · MRO-CONV"}
+          columns={[
+            {
+              header: "Supplier",
+              cell: (s) => (
+                <span className={cn("font-semibold", s.match && "text-surface-deep")}>{s.name}</span>
+              ),
+            },
+            { header: "Status", cell: (s) => <CellTag tone={tagTone[s.tag]}>{s.tag}</CellTag> },
+            { header: "Performance", cell: (s) => s.perf },
+            { header: "Financial health", cell: (s) => s.health },
+            { header: "Code", align: "right", cell: (s) => s.code },
+          ]}
+        />
       </div>
     </article>
   );
@@ -192,19 +195,21 @@ function SupplierPoolPanel() {
 
 function RiskPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Supplier risk" right={<span className="text-[11px] text-mute">financial · geo · ESG</span>} />
-      <div className="mt-3 divide-y divide-divider flex-1">
-        {risk.map((r) => (
-          <div key={r.supplier} className="py-2">
-            <div className="text-[12.5px] font-bold text-ink">{r.supplier}</div>
-            <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-mute mt-0.5">
-              <span>Financial · {r.financial}</span>
-              <span>Geo · {r.geo}</span>
-              <span>ESG · {r.esg}</span>
-            </div>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Supplier risk" />
+      <div className="mt-4">
+        <DataTable
+          rows={risk}
+          rowKey={(r) => r.supplier}
+          openDoc={(_r, i) => (i === 0 ? <ExternalMatchDoc /> : null)}
+          openTitle={() => "External risk · Dun & Bradstreet"}
+          columns={[
+            { header: "Supplier", cell: (r) => <span className="font-semibold">{r.supplier}</span> },
+            { header: "Financial", cell: (r) => r.financial },
+            { header: "Geography", cell: (r) => r.geo },
+            { header: "ESG", cell: (r) => r.esg },
+          ]}
+        />
       </div>
     </article>
   );
@@ -212,26 +217,30 @@ function RiskPanel() {
 
 function ContractsPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Active contracts & pricing" />
-      <div className="mt-3 space-y-2 flex-1">
-        {contracts.map((c) => (
-          <div
-            key={c.supplier}
-            className={cn(
-              "rounded-md border px-3 py-2.5",
-              c.match ? "border-surface-deep/40 bg-surface-mint/30" : "border-divider bg-surface-fog/60",
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-[12.5px] font-bold text-ink truncate">{c.supplier}</span>
-              {c.ref !== "—" && (
-                <span className="ml-auto text-[10px] text-surface-deep tabular-nums">{c.ref}</span>
-              )}
-            </div>
-            <div className="text-[11px] text-mute mt-1 leading-snug">{c.terms}</div>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Active contracts & pricing" right={<AwardNote />} />
+      <div className="mt-4">
+        <DataTable
+          rows={contracts}
+          rowKey={(c) => c.supplier}
+          highlight={(c) => !!c.match}
+          openDoc={(_c, i) => (i === 0 ? <OutlineAgreementDoc /> : null)}
+          openTitle={() => "Outline agreement · 4600001207"}
+          columns={[
+            {
+              header: "Supplier",
+              cell: (c) => (
+                <span className={cn("font-semibold", c.match && "text-surface-deep")}>{c.supplier}</span>
+              ),
+            },
+            { header: "Terms", cell: (c) => c.terms },
+            {
+              header: "Agreement",
+              align: "right",
+              cell: (c) => (c.ref === "—" ? <span className="text-mute">—</span> : c.ref),
+            },
+          ]}
+        />
       </div>
     </article>
   );
@@ -239,17 +248,20 @@ function ContractsPanel() {
 
 function RfqHistoryPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Historical RFQ outcomes" right={<span className="text-[11px] text-mute">conveyor & belting</span>} />
-      <div className="mt-3 divide-y divide-divider flex-1">
-        {rfqHistory.map((h) => (
-          <div key={h.tender} className="flex items-baseline gap-3 py-2">
-            <span className="text-[11px] tabular-nums text-surface-deep w-28 shrink-0">{h.tender}</span>
-            <span className="text-[12.5px] text-ink leading-snug">
-              {h.category} <span className="text-mute">— {h.outcome}</span>
-            </span>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Historical RFQ outcomes" />
+      <div className="mt-4">
+        <DataTable
+          rows={rfqHistory}
+          rowKey={(h) => h.tender}
+          openDoc={(_h, i) => (i === 0 ? <RfqComparison /> : null)}
+          openTitle={() => "RFQ comparison · RFQ-6600-2188"}
+          columns={[
+            { header: "Tender", cell: (h) => <span className="font-semibold text-surface-deep">{h.tender}</span> },
+            { header: "Category", cell: (h) => h.category },
+            { header: "Outcome", cell: (h) => h.outcome },
+          ]}
+        />
       </div>
     </article>
   );
@@ -282,14 +294,10 @@ export function SourcingConsole() {
     <>
       <AgentConsole config={config} onOpenRun={() => setOpen(true)}>
         <QueuePanel title="Sourcing events · ready to tender" badge="1 ready" items={queue} onOpen={() => setOpen(true)} />
-        <div className="grid grid-cols-2 gap-3 items-stretch">
-          <SupplierPoolPanel />
-          <RiskPanel />
-        </div>
-        <div className="grid grid-cols-2 gap-3 items-stretch">
-          <ContractsPanel />
-          <RfqHistoryPanel />
-        </div>
+        <SupplierPoolPanel />
+        <RiskPanel />
+        <ContractsPanel />
+        <RfqHistoryPanel />
       </AgentConsole>
 
       {open && (

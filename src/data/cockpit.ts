@@ -41,36 +41,31 @@ export const cockpitKpis: KPI[] = [
 
 export type AgentStatus = "running" | "review" | "idle";
 
-export type FleetAgent = {
-  /** Links the row to its agent page and the catalog autonomy level. */
-  id: AgentId;
+/** One stage of the procure-to-pay value chain, in flow order PR → payment. */
+export type PipelineStage = {
+  /** Position in the flow (1–6) — drawn as the rail node. */
+  n: number;
   name: string;
-  role: string;
+  /** Owning agent for the deep-link — null where work hands off to Treasury. */
+  agent: AgentId | null;
+  /** Primary throughput count. */
+  volume: string;
+  /** Secondary read on the stage's health. */
+  detail: string;
   status: AgentStatus;
-  /** Throughput stat shown on the right of the row. */
-  stat: string;
-  /** True for the orchestrator card, which is rendered with emphasis. */
-  lead?: boolean;
 };
 
-export const fleetAgents: FleetAgent[] = [
-  { id: "intake", name: "Intake", role: "Turns requests into clean requisitions", status: "running", stat: "142 today" },
-  { id: "sourcing", name: "Sourcing & spot-buy", role: "Runs mini-tenders, finds savings", status: "running", stat: "38 tenders" },
-  { id: "po", name: "Purchase order", role: "Drafts and issues compliant orders", status: "running", stat: "210 orders" },
-  { id: "fulfillment", name: "Fulfillment", role: "Tracks delivery, chases late orders", status: "running", stat: "1,940 open lines" },
-  { id: "invoice", name: "Invoice match", role: "Matches invoices, clears holds", status: "review", stat: "91% matched" },
-  { id: "vendor", name: "Vendor master", role: "De-duplicates and verifies suppliers", status: "running", stat: "1,204 cleaned" },
-  { id: "helpdesk", name: "Helpdesk", role: "Answers buyer and supplier questions", status: "running", stat: "523 chats" },
+/** The live pipeline — requisition all the way through to payment-ready. */
+export const pipelineStages: PipelineStage[] = [
+  { n: 1, name: "Requisitions", agent: "intake", volume: "142 today", detail: "118 auto-submitted", status: "running" },
+  { n: 2, name: "Sourcing & RFQ", agent: "sourcing", volume: "38 tenders", detail: "6 need sign-off", status: "review" },
+  { n: 3, name: "Purchase orders", agent: "po", volume: "210 issued", detail: "94% on-contract", status: "running" },
+  { n: 4, name: "Expediting", agent: "fulfillment", volume: "1,940 open", detail: "47 chased today", status: "running" },
+  { n: 5, name: "Invoice match", agent: "invoice", volume: "1,610 matched", detail: "22 on hold", status: "review" },
+  { n: 6, name: "Payment ready", agent: null, volume: "188 scheduled", detail: "$4.6M to Treasury", status: "idle" },
 ];
 
-export const orchestrator: FleetAgent = {
-  id: "orchestrator",
-  name: "Process orchestrator",
-  role: "Routes work, keeps shared context, escalates the exceptions that need a person",
-  status: "running",
-  stat: "82% touchless",
-  lead: true,
-};
+export const pipelineFooter = "Requisition-to-order median 4.2 h · 82% touchless end-to-end";
 
 export type PendingDecision = {
   id: string;
@@ -97,41 +92,52 @@ export const pendingDecisions: PendingDecision[] = [
     target: { kind: "workspace", flow: "belt" },
   },
   {
-    id: "PR-48188",
-    type: "Contract renewal",
-    site: "Procurement",
+    id: "PR-48630",
+    type: "Off-contract spot-buy",
+    site: "Power House",
     urgency: "high",
-    title: "Roll wrapping film — 12-month framework",
-    sub: "Renewal 6% under last year · two suppliers compared · above your approval limit",
+    title: "Boiler feed pump — $96,400",
+    sub: "Off-contract · single compliant bid · 24% over benchmark · front-office review",
     dueLabel: "Due",
-    dueWhen: "In 2 days",
-    target: { kind: "workspace", flow: "belt" },
+    dueWhen: "Today",
+    target: { kind: "workspace", flow: "pump" },
   },
   {
-    id: "VM-90412",
-    type: "New supplier",
-    site: "Vendor master",
-    urgency: "medium",
-    title: "Verify replacement belt vendor — possible duplicate",
-    sub: "Looks like an existing supplier from the DS Smith records · confirm before first order",
-    dueLabel: "Due",
-    dueWhen: "In 3 days",
-    target: { kind: "workspace", flow: "belt" },
+    id: "INV-ADS-4419",
+    type: "Payment exception",
+    site: "Containerboard mill",
+    urgency: "critical",
+    title: "Drive gearbox invoice — bank detail changed",
+    sub: "New bank account + short receipt · payment held for fraud review · back-office",
+    dueLabel: "Hold",
+    dueWhen: "Now",
+    target: { kind: "workspace", flow: "gearbox" },
   },
 ];
 
-export type LeakageRow = {
-  source: string;
+/** A live expedite / follow-up — the chase stage made concrete. */
+export type ChaseRow = {
+  id: string;
+  /** What is being chased. */
+  subject: string;
+  /** What the agent has already done on its own. */
+  action: string;
+  /** How overdue, e.g. "4 days late". */
+  lateLabel: string;
+  /** Value at risk on the line. */
   amount: string;
-  fix: string;
+  /** Drives the urgency colour on the days-late figure. */
+  tone: "critical" | "high" | "medium";
+  /** Optional deep-link into the run that owns this line. */
+  target?: View;
 };
 
-export const leakage = {
-  headline: "20% of suppliers drive 80% of off-contract spend",
+export const expediting = {
   rows: [
-    { source: "Maverick maintenance buys", amount: "$6.1M off-contract", fix: "Route to framework suppliers" },
-    { source: "Duplicate suppliers", amount: "30–40% of records", fix: "Merge after DS Smith integration" },
-    { source: "Late freight invoices", amount: "$2.4M in disputes", fix: "Auto-match shipment documents" },
-  ] as LeakageRow[],
-  callout: "$1B cost-out program · $117M vendor-consolidation synergy in reach",
+    { id: "PO-77310", subject: "Corrugator belt", action: "Sent expedite note #2 to supplier", lateLabel: "4 days late", amount: "$48.2K", tone: "critical", target: { kind: "workspace", flow: "belt" } },
+    { id: "PO-76980", subject: "Roll wrapping film", action: "Chasing supplier acknowledgement", lateLabel: "2 days late", amount: "$128K", tone: "high" },
+    { id: "INV-55012", subject: "Late freight invoice", action: "Requested proof of delivery", lateLabel: "6 days open", amount: "$31K", tone: "high" },
+    { id: "PO-75540", subject: "MRO bearings", action: "Short 12 units · flagged to buyer", lateLabel: "3 days late", amount: "$9.4K", tone: "medium" },
+  ] as ChaseRow[],
+  footer: "$216K at risk being worked · 47 chases auto-sent today · 9 cleared",
 };

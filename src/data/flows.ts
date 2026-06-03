@@ -115,11 +115,11 @@ export const beltFlow: FlowDef = {
   ],
 };
 
-export const flowsById: Record<FlowId, FlowDef> = {
+export const flowsById: Partial<Record<FlowId, FlowDef>> = {
   belt: beltFlow,
 };
 
 /** Documents linked from each workspace's decision card. */
-export const docLinksByFlow: Record<FlowId, DocId[]> = {
+export const docLinksByFlow: Partial<Record<FlowId, DocId[]>> = {
   belt: ["purchase-req", "bid-comparison", "draft-po", "envelope-report"],
 };

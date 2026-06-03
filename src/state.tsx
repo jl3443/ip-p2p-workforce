@@ -7,10 +7,13 @@
 import * as React from "react";
 import { agents, type AgentId, type AutonomyLevel } from "@/data/agents";
 
-export type FlowId = "belt";
+export type FlowId = "belt" | "pump" | "gearbox";
 
 /** Lifecycle of an agent's output artifact — drives the handoff to the next agent. */
 export type AgentOutputStatus = "none" | "pending" | "approved" | "rejected" | "escalated";
+
+/** A human decision on a run step (everything but the un-acted "none"). */
+export type Decision = Exclude<AgentOutputStatus, "none">;
 
 /** Configurable guardrail saved from the gear → settings modal. */
 export type AgentConfig = {
@@ -38,7 +41,12 @@ export type View =
 
 export type FlowProgress = {
   activeStep: number;
+  /** True once the run reaches its happy-path terminal state (e.g. Paid). */
   approved: boolean;
+  /** Per-step human decisions, keyed by step index — decoupled from agentOutputs. */
+  decisions: Record<number, Decision>;
+  /** True once the run is settled — happy-path done OR halted on an exception. */
+  settled: boolean;
 };
 
 export type AppState = {
@@ -66,8 +74,17 @@ export type AppActions = {
   setAgentConfig: (id: AgentId, next: Partial<AgentConfig>) => void;
 };
 
+const freshFlow = (): FlowProgress => ({
+  activeStep: 0,
+  approved: false,
+  decisions: {},
+  settled: false,
+});
+
 const freshProgress = (): Record<FlowId, FlowProgress> => ({
-  belt: { activeStep: 0, approved: false },
+  belt: freshFlow(),
+  pump: freshFlow(),
+  gearbox: freshFlow(),
 });
 
 /** Sensible per-agent guardrail defaults; the gear modal overwrites these. */

@@ -1,8 +1,14 @@
 import * as React from "react";
-import { Check } from "lucide-react";
 import { useApp, type AgentOutputStatus } from "@/state";
 import { cn } from "@/lib/utils";
 import { InvoiceMatch } from "@/components/docs/sap/InvoiceMatch";
+import {
+  VendorInvoiceDoc,
+  OutlineAgreementDoc,
+  VendorRecordDoc,
+  ExternalMatchDoc,
+} from "@/components/docs/sources";
+import { DataTable } from "@/components/blocks/DataTable";
 import {
   AgentConsole,
   CardHeader,
@@ -167,21 +173,32 @@ function confTone(conf: number) {
 
 function ExtractionPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Extracted invoice · IDP" right={<span className="text-[11px] text-mute">conf 0.985</span>} />
-      <div className="mt-3 divide-y divide-divider flex-1">
-        {extracted.map((e) => (
-          <div key={e.field} className="flex items-center gap-3 py-2">
-            <span className="text-[11.5px] text-mute w-24 shrink-0">{e.field}</span>
-            <span className="text-[12.5px] text-ink flex-1 min-w-0 truncate">{e.value}</span>
-            <span className="flex items-center gap-1.5 shrink-0">
-              <span className="h-1.5 w-12 rounded-full bg-surface-fog overflow-hidden">
-                <span className={cn("block h-full rounded-full", confTone(e.conf))} style={{ width: `${e.conf * 100}%` }} />
-              </span>
-              <span className="text-[11px] tabular-nums text-surface-deep w-8 text-right">{e.conf.toFixed(2)}</span>
-            </span>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Extracted invoice · IDP" />
+      <div className="mt-4">
+        <DataTable
+          rows={extracted}
+          rowKey={(e) => e.field}
+          openDoc={(_e, i) => (i === 0 ? <VendorInvoiceDoc /> : null)}
+          openTitle={() => "Supplier invoice · BPI-5567"}
+          columns={[
+            { header: "Field", className: "w-36", cell: (e) => <span className="font-semibold">{e.field}</span> },
+            { header: "Value", cell: (e) => e.value },
+            {
+              header: "Confidence",
+              align: "right",
+              className: "w-40",
+              cell: (e) => (
+                <span className="inline-flex items-center gap-2 justify-end">
+                  <span className="h-1.5 w-16 rounded-full bg-surface-fog overflow-hidden">
+                    <span className={cn("block h-full rounded-full", confTone(e.conf))} style={{ width: `${e.conf * 100}%` }} />
+                  </span>
+                  <span className="tabular-nums text-surface-deep w-8 text-right">{e.conf.toFixed(2)}</span>
+                </span>
+              ),
+            },
+          ]}
+        />
       </div>
     </article>
   );
@@ -189,23 +206,20 @@ function ExtractionPanel() {
 
 function MatchSourcesPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Four-way match sources" right={<span className="text-[11px] text-mute">all aligned</span>} />
-      <div className="mt-3 space-y-2.5 flex-1">
-        {sources.map((s) => (
-          <div key={s.label} className="flex items-start gap-3 rounded-md bg-surface-fog/70 px-3 py-2.5">
-            <span className="w-5 h-5 rounded-md bg-surface-deep text-ink-inverse flex items-center justify-center shrink-0 mt-0.5">
-              <Check size={12} strokeWidth={3} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] tracking-[0.05em] uppercase text-surface-deep font-bold">{s.label}</span>
-                <span className="text-[12px] font-bold text-ink truncate">{s.ref}</span>
-              </div>
-              <div className="text-[11.5px] text-mute leading-snug mt-0.5">{s.detail}</div>
-            </div>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Four-way match sources" />
+      <div className="mt-4">
+        <DataTable
+          rows={sources}
+          rowKey={(s) => s.label}
+          openDoc={(_s, i) => (i === 0 ? <OutlineAgreementDoc /> : null)}
+          openTitle={() => "Outline agreement · 4600001207"}
+          columns={[
+            { header: "Source", cell: (s) => <span className="font-semibold">{s.label}</span> },
+            { header: "Reference", cell: (s) => <span className="text-surface-deep">{s.ref}</span> },
+            { header: "Detail", cell: (s) => s.detail },
+          ]}
+        />
       </div>
     </article>
   );
@@ -213,18 +227,19 @@ function MatchSourcesPanel() {
 
 function RemittancePanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Supplier master · remittance" right={<span className="text-[11px] text-mute">vendor 100482</span>} />
-      <div className="mt-3 divide-y divide-divider flex-1">
-        {remittance.map((r) => (
-          <div key={r.label} className="flex items-start gap-3 py-2.5">
-            <span className="w-4 h-4 rounded-full bg-surface-mint text-surface-deep flex items-center justify-center shrink-0 mt-0.5">
-              <Check size={10} strokeWidth={3} />
-            </span>
-            <span className="text-[11.5px] text-mute w-28 shrink-0">{r.label}</span>
-            <span className="text-[12px] text-ink flex-1 min-w-0">{r.value}</span>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Supplier master · remittance" />
+      <div className="mt-4">
+        <DataTable
+          rows={remittance}
+          rowKey={(r) => r.label}
+          openDoc={(_r, i) => (i === 0 ? <VendorRecordDoc variant="golden" /> : null)}
+          openTitle={() => "Vendor master · 100482 BeltPro"}
+          columns={[
+            { header: "Field", className: "w-52", cell: (r) => <span className="font-semibold">{r.label}</span> },
+            { header: "Detail", cell: (r) => r.value },
+          ]}
+        />
       </div>
     </article>
   );
@@ -232,10 +247,10 @@ function RemittancePanel() {
 
 function FraudPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Fraud & anomaly signal" right={<span className="text-[11px] text-mute">baseline · 18 mo</span>} />
-      <div className="mt-3 rounded-md bg-surface-fog/70 px-3 py-3">
-        <div className="flex items-center justify-between text-[11.5px] mb-1.5">
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Fraud & anomaly signal" />
+      <div className="mt-4 rounded-md bg-surface-fog/70 px-3 py-3">
+        <div className="flex items-center justify-between text-[12px] mb-1.5">
           <span className="text-ink font-medium">Fraud score</span>
           <span className="tabular-nums text-surface-deep font-bold">{FRAUD_SCORE.toFixed(2)} · low</span>
         </div>
@@ -243,16 +258,17 @@ function FraudPanel() {
           <div className="h-full rounded-full bg-surface-sage" style={{ width: `${FRAUD_SCORE * 100}%` }} />
         </div>
       </div>
-      <div className="mt-3 divide-y divide-divider flex-1">
-        {fraudChecks.map((c) => (
-          <div key={c.label} className="flex items-center gap-3 py-2.5">
-            <span className="w-4 h-4 rounded-full bg-surface-mint text-surface-deep flex items-center justify-center shrink-0">
-              <Check size={10} strokeWidth={3} />
-            </span>
-            <span className="text-[12.5px] text-ink flex-1 min-w-0 truncate">{c.label}</span>
-            <span className="text-[11.5px] text-mute shrink-0">{c.result}</span>
-          </div>
-        ))}
+      <div className="mt-4">
+        <DataTable
+          rows={fraudChecks}
+          rowKey={(c) => c.label}
+          openDoc={(_c, i) => (i === 0 ? <ExternalMatchDoc /> : null)}
+          openTitle={() => "External match · D&B / OFAC"}
+          columns={[
+            { header: "Check", cell: (c) => <span className="font-semibold">{c.label}</span> },
+            { header: "Result", align: "right", cell: (c) => <span className="text-mute">{c.result}</span> },
+          ]}
+        />
       </div>
     </article>
   );
@@ -285,14 +301,10 @@ export function InvoiceConsole() {
     <>
       <AgentConsole config={config} onOpenRun={() => setOpen(true)}>
         <QueuePanel title="Invoice worklist · blocks & matches" badge="1 to match" items={queue} onOpen={() => setOpen(true)} />
-        <div className="grid grid-cols-2 gap-3 items-stretch">
-          <ExtractionPanel />
-          <MatchSourcesPanel />
-        </div>
-        <div className="grid grid-cols-2 gap-3 items-stretch">
-          <RemittancePanel />
-          <FraudPanel />
-        </div>
+        <ExtractionPanel />
+        <MatchSourcesPanel />
+        <RemittancePanel />
+        <FraudPanel />
       </AgentConsole>
 
       {open && (

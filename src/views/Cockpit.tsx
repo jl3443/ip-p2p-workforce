@@ -3,8 +3,8 @@ import { HeroBanner } from "@/components/blocks/HeroBanner";
 import { KPIStrip } from "@/components/blocks/KPIStrip";
 import { PillButton } from "@/components/blocks/PillButton";
 import { PendingDecisionsPanel } from "@/components/blocks/PendingDecisionsPanel";
-import { AgentFleetPanel } from "@/components/blocks/AgentFleetPanel";
-import { LeakagePanel } from "@/components/blocks/LeakagePanel";
+import { PipelinePanel } from "@/components/blocks/PipelinePanel";
+import { ExpeditingPanel } from "@/components/blocks/ExpeditingPanel";
 import { cockpitKpis } from "@/data/cockpit";
 
 export function Cockpit() {
@@ -24,8 +24,8 @@ export function Cockpit() {
       <PendingDecisionsPanel />
 
       <div className="grid grid-cols-2 gap-3 items-stretch">
-        <AgentFleetPanel />
-        <LeakagePanel />
+        <PipelinePanel />
+        <ExpeditingPanel />
       </div>
     </div>
   );

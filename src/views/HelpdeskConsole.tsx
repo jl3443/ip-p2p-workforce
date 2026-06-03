@@ -2,6 +2,9 @@ import * as React from "react";
 import { useApp, type AgentOutputStatus } from "@/state";
 import { cn } from "@/lib/utils";
 import { HelpdeskTicket } from "@/components/docs/servicenow/HelpdeskTicket";
+import { PurchaseRequisition } from "@/components/docs/sap/PurchaseRequisition";
+import { KbArticleDoc } from "@/components/docs/sources";
+import { DataTable, CellTag } from "@/components/blocks/DataTable";
 import {
   AgentConsole,
   CardHeader,
@@ -32,18 +35,18 @@ const queue: QueueItem[] = [
     actionable: true,
   },
   {
-    id: "prc-3318",
-    primary: "PRC-3318 · A. Romero",
-    secondary: "How do I add a punch-out catalog supplier? · auto-resolved",
+    id: "prc-3320",
+    primary: "PRC-3320 · Power House",
+    secondary: "Where is the boiler-feed-pump RFQ? · linked to PR-48630 · auto-resolved",
     meta: "1h",
     handledTag: "Auto-resolved",
   },
   {
-    id: "prc-3304",
-    primary: "PRC-3304 · BeltPro Industrial",
-    secondary: "Remittance advice for INV-BPI-5520 · drafted for the analyst",
-    meta: "3h",
-    handledTag: "Draft sent",
+    id: "prc-3316",
+    primary: "PRC-3316 · AP desk",
+    secondary: "Why is invoice INV-ADS-4419 on hold? · routed to the fraud review",
+    meta: "2h",
+    handledTag: "Routed to owner",
   },
 ];
 
@@ -149,8 +152,10 @@ const config: ConsoleConfig = {
   outputMeta,
   chatName: "Helpdesk agent",
   chatScript,
+  runTitle: "Resolve the open ticket with the cited policy",
   runRole: "Retrieves the policy, drafts the answer and auto-closes the known query with the cited knowledge article.",
   openRunLabel: "Open the ticket",
+  standalone: true,
 };
 
 function knowledgeRelTone(rel: number) {
@@ -161,61 +166,81 @@ function knowledgeRelTone(rel: number) {
 
 function KnowledgePanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Knowledge base · retrieval" right={<span className="text-[11px] text-mute">top 3 of 1,420</span>} />
-      <div className="mt-3 space-y-2.5 flex-1">
-        {kbHits.map((k) => (
-          <div
-            key={k.id}
-            className={cn(
-              "rounded-md px-3 py-2.5",
-              k.cited ? "bg-surface-mint/40 border border-surface-deep/15" : "bg-surface-fog/70",
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] tabular-nums font-bold text-surface-deep">{k.id}</span>
-              {k.cited && (
-                <span className="text-[9px] tracking-[0.05em] uppercase font-bold text-surface-deep bg-surface-mint px-1.5 py-0.5 rounded">
-                  Cited
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Knowledge base · retrieval" />
+      <div className="mt-4">
+        <DataTable
+          rows={kbHits}
+          rowKey={(k) => k.id}
+          highlight={(k) => !!k.cited}
+          openDoc={(_k, i) => (i === 0 ? <KbArticleDoc /> : null)}
+          openTitle={() => "Knowledge article · KB-PROC-0148"}
+          columns={[
+            {
+              header: "Article",
+              cell: (k) => (
+                <span className="inline-flex items-center gap-2 font-semibold text-surface-deep tabular-nums">
+                  {k.id}
+                  {k.cited && <CellTag tone="sage">Cited</CellTag>}
                 </span>
-              )}
-              <span className="ml-auto flex items-center gap-1.5">
-                <span className="h-1.5 w-12 rounded-full bg-white overflow-hidden border border-divider">
-                  <span className={cn("block h-full rounded-full", knowledgeRelTone(k.rel))} style={{ width: `${k.rel * 100}%` }} />
+              ),
+            },
+            { header: "Title", cell: (k) => k.title },
+            {
+              header: "Relevance",
+              align: "right",
+              className: "w-40",
+              cell: (k) => (
+                <span className="inline-flex items-center gap-2 justify-end">
+                  <span className="h-1.5 w-16 rounded-full bg-surface-fog overflow-hidden">
+                    <span className={cn("block h-full rounded-full", knowledgeRelTone(k.rel))} style={{ width: `${k.rel * 100}%` }} />
+                  </span>
+                  <span className="tabular-nums text-surface-deep w-8 text-right">{k.rel.toFixed(2)}</span>
                 </span>
-                <span className="text-[11px] tabular-nums text-surface-deep w-8 text-right">{k.rel.toFixed(2)}</span>
-              </span>
-            </div>
-            <div className="text-[12px] text-ink leading-snug mt-1">{k.title}</div>
-          </div>
-        ))}
+              ),
+            },
+          ]}
+        />
       </div>
     </article>
   );
 }
 
-function ContextPanel() {
+function LinkedPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Linked records · context" right={<span className="text-[11px] text-mute">SAP · LevelPath</span>} />
-      <div className="mt-3 divide-y divide-divider flex-1">
-        {linked.map((l) => (
-          <div key={l.record} className="flex items-start gap-3 py-2.5">
-            <span className="text-[11.5px] tabular-nums text-surface-deep w-24 shrink-0">{l.record}</span>
-            <span className="text-[12px] text-ink flex-1 min-w-0">{l.detail}</span>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Linked records · context" />
+      <div className="mt-4">
+        <DataTable
+          rows={linked}
+          rowKey={(l) => l.record}
+          openDoc={(_l, i) => (i === 0 ? <PurchaseRequisition /> : null)}
+          openTitle={() => "Purchase requisition · PR-48201"}
+          columns={[
+            { header: "Record", className: "w-44", cell: (l) => <span className="font-semibold text-surface-deep tabular-nums">{l.record}</span> },
+            { header: "Detail", cell: (l) => l.detail },
+          ]}
+        />
       </div>
-      <div className="mt-3 pt-3 border-t border-divider">
-        <div className="text-[10px] tracking-[0.05em] uppercase text-mute font-medium mb-2">Classification & routing</div>
-        <div className="space-y-1.5">
-          {classification.map((c) => (
-            <div key={c.label} className="flex items-center gap-3 text-[12px]">
-              <span className="text-mute w-20 shrink-0">{c.label}</span>
-              <span className="text-ink flex-1 min-w-0">{c.value}</span>
-            </div>
-          ))}
-        </div>
+    </article>
+  );
+}
+
+function ClassificationPanel() {
+  return (
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Classification & routing" />
+      <div className="mt-4">
+        <DataTable
+          rows={classification}
+          rowKey={(c) => c.label}
+          openDoc={(_c, i) => (i === 0 ? <HelpdeskTicket /> : null)}
+          openTitle={() => "Helpdesk ticket · PRC-3322"}
+          columns={[
+            { header: "Field", className: "w-44", cell: (c) => <span className="font-semibold">{c.label}</span> },
+            { header: "Value", cell: (c) => c.value },
+          ]}
+        />
       </div>
     </article>
   );
@@ -252,23 +277,21 @@ function HelpdeskContext() {
 }
 
 export function HelpdeskConsole() {
-  const { setAgentOutput, go } = useApp();
+  const { setAgentOutput } = useApp();
   const [open, setOpen] = React.useState(false);
 
   const decide = (status: AgentOutputStatus) => {
     setAgentOutput("helpdesk", status);
-    if (status === "approved") go({ kind: "workspace", flow: "belt" });
-    else setOpen(false);
+    setOpen(false);
   };
 
   return (
     <>
       <AgentConsole config={config} onOpenRun={() => setOpen(true)}>
         <QueuePanel title="Helpdesk inbox · open tickets" badge="1 to resolve" items={queue} onOpen={() => setOpen(true)} />
-        <div className="grid grid-cols-2 gap-3 items-stretch">
-          <KnowledgePanel />
-          <ContextPanel />
-        </div>
+        <KnowledgePanel />
+        <LinkedPanel />
+        <ClassificationPanel />
         <SlaPanel />
       </AgentConsole>
 

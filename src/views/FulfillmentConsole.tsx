@@ -2,6 +2,8 @@ import * as React from "react";
 import { useApp, type AgentOutputStatus } from "@/state";
 import { cn } from "@/lib/utils";
 import { GoodsReceipt } from "@/components/docs/sap/GoodsReceipt";
+import { DeliveryNoteDoc } from "@/components/docs/sources";
+import { DataTable, CellTag } from "@/components/blocks/DataTable";
 import {
   AgentConsole,
   CardHeader,
@@ -147,25 +149,29 @@ const config: ConsoleConfig = {
 
 function ShipmentPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Delivery & shipment · PO-77310" right={<span className="text-[11px] text-mute">due 2026-06-10</span>} />
-      <div className="mt-3 space-y-2.5 flex-1">
-        {shipment.map((s) => (
-          <div key={s.label} className="flex items-start gap-3">
-            <span
-              className={cn(
-                "w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-[10px] font-bold",
-                s.done ? "bg-surface-deep text-ink-inverse" : "bg-surface-fog border border-divider text-mute",
-              )}
-            >
-              {s.done ? "✓" : "•"}
-            </span>
-            <div className="min-w-0">
-              <div className="text-[12.5px] font-bold text-ink">{s.label}</div>
-              <div className="text-[11px] text-mute leading-snug">{s.value}</div>
-            </div>
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Delivery & shipment · PO-77310" />
+      <div className="mt-4">
+        <DataTable
+          rows={shipment}
+          rowKey={(s) => s.label}
+          highlight={(s) => !!s.done}
+          openDoc={(_s, i) => (i === 0 ? <DeliveryNoteDoc /> : null)}
+          openTitle={() => "Delivery note · BPI-DN-5567"}
+          columns={[
+            {
+              header: "Stage",
+              className: "w-44",
+              cell: (s) => (
+                <span className={cn("font-semibold", s.done ? "text-surface-deep" : "text-mute")}>{s.label}</span>
+              ),
+            },
+            {
+              header: "Status",
+              cell: (s) => <span className={cn(!s.done && "text-mute")}>{s.value}</span>,
+            },
+          ]}
+        />
       </div>
     </article>
   );
@@ -197,22 +203,23 @@ function AgeingPanel() {
 function ServiceCompletionPanel() {
   return (
     <article className="bg-white border border-divider rounded-md p-5">
-      <CardHeader label="Service-completion status" right={<span className="text-[11px] text-mute">so GR posts on time</span>} />
-      <div className="mt-3 divide-y divide-divider">
-        {serviceCompletion.map((r) => (
-          <div key={r.po} className="flex items-center gap-3 py-2.5">
-            <span className="text-[11.5px] tabular-nums text-surface-deep w-24 shrink-0">{r.po}</span>
-            <span className="text-[12.5px] text-ink flex-1 min-w-0 truncate">{r.requestor}</span>
-            <span
-              className={cn(
-                "text-[10px] tracking-[0.04em] uppercase font-bold px-2 py-0.5 rounded shrink-0",
-                r.done ? "bg-surface-mint text-surface-deep" : "bg-surface-fog text-mute border border-divider",
-              )}
-            >
-              {r.status}
-            </span>
-          </div>
-        ))}
+      <CardHeader label="Service-completion status" />
+      <div className="mt-4">
+        <DataTable
+          rows={serviceCompletion}
+          rowKey={(r) => r.po}
+          openDoc={(_r, i) => (i === 0 ? <GoodsReceipt /> : null)}
+          openTitle={() => "Goods receipt · GR-77310"}
+          columns={[
+            { header: "Order", cell: (r) => <span className="font-semibold text-surface-deep">{r.po}</span> },
+            { header: "Requestor", cell: (r) => r.requestor },
+            {
+              header: "Status",
+              align: "right",
+              cell: (r) => <CellTag tone={r.done ? "sage" : "neutral"}>{r.status}</CellTag>,
+            },
+          ]}
+        />
       </div>
     </article>
   );
@@ -245,10 +252,8 @@ export function FulfillmentConsole() {
     <>
       <AgentConsole config={config} onOpenRun={() => setOpen(true)}>
         <QueuePanel title="Open orders · expedite worklist" badge="1 to receive" items={queue} onOpen={() => setOpen(true)} />
-        <div className="grid grid-cols-2 gap-3 items-stretch">
-          <ShipmentPanel />
-          <AgeingPanel />
-        </div>
+        <ShipmentPanel />
+        <AgeingPanel />
         <ServiceCompletionPanel />
       </AgentConsole>
 

@@ -15,9 +15,11 @@ import { Spinner } from "@/components/ai/Spinner";
 import { StatusPill } from "@/components/blocks/StatusPill";
 import { PillButton } from "@/components/blocks/PillButton";
 import { TopRow } from "@/components/blocks/TopRow";
+import { DataTable, CellTag, DocPreviewModal } from "@/components/blocks/DataTable";
 import { AutonomyControl } from "@/components/agents/AutonomyControl";
 import { AgentChat, type ChatTurn } from "@/components/agents/AgentChat";
 import { PurchaseRequisition } from "@/components/docs/sap/PurchaseRequisition";
+import { OutlineAgreementDoc, SpendingPolicyDoc } from "@/components/docs/sources";
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Intake Agent console — the reference build.
@@ -104,10 +106,21 @@ function OutputStatusCard() {
   const { agentOutputs, go } = useApp();
   const status = agentOutputs.intake;
   const meta = OUTPUT_META[status];
+  // The PR number is only assigned once the agent has drafted it. Before that
+  // the handoff slot is empty — naming PR-48201 would be wrong.
+  const hasDraft = status !== "none";
+  const [docOpen, setDocOpen] = React.useState(false);
+
   return (
     <article className="bg-white border border-divider rounded-md p-5 space-y-3">
       <CardHeader label="Current output · handoff to Sourcing" right={<StatusPill label={meta.label} kind={meta.kind} pulse={status === "approved"} />} />
-      <div className="flex items-center gap-3 rounded-md bg-surface-fog px-3 py-3">
+      <div
+        className={cn(
+          "flex items-center gap-3 rounded-md bg-surface-fog px-3 py-3",
+          hasDraft && "cursor-pointer transition-colors hover:bg-surface-mint/40",
+        )}
+        onClick={hasDraft ? () => setDocOpen(true) : undefined}
+      >
         <span
           className={cn(
             "w-9 h-9 rounded-md flex items-center justify-center shrink-0",
@@ -117,15 +130,32 @@ function OutputStatusCard() {
           <FileText size={17} strokeWidth={1.9} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-bold text-ink">Purchase requisition · PR-48201</div>
+          <div className="text-[13px] font-bold text-ink inline-flex items-center gap-1.5">
+            {hasDraft ? "Purchase requisition · PR-48201" : "Requisition · not drafted yet"}
+            {hasDraft && <ChevronRight size={13} className="text-surface-deep/60 shrink-0" />}
+          </div>
           <div className="text-[12px] text-mute leading-snug mt-0.5">{meta.note}</div>
         </div>
         {status === "approved" && (
-          <PillButton variant="deep" size="sm" arrow onClick={() => go({ kind: "workspace", flow: "belt" })}>
+          <PillButton
+            variant="deep"
+            size="sm"
+            arrow
+            onClick={(e) => {
+              e.stopPropagation();
+              go({ kind: "workspace", flow: "belt" });
+            }}
+          >
             Open the run
           </PillButton>
         )}
       </div>
+
+      {docOpen && (
+        <DocPreviewModal title="Purchase requisition · PR-48201" onClose={() => setDocOpen(false)}>
+          <PurchaseRequisition />
+        </DocPreviewModal>
+      )}
     </article>
   );
 }
@@ -201,45 +231,41 @@ function OutlookInbox({ onOpen }: { onOpen: (e: IntakeEmail) => void }) {
 
 function ContractsPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Contracts & preferred suppliers" />
-      <div className="mt-3 space-y-2 flex-1">
-        {preferredSuppliers.map((s) => (
-          <div
-            key={s.supplier}
-            className={cn(
-              "rounded-md border px-3 py-2.5",
-              s.match ? "border-surface-deep/40 bg-surface-mint/30" : "border-divider bg-surface-fog/60",
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-bold text-ink truncate">{s.supplier}</span>
-              <span
-                className={cn(
-                  "text-[9px] tracking-[0.06em] uppercase font-bold px-1.5 py-0.5 rounded shrink-0",
-                  s.kind === "Contracted"
-                    ? "bg-surface-deep text-ink-inverse"
-                    : s.kind === "Preferred"
-                      ? "bg-surface-sage/25 text-surface-deep"
-                      : "bg-surface-fog text-mute border border-divider",
-                )}
-              >
-                {s.kind}
-              </span>
-              {s.match && (
-                <span className="ml-auto text-[10px] font-bold text-surface-deep">Match ✓</span>
-              )}
-            </div>
-            <div className="text-[11px] text-mute mt-1 leading-snug">
-              {s.category} · {s.terms}
-            </div>
-            {s.contractRef !== "—" && (
-              <div className="text-[10px] text-surface-deep tabular-nums mt-0.5">
-                Outline agreement {s.contractRef}
-              </div>
-            )}
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Contracts & preferred suppliers" right={<MatchNote />} />
+      <div className="mt-3">
+        <DataTable
+          rows={preferredSuppliers}
+          rowKey={(s) => s.supplier}
+          highlight={(s) => !!s.match}
+          openDoc={(_s, i) => (i === 0 ? <OutlineAgreementDoc /> : null)}
+          openTitle={() => "Outline agreement · 4600001207"}
+          columns={[
+            {
+              header: "Supplier",
+              cell: (s) => (
+                <span className={cn("font-bold", s.match ? "text-surface-deep" : "text-ink")}>{s.supplier}</span>
+              ),
+            },
+            {
+              header: "Status",
+              className: "w-[112px]",
+              cell: (s) => (
+                <CellTag tone={s.kind === "Contracted" ? "deep" : s.kind === "Preferred" ? "sage" : "neutral"}>
+                  {s.kind}
+                </CellTag>
+              ),
+            },
+            { header: "Category", cell: (s) => s.category },
+            { header: "Terms", cell: (s) => s.terms },
+            {
+              header: "Agreement",
+              align: "right",
+              className: "w-[120px]",
+              cell: (s) => (s.contractRef === "—" ? <span className="text-mute">—</span> : s.contractRef),
+            },
+          ]}
+        />
       </div>
     </article>
   );
@@ -247,30 +273,36 @@ function ContractsPanel() {
 
 function SpendingPolicyPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
-      <CardHeader label="Spending policy" />
-      <div className="mt-3 space-y-2 flex-1">
-        {spendingPolicies.map((p) => (
-          <div
-            key={p.ref}
-            className={cn(
-              "rounded-md border px-3 py-2.5",
-              p.match ? "border-surface-deep/40 bg-surface-mint/30" : "border-divider bg-surface-fog/60",
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <FileText size={14} className="text-surface-deep shrink-0" strokeWidth={1.9} />
-              <span className="text-[13px] font-bold text-ink truncate">{p.title}</span>
-              <span className="ml-auto text-[10px] text-mute tabular-nums shrink-0">{p.ref}</span>
-            </div>
-            <div className="text-[11px] text-mute mt-1 leading-snug">{p.rule}</div>
-            {p.match && (
-              <div className="text-[10px] font-bold text-surface-deep mt-1">Governs this request ✓</div>
-            )}
-          </div>
-        ))}
+    <article className="bg-white border border-divider rounded-md p-5">
+      <CardHeader label="Spending policy" right={<MatchNote />} />
+      <div className="mt-3">
+        <DataTable
+          rows={spendingPolicies}
+          rowKey={(p) => p.ref}
+          highlight={(p) => !!p.match}
+          openDoc={(_p, i) => (i === 0 ? <SpendingPolicyDoc /> : null)}
+          openTitle={() => "Spending policy · POL-MRO-04"}
+          columns={[
+            {
+              header: "Policy",
+              cell: (p) => <span className="font-bold text-ink">{p.title}</span>,
+            },
+            { header: "Reference", className: "w-[110px]", cell: (p) => <span className="tabular-nums">{p.ref}</span> },
+            { header: "Rule", cell: (p) => p.rule },
+          ]}
+        />
       </div>
     </article>
+  );
+}
+
+/** Tiny legend for the mint row — what the highlight means on these tables. */
+function MatchNote() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-mute">
+      <span className="w-3 h-3 rounded-sm bg-surface-mint border border-surface-deep/30" />
+      Governs this request
+    </span>
   );
 }
 
@@ -740,10 +772,8 @@ export function IntakeConsole() {
           <AutonomyControl agent={agent} />
           <OutputStatusCard />
           <OutlookInbox onOpen={setOpenEmail} />
-          <div className="grid grid-cols-2 gap-3 items-stretch">
-            <ContractsPanel />
-            <SpendingPolicyPanel />
-          </div>
+          <ContractsPanel />
+          <SpendingPolicyPanel />
           <div className="flex items-center justify-between gap-4 rounded-md bg-white border border-divider px-5 py-4">
             <div className="min-w-0">
               <div className="text-[13px] font-bold text-ink">See the Intake agent in the live run</div>

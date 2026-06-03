@@ -17,8 +17,8 @@ type Decision = Exclude<AgentOutputStatus, "none">;
 const noteFor: Record<Decision, { label: string; cls: string }> = {
   approved: { label: "Approved · output handed to the next agent", cls: "text-surface-deep" },
   pending: { label: "On hold · parked for review, run can still continue", cls: "text-mute" },
-  escalated: { label: "Escalated · routed to a sourcing manager", cls: "text-mark-red" },
-  rejected: { label: "Rejected · output returned to the agent", cls: "text-mark-red" },
+  escalated: { label: "Escalated · routed to a human reviewer · run halted", cls: "text-mark-red" },
+  rejected: { label: "Rejected · sent back with a flag · run halted", cls: "text-mark-red" },
 };
 
 export function AiWorkspacePanel({
@@ -26,6 +26,7 @@ export function AiWorkspacePanel({
   status,
   replied,
   isLast,
+  completeNote = "Run complete · invoice released to AP, audit envelope closed",
   onReplyReceived,
   onDecision,
 }: {
@@ -33,6 +34,8 @@ export function AiWorkspacePanel({
   status: AgentOutputStatus;
   replied: boolean;
   isLast: boolean;
+  /** Note shown when the final step is approved (happy-path close). */
+  completeNote?: string;
   onReplyReceived: () => void;
   onDecision: (status: Decision) => void;
 }) {
@@ -150,7 +153,7 @@ export function AiWorkspacePanel({
               <div className={cn("flex items-center gap-2 text-[12.5px] font-medium", noteFor[status as Decision].cls)}>
                 <AIDot size={7} tone={status === "approved" ? "green" : status === "pending" ? "mute" : "red"} />
                 {isLast && status === "approved"
-                  ? "Run complete · invoice released to AP, audit envelope closed"
+                  ? completeNote
                   : noteFor[status as Decision].label}
               </div>
             )}

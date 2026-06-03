@@ -402,9 +402,23 @@ export type ConsoleConfig = {
   /** Cross-link footer copy + button. */
   runRole: string;
   openRunLabel: string;
+  /** Bold line on the cross-link footer (defaults to the live-run phrasing). */
+  runTitle?: string;
+  /** Standalone console (not a step in a run) — hides the handoff deep-link. */
+  standalone?: boolean;
 };
 
-function HandoffCard({ id, artifactLabel, meta }: { id: AgentId; artifactLabel: string; meta: OutputMeta }) {
+function HandoffCard({
+  id,
+  artifactLabel,
+  meta,
+  standalone,
+}: {
+  id: AgentId;
+  artifactLabel: string;
+  meta: OutputMeta;
+  standalone?: boolean;
+}) {
   const { agentOutputs, go } = useApp();
   const status = agentOutputs[id];
   const m = meta[status];
@@ -426,7 +440,7 @@ function HandoffCard({ id, artifactLabel, meta }: { id: AgentId; artifactLabel: 
           <div className="text-[13px] font-bold text-ink">{artifactLabel}</div>
           <div className="text-[12px] text-mute leading-snug mt-0.5">{m.note}</div>
         </div>
-        {status === "approved" && (
+        {status === "approved" && !standalone && (
           <PillButton variant="deep" size="sm" arrow onClick={() => go({ kind: "workspace", flow: "belt" })}>
             Open the run
           </PillButton>
@@ -465,11 +479,13 @@ export function AgentConsole({
         <div className="space-y-3 min-w-0">
           <ConsoleHero id={config.id} statLabel={config.statLabel} />
           <AutonomyControl agent={agent} />
-          <HandoffCard id={config.id} artifactLabel={config.artifactLabel} meta={config.outputMeta} />
+          <HandoffCard id={config.id} artifactLabel={config.artifactLabel} meta={config.outputMeta} standalone={config.standalone} />
           {children}
           <div className="flex items-center justify-between gap-4 rounded-md bg-white border border-divider px-5 py-4">
             <div className="min-w-0">
-              <div className="text-[13px] font-bold text-ink">See the {agent.menuLabel} agent in the live run</div>
+              <div className="text-[13px] font-bold text-ink">
+              {config.runTitle ?? `See the ${agent.menuLabel} agent in the live run`}
+            </div>
               <p className="text-[12px] text-mute leading-snug mt-0.5">{config.runRole}</p>
             </div>
             <PillButton variant="deep" size="sm" arrow onClick={onOpenRun}>

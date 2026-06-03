@@ -162,4 +162,14 @@ export const spendingPolicies: SpendingPolicy[] = [
     ref: "POL-FIN-02",
     rule: "MRO parts under $5,000 expense to the cost center; assemblies over $5,000 flag for capital review.",
   },
+  {
+    title: "Preferred supplier first",
+    ref: "POL-SRC-07",
+    rule: "Route to a contracted or preferred supplier where one covers the category before sourcing a new vendor.",
+  },
+  {
+    title: "Emergency maintenance buy",
+    ref: "POL-MRO-09",
+    rule: "Production-down replacements may ship same-day on a verbal PO, documented and reconciled within 24 hours.",
+  },
 ];

@@ -2,7 +2,7 @@ import { Check, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIDot } from "@/components/ai/AIDot";
 import type { AgentOutputStatus } from "@/state";
-import { agentsById, type AgentId } from "@/data/agents";
+import { agentsById } from "@/data/agents";
 import type { RunStep } from "@/data/runSteps";
 
 /** Short chip wording for a finished step's output status. */
@@ -45,13 +45,14 @@ export function RunStepsRail({
   steps,
   activeStep,
   selectedStep,
-  outputs,
+  decisions,
   onSelect,
 }: {
   steps: RunStep[];
   activeStep: number;
   selectedStep: number;
-  outputs: Record<AgentId, AgentOutputStatus>;
+  /** Human decisions on each step, keyed by step index. */
+  decisions: Record<number, AgentOutputStatus>;
   onSelect: (i: number) => void;
 }) {
   const done = Math.min(activeStep, steps.length);
@@ -79,7 +80,7 @@ export function RunStepsRail({
           const phase = phaseFor(i, activeStep);
           const selected = i === selectedStep;
           const clickable = i <= activeStep;
-          const chip = statusChip[outputs[s.id]];
+          const chip = statusChip[decisions[i]];
           const agent = agentsById[s.id];
           return (
             <li key={s.id}>

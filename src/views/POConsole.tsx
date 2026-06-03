@@ -2,6 +2,8 @@ import * as React from "react";
 import { useApp, type AgentOutputStatus } from "@/state";
 import { cn } from "@/lib/utils";
 import { PurchaseOrder } from "@/components/docs/sap/PurchaseOrder";
+import { OutlineAgreementDoc, VendorRecordDoc } from "@/components/docs/sources";
+import { DataTable, CellTag } from "@/components/blocks/DataTable";
 import {
   AgentConsole,
   CardHeader,
@@ -142,28 +144,40 @@ const config: ConsoleConfig = {
 
 const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
 
+type SupplierField = { field: string; value: React.ReactNode; key: boolean };
+const supplierContract: SupplierField[] = [
+  {
+    field: "Supplier",
+    key: true,
+    value: (
+      <span className="inline-flex items-center gap-2">
+        BeltPro Industrial
+        <CellTag tone="deep">Contracted</CellTag>
+      </span>
+    ),
+  },
+  { field: "Vendor", key: true, value: "100482" },
+  { field: "Category", key: false, value: "Conveyor & belting (MRO-CONV) · sole on-contract source" },
+  { field: "Outline agreement", key: true, value: "4600001207 · item 10" },
+  { field: "Validity", key: false, value: "MRO framework · −8% vs list · valid to 2026-12-31" },
+];
+
 function SupplierContractPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
+    <article className="bg-white border border-divider rounded-md p-5">
       <CardHeader label="Selected supplier & contract" />
-      <div className="mt-3 space-y-3 flex-1">
-        <div className="rounded-md border border-surface-deep/40 bg-surface-mint/30 px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] font-bold text-ink">BeltPro Industrial</span>
-            <span className="text-[9px] tracking-[0.06em] uppercase font-bold bg-surface-deep text-ink-inverse px-1.5 py-0.5 rounded">
-              Contracted
-            </span>
-            <span className="ml-auto text-[10px] text-mute tabular-nums">Vendor 100482</span>
-          </div>
-          <div className="text-[11px] text-mute mt-1 leading-snug">
-            Conveyor & belting (MRO-CONV) · sole on-contract source for this part
-          </div>
-        </div>
-        <div className="rounded-md border border-divider bg-surface-fog/60 px-3 py-2.5">
-          <div className="text-[10px] tracking-[0.05em] uppercase text-mute font-medium">Outline agreement</div>
-          <div className="text-[13px] font-bold text-ink tabular-nums mt-0.5">4600001207 · item 10</div>
-          <div className="text-[11px] text-mute mt-0.5">MRO framework · −8% vs list · valid to 2026-12-31</div>
-        </div>
+      <div className="mt-4">
+        <DataTable
+          rows={supplierContract}
+          rowKey={(r) => r.field}
+          highlight={(r) => r.key}
+          openDoc={(_r, i) => (i === 0 ? <VendorRecordDoc variant="golden" /> : null)}
+          openTitle={() => "Vendor master · 100482 BeltPro"}
+          columns={[
+            { header: "Field", className: "w-44", cell: (r) => <span className="font-semibold">{r.field}</span> },
+            { header: "Detail", cell: (r) => r.value },
+          ]}
+        />
       </div>
     </article>
   );
@@ -171,17 +185,19 @@ function SupplierContractPanel() {
 
 function ContractTermsPanel() {
   return (
-    <article className="bg-white border border-divider rounded-md p-5 flex flex-col h-full">
+    <article className="bg-white border border-divider rounded-md p-5">
       <CardHeader label="Contract terms" />
-      <div className="mt-3 divide-y divide-divider flex-1">
-        {contractTerms.map((t) => (
-          <div key={t.label} className="flex items-baseline gap-3 py-2">
-            <span className="text-[11px] tracking-[0.04em] uppercase text-mute font-medium w-20 shrink-0">
-              {t.label}
-            </span>
-            <span className="text-[12.5px] text-ink leading-snug">{t.value}</span>
-          </div>
-        ))}
+      <div className="mt-4">
+        <DataTable
+          rows={contractTerms}
+          rowKey={(t) => t.label}
+          openDoc={(_t, i) => (i === 0 ? <OutlineAgreementDoc /> : null)}
+          openTitle={() => "Outline agreement · 4600001207"}
+          columns={[
+            { header: "Term", className: "w-40", cell: (t) => <span className="font-semibold">{t.label}</span> },
+            { header: "Detail", cell: (t) => t.value },
+          ]}
+        />
       </div>
     </article>
   );
@@ -228,35 +244,20 @@ function BudgetHeadroomPanel() {
 function HistoryPanel() {
   return (
     <article className="bg-white border border-divider rounded-md p-5">
-      <CardHeader
-        label="Historical PO patterns · BeltPro Industrial"
-        right={<span className="text-[11px] text-mute">avg lead 5d · 99% on time</span>}
-      />
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[440px] text-[12px] border-collapse">
-          <thead>
-            <tr className="text-left text-mute">
-              {["PO", "Item", "Value", "Lead"].map((h) => (
-                <th
-                  key={h}
-                  className="px-2 py-1.5 text-[10px] tracking-[0.04em] uppercase font-medium border-b border-divider whitespace-nowrap"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {history.map((r) => (
-              <tr key={r.po} className="text-ink">
-                <td className="px-2 py-2 border-b border-divider tabular-nums whitespace-nowrap">{r.po}</td>
-                <td className="px-2 py-2 border-b border-divider">{r.item}</td>
-                <td className="px-2 py-2 border-b border-divider tabular-nums text-right whitespace-nowrap">{r.value}</td>
-                <td className="px-2 py-2 border-b border-divider whitespace-nowrap text-mute">{r.lead}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <CardHeader label="Historical PO patterns · BeltPro Industrial" />
+      <div className="mt-4">
+        <DataTable
+          rows={history}
+          rowKey={(r) => r.po}
+          openDoc={(_r, i) => (i === 0 ? <PurchaseOrder /> : null)}
+          openTitle={() => "Purchase order · PO-77188"}
+          columns={[
+            { header: "Order", cell: (r) => <span className="font-semibold text-surface-deep">{r.po}</span> },
+            { header: "Item", cell: (r) => r.item },
+            { header: "Value", align: "right", cell: (r) => r.value },
+            { header: "Lead time", align: "right", cell: (r) => <span className="text-mute">{r.lead}</span> },
+          ]}
+        />
       </div>
     </article>
   );
@@ -294,10 +295,8 @@ export function POConsole() {
           items={queue}
           onOpen={() => setOpen(true)}
         />
-        <div className="grid grid-cols-2 gap-3 items-stretch">
-          <SupplierContractPanel />
-          <ContractTermsPanel />
-        </div>
+        <SupplierContractPanel />
+        <ContractTermsPanel />
         <BudgetHeadroomPanel />
         <HistoryPanel />
       </AgentConsole>

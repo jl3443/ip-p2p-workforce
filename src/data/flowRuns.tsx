@@ -1,0 +1,479 @@
+/**
+ * Per-flow run registry — three distinct procure-to-pay transactions, each a
+ * gated agent run the buyer can open from the cockpit.
+ *
+ *  ① belt    — happy path · runs clean to Paid (unchanged, imported as-is).
+ *  ② pump    — front-office exceptions · Intake → Sourcing → PO, blocked at PO.
+ *  ③ gearbox — back-office exceptions · Fulfillment → Invoices, payment blocked.
+ *
+ * The exception flows reuse the same RunStep shape and the same prop-driven SAP
+ * documents as the belt run — only the data and the recommended decision change.
+ * A non-approve decision halts the run; the terminal pill is flow-specific.
+ */
+
+import type { FlowId, Decision } from "@/state";
+import { runSteps as beltSteps, type RunStep } from "@/data/runSteps";
+
+import { PurchaseRequisition, type SapPR } from "@/components/docs/sap/PurchaseRequisition";
+import { RfqComparison, type RfqTender } from "@/components/docs/sap/RfqComparison";
+import { PurchaseOrder, type SapPO } from "@/components/docs/sap/PurchaseOrder";
+import { GoodsReceipt, type SapGR } from "@/components/docs/sap/GoodsReceipt";
+import { InvoiceMatch, type SapInvoice } from "@/components/docs/sap/InvoiceMatch";
+import { EmailDoc, SpendingPolicyDoc } from "@/components/docs/sources";
+
+export type TerminalPill = { label: string; kind: "ready" | "critical" | "progress" };
+
+export type FlowRun = {
+  id: FlowId;
+  /** Topbar context line in the workspace. */
+  contextTitle: string;
+  contextSub: string;
+  /** Pill shown while the run is still in review. */
+  reviewPill: string;
+  /** Note shown when the final step is approved (happy-path close). */
+  completeNote: string;
+  steps: RunStep[];
+  /** Terminal pill once the run settles (halted or completed). */
+  terminal: (decisions: Record<number, Decision>) => TerminalPill;
+};
+
+const halted = (d: Record<number, Decision>) =>
+  Object.values(d).some((s) => s === "escalated" || s === "rejected");
+
+/* ════════════════════════════════════════════════════════════════════════
+ * ② PUMP — front-office exceptions (Intake · Sourcing · PO)
+ * Boiler feed pump · Power House · Cascade Fluid Systems · off-contract · $96.4k
+ * ════════════════════════════════════════════════════════════════════════ */
+
+const prPump: SapPR = {
+  number: "PR-48630",
+  docType: "NB · Standard purchase requisition",
+  status: "Drafted · routed to buyer",
+  releaseStrategy: "MRO2 — held · off-contract and above the $50k MRO ceiling",
+  createdBy: "Intake Agent",
+  createdOn: "2026-06-03 · 10:46",
+  purchasingOrg: "IP01 · IP North America",
+  purchasingGroup: "P14 · Rotating equipment",
+  headerNote:
+    "Boiler feed pump on Power House Unit 1 failed inspection — replacement needed inside the week. No active framework agreement covers rotating-equipment pumps, and the value sits above the maintenance-spend ceiling, so the requisition is drafted and routed for buyer approval.",
+  item: {
+    line: "10",
+    material: "PMP-440BF",
+    shortText: "Boiler feed pump — Power House Unit 1",
+    materialGroup: "MRO-ROT · Rotating equipment",
+    quantity: "1",
+    unit: "EA",
+    deliveryDate: "2026-06-11",
+    plant: "P051 · Power House",
+    storageLocation: "MNT2 · Powerhouse store",
+    valuationPrice: "96,400.00",
+    currency: "USD",
+    totalValue: "96,400.00",
+    requisitioner: "T. Okafor · Powerhouse reliability",
+    trackingNumber: "MNT-2318",
+  },
+  source: {
+    fixedVendor: "Cascade Fluid Systems · 200914 (off-contract)",
+    agreement: "— · no framework agreement",
+    agreementItem: "—",
+    infoRecord: "—",
+  },
+  acct: {
+    category: "K · Cost center",
+    glAccount: "510000",
+    glAccountText: "Repairs & maintenance — MRO",
+    costCenter: "0000051180",
+    costCenterText: "Power House — Unit 1",
+    order: "800051144 · PM maintenance order",
+    wbs: "—",
+    recipient: "T. Okafor",
+    unloadingPoint: "Power House dock",
+    percentage: "100 %",
+  },
+};
+
+const rfqPump: RfqTender = {
+  collectiveNumber: "RFQ-6600-2390",
+  status: "Evaluated · single compliant bid",
+  createdOn: "2026-06-03 · 13:20",
+  createdBy: "Tactical Sourcing Agent",
+  material: "PMP-440BF",
+  shortText: "Boiler feed pump — Power House Unit 1",
+  quantity: "1 EA",
+  plant: "P051 · Power House",
+  reference: "Cascade Fluid Systems (only compliant quotation)",
+  bids: [
+    {
+      rfqNumber: "6500042210",
+      supplier: "Cascade Fluid Systems",
+      vendorCode: "200914",
+      onContract: false,
+      grossPrice: 96400,
+      freight: 1200,
+      tax: 0,
+      leadDays: 8,
+      paymentTerms: "Net 30",
+      qualityScore: "B · new supplier",
+      rank: 1,
+      recommended: true,
+    },
+  ],
+};
+
+const poPump: SapPO = {
+  number: "PO-77688",
+  docType: "NB · Standard PO",
+  status: "Blocked · not released",
+  createdOn: "2026-06-03 · 14:02",
+  createdBy: "Purchase Order Agent",
+  vendor: "200914",
+  vendorName: "Cascade Fluid Systems",
+  purchasingOrg: "IP01 · IP North America",
+  purchasingGroup: "P14 · Rotating equipment",
+  companyCode: "1000 · International Paper Co.",
+  paymentTerms: "NT30 · Net 30 days",
+  incoterms: "FCA · Cascade Houston DC",
+  currency: "USD",
+  agreement: "— · no framework agreement",
+  item: {
+    line: "10",
+    material: "PMP-440BF",
+    shortText: "Boiler feed pump — Power House Unit 1",
+    materialGroup: "MRO-ROT · Rotating equipment",
+    quantity: "1",
+    unit: "EA",
+    netPrice: "97,600.00",
+    per: "1 EA",
+    plant: "P051 · Power House",
+    storageLocation: "MNT2 · Powerhouse store",
+    deliveryDate: "2026-06-11",
+    glAccount: "510000 · Repairs & maintenance",
+    costCenter: "0000051180 · Power House Unit 1",
+    taxCode: "U1 · Self-assessed use tax",
+  },
+  conditions: [
+    { label: "PB00 · Gross price (quoted)", rate: "96,400.00 / 1 EA", value: "96,400.00", sign: "+" },
+    { label: "FRB1 · Freight", rate: "1,200.00", value: "1,200.00", sign: "+" },
+    { label: "Benchmark · last comparable buy", rate: "78,500.00", value: "78,500.00" },
+    { label: "Net value (PO item)", rate: "", value: "97,600.00", sign: "=" },
+  ],
+  netValue: "97,600.00",
+  schedule: {
+    type: "Requested delivery",
+    date: "2026-06-11",
+    quantity: "1 EA",
+    note: "Held — 24% over the last comparable buy, no framework, above the touchless limit.",
+  },
+};
+
+const pumpNote = (
+  <EmailDoc
+    from="T. Okafor"
+    fromAddr="tokafor@ipaper.com"
+    to="Procurement Intake"
+    sent="2026-06-03 · 10:32"
+    subject="Boiler feed pump failed inspection — Power House Unit 1"
+    lines={[
+      "The boiler feed pump on Power House Unit 1 failed its vibration inspection this morning. Reliability wants it replaced inside the week before we lose the unit.",
+      "I don't think we have a contract for these pumps — Cascade Fluid Systems quoted us last year. Please raise the requisition; charge it to Power House Unit 1, cost center 51180.",
+    ]}
+  />
+);
+
+const pumpDecline = (
+  <EmailDoc
+    from="Tactical Sourcing Agent"
+    fromAddr="sourcing@ipaper.com"
+    to="Buyer · Rotating equipment"
+    sent="2026-06-03 · 13:18"
+    subject="RFQ-6600-2390 — two suppliers declined to quote"
+    tone="inbound"
+    lines={[
+      "Invited three suppliers for the boiler feed pump. Two declined: Hydratech (capacity, no quote) and Gulf Rotating (lead time beyond the window).",
+      "Only Cascade Fluid Systems returned a compliant quote — $96,400 + freight, 8-day lead. That leaves a single-source tender below the three-bid threshold.",
+    ]}
+  />
+);
+
+const pumpIntakeStep: RunStep = {
+  id: "intake",
+  n: 1,
+  title: "Intake — off-contract flag",
+  sub: "Drafts the PR and flags the policy breach",
+  reasoning: [
+    "Reading the maintenance note from Power House reliability",
+    "Classifying — MRO · Rotating equipment · pump PMP-440BF",
+    "Searching frameworks — no agreement covers rotating-equipment pumps",
+    "Checking policy — $96,400 is above the $50k MRO ceiling",
+    "Drafting PR-48630 and routing to the buyer",
+  ],
+  docLabel: "PR-48630 · Purchase requisition",
+  document: <PurchaseRequisition pr={prPump} />,
+  sources: [
+    { id: "pump-note", label: "Maintenance note", meta: "Outlook · 10:32", kind: "email", body: pumpNote },
+    { id: "pump-policy", label: "Spending policy", meta: "POL-MRO-04", kind: "policy", body: <SpendingPolicyDoc /> },
+  ],
+  recommendation:
+    "Off-contract and above the $50k MRO ceiling — drafted and routed to you, not auto-submitted. Approve to send it to sourcing.",
+};
+
+const pumpSourcingStep: RunStep = {
+  id: "sourcing",
+  n: 2,
+  title: "Sourcing — single-bid tender",
+  sub: "Only one compliant quote returned",
+  reasoning: [
+    "Reading PR-48630 and building a three-supplier shortlist",
+    "Sending RFQ-6600-2390 to Cascade, Hydratech and Gulf Rotating",
+    "Hydratech declined (capacity) · Gulf Rotating declined (lead time)",
+    "Only Cascade returned a compliant quote — below the three-bid rule",
+    "Compiling a single-source justification for the buyer",
+  ],
+  docLabel: "RFQ-6600-2390 · Price comparison",
+  document: <RfqComparison tender={rfqPump} />,
+  sources: [
+    { id: "pr-pump-handoff", label: "PR-48630", meta: "from Intake · SAP ME53N", kind: "sap", handoff: true, body: <PurchaseRequisition pr={prPump} /> },
+    { id: "pump-decline", label: "Bid summary", meta: "Sourcing · 13:18", kind: "email", body: pumpDecline },
+  ],
+  recommendation:
+    "Only one compliant bid returned — below the three-bid threshold. Approve the single-source justification to proceed, or escalate to the category manager.",
+};
+
+const pumpPoStep: RunStep = {
+  id: "po",
+  n: 3,
+  title: "Purchase order — blocked",
+  sub: "Price variance and no contract — held before release",
+  reasoning: [
+    "Reading the single-source award for Cascade Fluid Systems",
+    "No framework to bind — pricing has no contract reference",
+    "Comparing $96,400 to the $78,500 last comparable buy — 24% over",
+    "Value above the touchless limit, supplier off-contract",
+    "Blocking PO-77688 before release — routing to the buyer",
+  ],
+  docLabel: "PO-77688 · Purchase order",
+  document: <PurchaseOrder po={poPump} />,
+  sources: [
+    { id: "rfq-pump-handoff", label: "RFQ-6600-2390", meta: "from Sourcing · award", kind: "sap", handoff: true, body: <RfqComparison tender={rfqPump} /> },
+    { id: "pump-policy-po", label: "Spending policy", meta: "POL-MRO-04", kind: "policy", body: <SpendingPolicyDoc /> },
+  ],
+  recommendation:
+    "24% over the last comparable buy, no framework and above the touchless limit. Recommend escalate to the category manager before any order is placed.",
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+ * ③ GEARBOX — back-office exceptions (Fulfillment · Invoices)
+ * Drive gearbox · Containerboard · Apex Drive Systems · PO-77642 · $72k · 2 EA
+ * ════════════════════════════════════════════════════════════════════════ */
+
+const poGearbox: SapPO = {
+  number: "PO-77642",
+  docType: "NB · Standard PO",
+  status: "Released · in delivery",
+  createdOn: "2026-06-01 · 15:40",
+  createdBy: "Purchase Order Agent",
+  vendor: "201185",
+  vendorName: "Apex Drive Systems",
+  purchasingOrg: "IP01 · IP North America",
+  purchasingGroup: "P13 · Power transmission",
+  companyCode: "1000 · International Paper Co.",
+  paymentTerms: "NT30 · Net 30 days",
+  incoterms: "FCA · Apex Houston DC",
+  currency: "USD",
+  agreement: "4600001318 · item 20 · Drives framework",
+  item: {
+    line: "10",
+    material: "GBX-220K",
+    shortText: "Drive gearbox — Containerboard line",
+    materialGroup: "MRO-PTX · Power transmission",
+    quantity: "2",
+    unit: "EA",
+    netPrice: "36,000.00",
+    per: "1 EA",
+    plant: "M042 · Containerboard mill",
+    storageLocation: "MNT1 · Maintenance store",
+    deliveryDate: "2026-06-09",
+    glAccount: "510000 · Repairs & maintenance",
+    costCenter: "0000041702 · Corrugating No.2",
+    taxCode: "U1 · Self-assessed use tax",
+  },
+  conditions: [
+    { label: "PB00 · Gross price", rate: "36,000.00 / 1 EA", value: "72,000.00", sign: "+" },
+    { label: "FRB1 · Freight (delivered)", rate: "0.00", value: "0.00", sign: "+" },
+    { label: "Net value (PO item)", rate: "", value: "72,000.00", sign: "=" },
+  ],
+  netValue: "72,000.00",
+  schedule: {
+    type: "Confirmed delivery",
+    date: "2026-06-09",
+    quantity: "2 EA",
+    note: "Two units against the drives framework · ahead of the planned shutdown.",
+  },
+};
+
+const grGearbox: SapGR = {
+  number: "GR-77642 · 5000032914",
+  status: "Partial · quality hold",
+  createdOn: "2026-06-09 · 08:15",
+  createdBy: "Fulfillment Agent",
+  movementType: "101 · GR goods receipt for PO",
+  postingDate: "2026-06-09",
+  documentDate: "2026-06-09",
+  deliveryNote: "ADS-DN-2207",
+  billOfLading: "HOUSTON-8841-2026",
+  poReference: "PO-77642 · item 10",
+  item: {
+    line: "1",
+    material: "GBX-220K",
+    shortText: "Drive gearbox — Containerboard line (2 ordered)",
+    quantity: "1",
+    unit: "EA",
+    plant: "M042 · Containerboard mill",
+    storageLocation: "MNT1 · Maintenance store",
+    stockType: "Quality inspection",
+    okIndicator: "1 of 2 received · unit 2 damaged in transit · quality hold",
+  },
+};
+
+const invGearbox: SapInvoice = {
+  number: "INV-ADS-4419",
+  status: "Blocked · payment hold",
+  createdOn: "2026-06-10 · 09:30",
+  createdBy: "Invoice Resolution Agent",
+  vendorReference: "ADS-4419",
+  vendor: "201185 · Apex Drive Systems",
+  invoiceDate: "2026-06-10",
+  postingDate: "—",
+  baselineDate: "—",
+  dueDate: "2026-07-10",
+  paymentTerms: "NT30 · Net 30 days",
+  taxCode: "U1 · Self-assessed use tax",
+  grossAmount: "72,000.00",
+  taxAmount: "0.00",
+  currency: "USD",
+  balance: "36,000.00",
+  fraudScore: "0.86 · high — bank detail change",
+  poReference: "PO-77642 · item 10",
+  grReference: "GR-77642 · partial (1 of 2)",
+  match: [
+    { dimension: "Unit price (USD)", contract: "36,000.00", po: "36,000.00", goodsReceipt: "—", invoice: "36,000.00", ok: true },
+    { dimension: "Quantity (EA)", contract: "2", po: "2", goodsReceipt: "1", invoice: "2", ok: false },
+    { dimension: "Net value (USD)", contract: "72,000.00", po: "72,000.00", goodsReceipt: "36,000.00", invoice: "72,000.00", ok: false },
+    { dimension: "Bank account", contract: "IBAN ·· 4471 (on file)", po: "—", goodsReceipt: "—", invoice: "IBAN ·· 9920 (new)", ok: false },
+    { dimension: "Payment terms", contract: "Net 30", po: "Net 30", goodsReceipt: "—", invoice: "Net 30", ok: true },
+  ],
+};
+
+const gearboxCarrier = (
+  <EmailDoc
+    from="Apex Drive Systems"
+    fromAddr="dispatch@apexdrives.com"
+    to="Fulfillment"
+    sent="2026-06-09 · 07:50"
+    subject="PO-77642 — one of two gearboxes damaged in transit"
+    tone="inbound"
+    lines={[
+      "Both gearboxes shipped on PRO 8841. The carrier reports unit 2 was dropped in transit — the housing is cracked. Unit 1 arrived sound.",
+      "We can ship a replacement for unit 2 in 6 working days. Please receive unit 1 and raise a discrepancy for unit 2.",
+    ]}
+  />
+);
+
+const gearboxBankChange = (
+  <EmailDoc
+    from="Apex Drive Systems · Accounts"
+    fromAddr="ar@apex-drives-billing.com"
+    to="Accounts Payable"
+    sent="2026-06-10 · 09:12"
+    subject="Updated remittance details — please pay invoice ADS-4419 to new account"
+    tone="inbound"
+    lines={[
+      "Please note our banking has changed. Kindly remit invoice ADS-4419 ($72,000) to our new account IBAN ·· 9920 with immediate effect.",
+      "Disregard the account on file. A confirmation letter is attached; treat this as urgent so we don't fall past terms.",
+    ]}
+  />
+);
+
+const gearboxFulfillmentStep: RunStep = {
+  id: "fulfillment",
+  n: 1,
+  title: "Fulfillment — short delivery",
+  sub: "One of two units damaged — quality hold",
+  reasoning: [
+    "Tracking PO-77642 against the contracted date 2026-06-09",
+    "Receiving the carrier notice — unit 2 damaged in transit",
+    "Inspecting on the dock — unit 1 sound, unit 2 housing cracked",
+    "Posting a partial goods receipt for 1 of 2 — quality hold on unit 2",
+    "Raising a delivery discrepancy and prompting the buyer",
+  ],
+  docLabel: "GR-77642 · Goods receipt (partial)",
+  document: <GoodsReceipt gr={grGearbox} />,
+  sources: [
+    { id: "po-gbx-handoff", label: "PO-77642", meta: "from PO agent · SAP ME23N", kind: "sap", handoff: true, body: <PurchaseOrder po={poGearbox} /> },
+    { id: "gbx-carrier", label: "Carrier notice", meta: "Apex · 07:50", kind: "email", body: gearboxCarrier },
+  ],
+  recommendation:
+    "1 of 2 received, unit 2 damaged in transit. Approve the partial receipt to proceed on the good unit, or hold for the full delivery.",
+};
+
+const gearboxInvoiceStep: RunStep = {
+  id: "invoice",
+  n: 2,
+  title: "Invoices — payment blocked",
+  sub: "New bank detail and short receipt — fraud hold",
+  reasoning: [
+    "Extracting invoice ADS-4419 — $72,000 for 2 units",
+    "Matching to PO-77642 and the partial goods receipt",
+    "Quantity mismatch — invoiced 2, received 1",
+    "Bank account changed — IBAN ·· 9920 does not match vendor master 201185",
+    "Scoring fraud 0.86 — blocking payment and flagging the vendor record",
+  ],
+  docLabel: "INV-ADS-4419 · Four-way match",
+  document: <InvoiceMatch invoice={invGearbox} />,
+  sources: [
+    { id: "gbx-bank", label: "Bank-change email", meta: "Apex AR · 09:12", kind: "email", body: gearboxBankChange },
+    { id: "gr-gbx-handoff", label: "GR-77642", meta: "from Fulfillment · MIGO", kind: "sap", handoff: true, body: <GoodsReceipt gr={grGearbox} /> },
+  ],
+  recommendation:
+    "Bank detail changed to an unverified account and the receipt is short. Recommend reject and route to Supplier onboarding to re-verify before any payment.",
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+ * Registry
+ * ════════════════════════════════════════════════════════════════════════ */
+
+export const flowRuns: Record<FlowId, FlowRun> = {
+  belt: {
+    id: "belt",
+    contextTitle: "Corrugator No.2 · double-backer belt",
+    contextSub: "Maintenance flagged a worn belt at 9:01 AM · production-critical",
+    reviewPill: "Agent run · in review",
+    completeNote: "Run complete · invoice released to AP, audit envelope closed",
+    steps: beltSteps,
+    terminal: () => ({ label: "Paid · audit closed", kind: "ready" }),
+  },
+  pump: {
+    id: "pump",
+    contextTitle: "Power House Unit 1 · boiler feed pump",
+    contextSub: "Off-contract spot-buy · above the touchless limit · front-office review",
+    reviewPill: "Front-office review",
+    completeNote: "Order released · single-source buy approved against policy",
+    steps: [pumpIntakeStep, pumpSourcingStep, pumpPoStep],
+    terminal: (d) =>
+      halted(d)
+        ? { label: "Escalated · buyer review", kind: "critical" }
+        : { label: "Order released", kind: "ready" },
+  },
+  gearbox: {
+    id: "gearbox",
+    contextTitle: "Containerboard line · drive gearbox",
+    contextSub: "Order PO-77642 in delivery & payment · back-office review",
+    reviewPill: "Back-office review",
+    completeNote: "Released to AP · partial payment scheduled on the good unit",
+    steps: [gearboxFulfillmentStep, gearboxInvoiceStep],
+    terminal: (d) =>
+      halted(d)
+        ? { label: "Payment blocked · fraud review", kind: "critical" }
+        : { label: "Released to AP", kind: "ready" },
+  },
+};
