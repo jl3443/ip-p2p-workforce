@@ -94,6 +94,7 @@ export const invoiceBelt: SapInvoice = {
 };
 
 export function InvoiceMatch({ invoice = invoiceBelt }: { invoice?: SapInvoice }) {
+  const clean = invoice.match.every((r) => r.ok);
   return (
     <DocShell>
       <DocTitleBand
@@ -144,8 +145,13 @@ export function InvoiceMatch({ invoice = invoiceBelt }: { invoice?: SapInvoice }
                 <td className="px-3 py-2.5 border-b border-divider tabular-nums">{r.goodsReceipt}</td>
                 <td className="px-3 py-2.5 border-b border-divider tabular-nums font-medium">{r.invoice}</td>
                 <td className="px-3 py-2.5 border-b border-divider">
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#107e3e] text-white text-[9px] font-bold">
-                    ✓
+                  <span
+                    className={cn(
+                      "inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-[9px] font-bold",
+                      r.ok ? "bg-[#107e3e]" : "bg-[#bb0000]",
+                    )}
+                  >
+                    {r.ok ? "✓" : "✕"}
                   </span>
                 </td>
               </tr>
@@ -158,10 +164,15 @@ export function InvoiceMatch({ invoice = invoiceBelt }: { invoice?: SapInvoice }
       <SectionBand>Balance &amp; payment</SectionBand>
       <div className="px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="flex items-center gap-2.5">
-          <span className={cn("w-3 h-3 rounded-full bg-[#107e3e] ring-2 ring-[#107e3e]/25")} />
+          <span
+            className={cn(
+              "w-3 h-3 rounded-full ring-2",
+              clean ? "bg-[#107e3e] ring-[#107e3e]/25" : "bg-[#bb0000] ring-[#bb0000]/25",
+            )}
+          />
           <span className="text-[12.5px] text-ink">
-            Balance <span className="font-bold tabular-nums">{invoice.currency} {invoice.balance}</span> — no
-            discrepancies · ready to post
+            Balance <span className="font-bold tabular-nums">{invoice.currency} {invoice.balance}</span> —{" "}
+            {clean ? "no discrepancies · ready to post" : "discrepancies found · payment held"}
           </span>
         </div>
         <div className="h-5 w-px bg-divider hidden sm:block" />

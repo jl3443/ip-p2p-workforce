@@ -34,7 +34,7 @@ export function TopRow({
         )}
         <span className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-divider">
           <AIDot size={6} tone="green" pulse />
-          <span className="text-[12px] text-ink">8 agents live</span>
+          <span className="text-[12px] text-ink">6 agents live</span>
         </span>
       </div>
     </div>
