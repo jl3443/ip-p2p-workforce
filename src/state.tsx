@@ -81,11 +81,24 @@ const freshFlow = (): FlowProgress => ({
   settled: false,
 });
 
+/**
+ * The collections run opens on its single Payment step (index 4): the four
+ * order-to-cash lead-up steps are already complete and reviewable, so the
+ * cockpit's overdue-payment alert deep-links straight to the work that needs a
+ * person. The lead-up steps are pre-approved; only the Payment step is live.
+ */
+const freshCollect = (): FlowProgress => ({
+  activeStep: 4,
+  approved: false,
+  decisions: { 0: "approved", 1: "approved", 2: "approved", 3: "approved" },
+  settled: false,
+});
+
 const freshProgress = (): Record<FlowId, FlowProgress> => ({
   belt: freshFlow(),
   pump: freshFlow(),
   gearbox: freshFlow(),
-  collect: freshFlow(),
+  collect: freshCollect(),
 });
 
 /** Sensible per-agent guardrail defaults; the gear modal overwrites these. */

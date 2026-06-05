@@ -9,7 +9,12 @@ import { OverduePaymentsPanel } from "@/components/blocks/OverduePaymentsPanel";
 import { cockpitKpis, overduePayments } from "@/data/cockpit";
 import { useApp } from "@/state";
 
-/** Top-right notification — the Payment & Collections agent flags overdue receivables. */
+/**
+ * Top-right notification — the Payment & Collections agent flags overdue
+ * receivables. Deliberately just a small bell with a live red dot (no label):
+ * the detail lives in the tooltip and the Overdue payments panel, so the
+ * breadcrumb row stays clean. Deep-links into the collections run.
+ */
 function PaymentAlert() {
   const { go } = useApp();
   const a = overduePayments.alert;
@@ -17,19 +22,13 @@ function PaymentAlert() {
     <button
       type="button"
       onClick={() => go({ kind: "workspace", flow: "collect" })}
-      className="ui-pill shrink-0 inline-flex items-center gap-2.5 rounded-full border border-mark-red/35 bg-surface-rose/40 hover:bg-surface-rose/60 pl-3 pr-3.5 py-1.5"
+      title={`${a.count} payments overdue · ${a.amount} — ${a.lead}`}
+      aria-label={`${a.count} payments overdue, ${a.amount}`}
+      className="ui-pill relative shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full border border-divider bg-white hover:bg-surface-rose/40"
     >
-      <span className="relative flex items-center justify-center shrink-0">
-        <BellRing size={15} className="text-mark-red" strokeWidth={2} />
-        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-mark-red animate-ping" />
-        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-mark-red" />
-      </span>
-      <span className="text-left leading-tight">
-        <span className="block text-[12.5px] font-bold text-ink">
-          {a.count} payments overdue · {a.amount}
-        </span>
-        <span className="block text-[11px] text-mute">{a.lead} — final notice ready ↗</span>
-      </span>
+      <BellRing size={16} className="text-mark-red" strokeWidth={2} />
+      <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-mark-red animate-ping" />
+      <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-mark-red ring-2 ring-white" />
     </button>
   );
 }
@@ -56,8 +55,8 @@ export function Cockpit() {
       <PendingDecisionsPanel />
 
       <div className="grid grid-cols-2 gap-3 items-stretch">
-        <PipelinePanel />
         <OverduePaymentsPanel />
+        <PipelinePanel />
       </div>
     </div>
   );

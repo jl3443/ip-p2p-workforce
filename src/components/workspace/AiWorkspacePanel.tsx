@@ -49,9 +49,10 @@ export function AiWorkspacePanel({
   staged?: boolean;
 }) {
   const agent = agentsById[step.id];
-  // Steps with a staged-extraction wizard reveal the document only after the
-  // buyer proceeds through every source; a decided step skips straight to it.
-  const [revealed, setRevealed] = React.useState(() => staged && status !== "none");
+  // A staged step always plays its auto-fill wizard when opened — including the
+  // pre-completed lead-up steps you click back into, so every step shows its
+  // full depth. Non-staged steps reveal instantly once decided.
+  const [revealed, setRevealed] = React.useState(() => (staged ? false : status !== "none"));
   const [shownLines, setShownLines] = React.useState(0);
   const [emailOpen, setEmailOpen] = React.useState(false);
 
@@ -73,21 +74,24 @@ export function AiWorkspacePanel({
     };
   }, [revealed, step.reasoning.length]);
 
-  // While the staged wizard is running, ask the workspace to hide the rail so
-  // the form + source pane get the full width.
+  // While the staged wizard is running (on any step, decided or not), ask the
+  // workspace to hide the rail so the form + source pane get the full width.
   React.useEffect(() => {
-    onWizardActive?.(staged && !revealed && status === "none");
+    onWizardActive?.(staged && !revealed);
     return () => onWizardActive?.(false);
-  }, [revealed, status, staged, onWizardActive]);
+  }, [revealed, staged, onWizardActive]);
 
   const decided = status !== "none";
 
   // For wizard steps the reasoning checklist mirrors the stages (all done once
-  // revealed); otherwise it streams the step's reasoning lines.
+  // revealed); a revealed non-staged step shows its full reasoning as completed;
+  // otherwise it streams the step's reasoning lines.
   const reasoningLines =
     staged && step.stages
       ? step.stages.map((s) => s.reasoning)
-      : step.reasoning.slice(0, shownLines);
+      : revealed
+        ? step.reasoning
+        : step.reasoning.slice(0, shownLines);
 
   const sendEmail = () => {
     if (!replied) onReplyReceived();

@@ -1,7 +1,12 @@
+import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state";
 import { overduePayments, type OverdueRow } from "@/data/cockpit";
 import { AIDot } from "@/components/ai/AIDot";
+
+/** Rows shown before the "Show more" row — keeps the panel level with Pipeline. */
+const INITIAL_ROWS = 5;
 
 /**
  * Overdue receivables — the Payment & Collections agent's watchlist on the
@@ -70,6 +75,11 @@ function OverdueItem({ row }: { row: OverdueRow }) {
 }
 
 export function OverduePaymentsPanel({ className }: { className?: string }) {
+  const [expanded, setExpanded] = React.useState(false);
+  const rows = overduePayments.rows;
+  const visible = expanded ? rows : rows.slice(0, INITIAL_ROWS);
+  const hidden = rows.length - INITIAL_ROWS;
+
   return (
     <section
       className={cn(
@@ -88,9 +98,22 @@ export function OverduePaymentsPanel({ className }: { className?: string }) {
       </header>
 
       <div className="flex-1 divide-y divide-divider">
-        {overduePayments.rows.map((r) => (
+        {visible.map((r) => (
           <OverdueItem key={r.id} row={r} />
         ))}
+        {hidden > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            className="ui-pill w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12px] font-medium text-surface-deep hover:bg-surface-mint/30"
+          >
+            {expanded ? "Show less" : `Show ${hidden} more`}
+            <ChevronDown
+              size={14}
+              className={cn("transition-transform", expanded && "rotate-180")}
+            />
+          </button>
+        )}
       </div>
 
       <div className="mt-auto border-t border-divider px-4 py-2.5">
