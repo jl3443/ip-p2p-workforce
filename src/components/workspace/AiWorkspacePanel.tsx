@@ -106,7 +106,7 @@ export function AiWorkspacePanel({
               Step {step.n} · Process run
             </div>
             <div className="text-[15px] font-bold text-ink leading-tight mt-0.5 truncate">
-              {agent.name}
+              {step.agentName ?? agent.name}
             </div>
           </div>
           <span className="ml-auto flex items-center gap-1.5 text-[12px] text-mute shrink-0">

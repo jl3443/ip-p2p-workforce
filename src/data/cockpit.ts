@@ -150,3 +150,66 @@ export const expediting = {
   ] as ChaseRow[],
   footer: "$216K at risk being worked · 47 chases auto-sent today · 9 cleared",
 };
+
+/* ── Overdue receivables — the Payment & Collections agent's watchlist ────── */
+
+export type OverdueRow = {
+  id: string;
+  customer: string;
+  aging: string;
+  amount: string;
+  /** Dunning tier last sent or drafted, e.g. "Tier 4 · final notice". */
+  tier: string;
+  /** Auto-send status, e.g. "auto-sent 2h ago" or "drafted · needs you". */
+  status: string;
+  /** True when the agent has gone as far as it can on its own. */
+  actionable?: boolean;
+  tone: "critical" | "high" | "medium";
+  target?: View;
+};
+
+export const overduePayments = {
+  alert: { count: 7, amount: "$1.84M", lead: "BlueRidge Foods · $208K · 47 days" },
+  rows: [
+    {
+      id: "INV-90357",
+      customer: "BlueRidge Foods",
+      aging: "47 days overdue",
+      amount: "$208K",
+      tier: "Tier 4 · final notice",
+      status: "drafted · needs you",
+      actionable: true,
+      tone: "critical",
+      target: { kind: "workspace", flow: "collect" },
+    },
+    {
+      id: "INV-90412",
+      customer: "Sigma Containers USA",
+      aging: "31 days overdue",
+      amount: "$312K",
+      tier: "Tier 3 · firm follow-up",
+      status: "auto-sent 2h ago",
+      tone: "critical",
+      target: { kind: "workspace", flow: "collect" },
+    },
+    {
+      id: "INV-90388",
+      customer: "Apex Retail Group",
+      aging: "12 days overdue",
+      amount: "$96K",
+      tier: "Tier 2 · reminder",
+      status: "auto-sent today",
+      tone: "high",
+    },
+    {
+      id: "INV-90341",
+      customer: "Northwind Logistics",
+      aging: "5 days overdue",
+      amount: "$54K",
+      tier: "Tier 1 · courtesy",
+      status: "auto-sent today",
+      tone: "medium",
+    },
+  ] as OverdueRow[],
+  footer: "$1.84M overdue · 28 reminders auto-sent today · 6 accounts cleared",
+};

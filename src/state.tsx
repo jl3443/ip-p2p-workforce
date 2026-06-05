@@ -7,7 +7,7 @@
 import * as React from "react";
 import { agents, type AgentId, type AutonomyLevel } from "@/data/agents";
 
-export type FlowId = "belt" | "pump" | "gearbox";
+export type FlowId = "belt" | "pump" | "gearbox" | "collect";
 
 /** Lifecycle of an agent's output artifact — drives the handoff to the next agent. */
 export type AgentOutputStatus = "none" | "pending" | "approved" | "rejected" | "escalated";
@@ -85,6 +85,7 @@ const freshProgress = (): Record<FlowId, FlowProgress> => ({
   belt: freshFlow(),
   pump: freshFlow(),
   gearbox: freshFlow(),
+  collect: freshFlow(),
 });
 
 /** Sensible per-agent guardrail defaults; the gear modal overwrites these. */

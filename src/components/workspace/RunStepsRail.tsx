@@ -83,7 +83,7 @@ export function RunStepsRail({
           const chip = statusChip[decisions[i]];
           const agent = agentsById[s.id];
           return (
-            <li key={s.id}>
+            <li key={i}>
               <button
                 type="button"
                 disabled={!clickable}
@@ -106,7 +106,7 @@ export function RunStepsRail({
                         selected ? "font-bold text-ink" : "font-medium text-ink",
                       )}
                     >
-                      {agent.menuLabel}
+                      {s.agentName ?? agent.menuLabel}
                     </span>
                   </span>
                   <span className="block text-[11px] text-mute leading-snug mt-0.5 truncate">

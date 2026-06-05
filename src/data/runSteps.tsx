@@ -127,6 +127,8 @@ export type ExtractStage = {
 
 export type RunStep = {
   id: AgentId;
+  /** Optional display name override (e.g. "Payment & Collections Agent"). */
+  agentName?: string;
   n: number;
   title: string;
   sub: string;

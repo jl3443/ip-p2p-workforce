@@ -35,8 +35,8 @@ export function FlowCompleteModal({
   const critical = c.tone === "critical";
 
   // Each agent step's produced document becomes a clickable artifact chip.
-  const artifacts: SourceArtifact[] = run.steps.map((s) => ({
-    id: `done-${s.id}`,
+  const artifacts: SourceArtifact[] = run.steps.map((s, i) => ({
+    id: `done-${i}-${s.id}`,
     label: s.docLabel.split(" · ")[0],
     meta: s.docLabel,
     kind: "sap",

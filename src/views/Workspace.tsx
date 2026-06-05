@@ -73,9 +73,13 @@ export function Workspace({ flow }: { flow: FlowId }) {
         setFlowProgress(flow, { decisions: nextDecisions, activeStep: Math.max(activeStep, next) });
         setSelectedStep(next);
         setHandoff(null);
+        const fromName = step.agentName ?? agentsById[step.id].name;
+        const toName = steps[next].agentName ?? agentsById[steps[next].id].menuLabel;
         fireToast(
           "Output approved",
-          `${agentsById[step.id].name} handed off to ${agentsById[steps[next].id].menuLabel}.`,
+          fromName === toName
+            ? `${fromName} advanced to the next step.`
+            : `${fromName} handed off to ${toName}.`,
         );
       }, 1300);
       return;

@@ -20,6 +20,9 @@ import { PurchaseOrder, type SapPO } from "@/components/docs/sap/PurchaseOrder";
 import { GoodsReceipt, type SapGR } from "@/components/docs/sap/GoodsReceipt";
 import { InvoiceMatch, type SapInvoice } from "@/components/docs/sap/InvoiceMatch";
 import { EmailDoc, SpendingPolicyDoc } from "@/components/docs/sources";
+import { LedgerDoc } from "@/components/docs/finance/LedgerDoc";
+import { JournalDoc } from "@/components/docs/finance/JournalDoc";
+import { DunningLadder } from "@/components/workspace/DunningLadder";
 
 export type TerminalPill = { label: string; kind: "ready" | "critical" | "progress" };
 
@@ -644,6 +647,163 @@ const gearboxInvoiceStep: RunStep = {
 };
 
 /* ════════════════════════════════════════════════════════════════════════
+ * ④ COLLECT — Payment & Collections (overdue receivable · dunning · posting)
+ * BlueRidge Foods · INV-90357 · $208,400 · 47 days past Net-45 · GL ↔ sub-ledger
+ * ════════════════════════════════════════════════════════════════════════ */
+
+const dunningTiers = [
+  { n: 1, name: "Courtesy", band: "1–7 days", gist: "Friendly heads-up that the invoice is now due." },
+  { n: 2, name: "Reminder", band: "8–21 days", gist: "Polite reminder; restates amount and due date." },
+  { n: 3, name: "Firm follow-up", band: "22–35 days", gist: "Past due; asks for remittance and a date." },
+  { n: 4, name: "Final notice", band: "36–60 days", gist: "Final notice; warns of a credit hold per contract." },
+  { n: 5, name: "Pre-legal demand", band: "60+ days", gist: "Formal demand; collections / legal next." },
+];
+
+const collectCustomerNote = (
+  <EmailDoc
+    from="BlueRidge Foods · Accounts Payable"
+    fromAddr="ap@blueridgefoods.com"
+    to="International Paper · Collections"
+    sent="2026-05-22 · 14:10"
+    subject="RE: Reminder — invoice INV-90357"
+    tone="inbound"
+    lines={[
+      "Thanks for the reminder. We're working through a backlog after a system migration — the invoice is in our queue and should be processed shortly.",
+      "We'll come back with a payment date. Apologies for the delay.",
+    ]}
+  />
+);
+
+const collectReconStep: RunStep = {
+  id: "invoice",
+  agentName: "Payment Agent",
+  n: 1,
+  title: "Reconcile the ledger",
+  sub: "GL ↔ AR sub-ledger · find the overdue receivable",
+  reasoning: [
+    "Reading the AR sub-ledger for BlueRidge Foods · account 120000",
+    "Tying the GL control balance to the sub-ledger — USD 412,880",
+    "Flagging INV-90357 — $208,400 open, 47 days past the Net-45 due date",
+    "Pulling contract CTR-BRF-2024 — Net 45 · credit-hold clause",
+    "Aging the account — $208,400 in the 31–60 day overdue bucket",
+  ],
+  docLabel: "AR-RECON-90357 · GL ↔ sub-ledger",
+  document: <LedgerDoc />,
+  sources: [
+    { id: "collect-note", label: "Last customer reply", meta: "BlueRidge AP · 05-22", kind: "email", body: collectCustomerNote },
+    { id: "collect-policy", label: "Collections policy", meta: "POL-AR-02", kind: "policy", body: <SpendingPolicyDoc /> },
+  ],
+  recommendation:
+    "GL ties to the sub-ledger; $208,400 is 47 days past the Net-45 due date and earlier reminders went unanswered. Recommend a Tier 4 final notice and arm a credit hold before any new orders ship.",
+};
+
+const collectDunStep: RunStep = {
+  id: "invoice",
+  agentName: "Payment Agent",
+  n: 2,
+  title: "Dun the receivable",
+  sub: "Pick the tier · draft the notice",
+  reasoning: [
+    "Mapping 47 days past due onto the contract escalation ladder",
+    "Tiers 1–3 auto-sent at 7, 21 and 35 days — no payment, no date",
+    "Selecting Tier 4 · Final notice — credit-hold warning per CTR-BRF-2024",
+    "Drafting the notice — firm, cites the clause and the $208,400 balance",
+    "Arming a credit hold on new BlueRidge orders pending payment",
+  ],
+  docLabel: "Dunning ladder · Tier 4 selected",
+  document: <DunningLadder tiers={dunningTiers} recommended={4} contract="CTR-BRF-2024 · Net 45" />,
+  sources: [
+    { id: "recon-handoff", label: "AR-RECON-90357", meta: "from reconcile · GL/sub-ledger", kind: "sap", handoff: true, body: <LedgerDoc /> },
+    { id: "collect-note-2", label: "Last customer reply", meta: "BlueRidge AP · 05-22", kind: "email", body: collectCustomerNote },
+  ],
+  email: {
+    cta: "Send the final notice",
+    to: "BlueRidge Foods · ap@blueridgefoods.com",
+    subject: "FINAL NOTICE — invoice INV-90357 ($208,400) 47 days past due",
+    lines: [
+      "Our records show invoice INV-90357 for $208,400.00, due 2026-05-18 under contract CTR-BRF-2024 (Net 45), remains unpaid 47 days past due despite reminders on 25 May and 8 June.",
+      "Please remit the full balance within 5 business days. Under the contract, accounts over 45 days past due move to credit hold — new orders are suspended until the balance clears.",
+      "If payment is already in process, reply with the value date and reference and we will release the hold.",
+    ],
+    toastTitle: "Reply received",
+    toastBody: "BlueRidge confirmed payment scheduled for today.",
+    reply: {
+      from: "BlueRidge Foods · AP",
+      receivedMeta: "Outlook · 11:02",
+      subject: "RE: FINAL NOTICE — INV-90357 · payment today",
+      lines: [
+        "Understood — we've scheduled an ACH payment of $208,400.00 for value today, reference BRF-PAY-5571.",
+        "Apologies again for the delay; please hold off on the credit suspension.",
+      ],
+      source: {
+        id: "collect-payconf",
+        label: "Payment confirmation",
+        meta: "BlueRidge AP · 11:02",
+        kind: "email",
+        body: (
+          <EmailDoc
+            from="BlueRidge Foods · AP"
+            fromAddr="ap@blueridgefoods.com"
+            to="International Paper · Collections"
+            sent="2026-06-09 · 11:02"
+            subject="RE: FINAL NOTICE — INV-90357 · payment today"
+            tone="inbound"
+            lines={[
+              "Understood — we've scheduled an ACH payment of $208,400.00 for value today, reference BRF-PAY-5571.",
+              "Apologies again for the delay; please hold off on the credit suspension.",
+            ]}
+          />
+        ),
+      },
+    },
+  },
+  recommendation:
+    "Tiers 1–3 went unanswered. Recommend the Tier 4 final notice with a credit-hold warning — drafted from the contract and the aged balance. Approve to send.",
+};
+
+const collectPostStep: RunStep = {
+  id: "invoice",
+  agentName: "Payment Agent",
+  n: 3,
+  title: "Settle and post",
+  sub: "Cash receipt · clear the receivable",
+  reasoning: [
+    "Payment received — ACH $208,400 from BlueRidge Foods (BRF-PAY-5571)",
+    "Matching the receipt to open item INV-90357 on the sub-ledger",
+    "Posting the cash receipt — Dr Bank 110000 · Cr Trade receivables 120000",
+    "Clearing the open item — sub-ledger 208,400 → 0.00",
+    "Updating the GL control account and lifting the credit hold",
+  ],
+  docLabel: "FI 5100049217 · Customer payment",
+  document: <JournalDoc />,
+  sources: [
+    {
+      id: "dun-handoff",
+      label: "Tier 4 final notice",
+      meta: "from dunning · sent",
+      kind: "email",
+      handoff: true,
+      body: (
+        <EmailDoc
+          from="International Paper · Collections"
+          fromAddr="collections@ipaper.com"
+          to="BlueRidge Foods · AP"
+          sent="2026-06-08 · 09:00"
+          subject="FINAL NOTICE — invoice INV-90357 ($208,400) 47 days past due"
+          lines={[
+            "Final notice under CTR-BRF-2024 — remit within 5 business days or new orders move to credit hold.",
+            "Balance $208,400.00 · due 2026-05-18 · 47 days past due.",
+          ]}
+        />
+      ),
+    },
+    { id: "post-recon", label: "AR-RECON-90357", meta: "GL ↔ sub-ledger", kind: "sap", body: <LedgerDoc /> },
+  ],
+  recommendation:
+    "Payment cleared. Posting Dr Bank / Cr Trade receivables $208,400 clears INV-90357 and updates the GL and the AR sub-ledger. Approve to post and close.",
+};
+
+/* ════════════════════════════════════════════════════════════════════════
  * Registry
  * ════════════════════════════════════════════════════════════════════════ */
 
@@ -718,6 +878,31 @@ export const flowRuns: Record<FlowId, FlowRun> = {
       ],
       caption:
         "Bank change unverified and short receipt · nothing paid · routed to the fraud desk · EXC-ADS-4419-PAY logged.",
+    },
+  },
+  collect: {
+    id: "collect",
+    contextTitle: "BlueRidge Foods · overdue receivable",
+    contextSub: "INV-90357 · $208,400 · 47 days past Net-45 · collections review",
+    reviewPill: "Collections review",
+    completeNote: "Collected · cash applied and posted to the GL",
+    steps: [collectReconStep, collectDunStep, collectPostStep],
+    terminal: (d) =>
+      halted(d)
+        ? { label: "Escalated · credit & legal", kind: "critical" }
+        : { label: "Collected · posted", kind: "ready" },
+    completion: {
+      title: "INV-90357 · collected and posted",
+      tone: "ready",
+      routedTo: "Treasury & GL",
+      routedSub: "cash applied",
+      stats: [
+        { value: "$208,400", label: "collected" },
+        { value: "47 → 0", label: "days · cleared" },
+        { value: "Tier 4", label: "notice that landed" },
+      ],
+      caption:
+        "Final notice sent · payment received and applied · Dr Bank / Cr AR posted · INV-90357 cleared on the sub-ledger and the GL · credit hold lifted.",
     },
   },
 };
