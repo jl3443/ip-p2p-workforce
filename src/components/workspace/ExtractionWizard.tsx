@@ -5,6 +5,7 @@ import { Spinner } from "@/components/ai/Spinner";
 import { SpringIn } from "@/components/ai/SpringIn";
 import { StreamingText } from "@/components/ai/StreamingText";
 import { SourceLogo } from "@/components/brand/SourceLogo";
+import { FourWayMatchGrid } from "@/components/workspace/FourWayMatchGrid";
 import type { ExtractStage, SourceArtifact } from "@/data/runSteps";
 
 /**
@@ -93,7 +94,7 @@ export function ExtractionWizard({
   onComplete: () => void;
 }) {
   const [stageIdx, setStageIdx] = React.useState(0);
-  const [vals, setVals] = React.useState<string[]>(() => stages[0].fields.map(() => ""));
+  const [vals, setVals] = React.useState<string[]>(() => (stages[0].fields ?? []).map(() => ""));
   const [filled, setFilled] = React.useState(false);
   const [hot, setHot] = React.useState(-1);
   // Bumping this re-runs the empty → auto-fill animation (used by Discard).
@@ -101,11 +102,18 @@ export function ExtractionWizard({
 
   const stage = stages[stageIdx];
   const source = sources.find((s) => s.id === stage.sourceId);
+  const isMatch = !!stage.matchGrid;
 
   // On each stage (or re-extract): blank the box, wait a beat, then fill field
-  // by field. The active reasoning line keeps spinning throughout.
+  // by field. The active reasoning line keeps spinning throughout. Match-grid
+  // stages are driven by the grid itself (it reports back via onReady), so we
+  // just reset `filled` and let the grid take over.
   React.useEffect(() => {
-    const fields = stages[stageIdx].fields;
+    if (stages[stageIdx].matchGrid) {
+      setFilled(false);
+      return;
+    }
+    const fields = stages[stageIdx].fields ?? [];
     setFilled(false);
     setHot(-1);
     setVals(fields.map(() => ""));
@@ -158,7 +166,9 @@ export function ExtractionWizard({
           })}
         </div>
 
-        <SpringIn key={stageIdx}>
+        {/* The match-grid box keeps a stable key so it persists across the three
+            match stages — previous columns stay, the new one fills in. */}
+        <SpringIn key={isMatch ? "match-box" : stageIdx}>
           <div className="bg-white border border-divider rounded-md overflow-hidden">
             <div className="flex items-center gap-2 px-3.5 py-2 bg-[#eef1f5] border-b border-divider border-l-[3px] border-l-[#354a5f]">
               <Sparkles size={12} className="text-[#354a5f] shrink-0" />
@@ -167,10 +177,10 @@ export function ExtractionWizard({
               </span>
               <span className="ml-auto flex items-center gap-1.5 text-[10px] text-mute whitespace-nowrap">
                 {filled ? (
-                  "auto-filled · editable"
+                  isMatch ? "matched · editable" : "auto-filled · editable"
                 ) : (
                   <>
-                    <Spinner size={9} className="shrink-0" /> auto-filling…
+                    <Spinner size={9} className="shrink-0" /> {isMatch ? "matching…" : "auto-filling…"}
                   </>
                 )}
               </span>
@@ -187,19 +197,31 @@ export function ExtractionWizard({
                 </div>
               </div>
             )}
-            <div className="p-4 grid grid-cols-2 gap-x-3 gap-y-3">
-              {stage.fields.map((f, i) => (
-                <EditableField
-                  key={f.label}
-                  label={f.label}
-                  value={vals[i] ?? ""}
-                  hot={hot === i}
-                  options={f.options}
-                  type={f.type}
-                  onChange={(v) => setVals((arr) => arr.map((x, j) => (j === i ? v : x)))}
+            {isMatch && stage.matchGrid ? (
+              <div className="p-4">
+                <FourWayMatchGrid
+                  grid={stage.matchGrid}
+                  reveal={stage.matchGrid.reveal}
+                  verdict={stage.matchGrid.verdict}
+                  replayKey={fillKey}
+                  onReady={() => setFilled(true)}
                 />
-              ))}
-            </div>
+              </div>
+            ) : (
+              <div className="p-4 grid grid-cols-2 gap-x-3 gap-y-3">
+                {(stage.fields ?? []).map((f, i) => (
+                  <EditableField
+                    key={f.label}
+                    label={f.label}
+                    value={vals[i] ?? ""}
+                    hot={hot === i}
+                    options={f.options}
+                    type={f.type}
+                    onChange={(v) => setVals((arr) => arr.map((x, j) => (j === i ? v : x)))}
+                  />
+                ))}
+              </div>
+            )}
             <div className="px-4 py-3 border-t border-divider flex items-center gap-2">
               <button
                 type="button"

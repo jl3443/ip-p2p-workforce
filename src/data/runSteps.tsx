@@ -132,8 +132,30 @@ export type ExtractStage = {
    * `options` renders as a dropdown (e.g. payment terms — Net 30 / 60 / 90) so
    * the reviewer can override the agent's pick; a field with `type: "date"`
    * renders a date input with a native calendar picker; otherwise text.
+   * Omit on match-grid stages.
    */
-  fields: { label: string; value: string; options?: string[]; type?: "date" }[];
+  fields?: { label: string; value: string; options?: string[]; type?: "date" }[];
+  /**
+   * Renders the cumulative four-way-match grid instead of a form box. The grid
+   * persists across the match stages: each stage reveals one more column
+   * (`reveal` is the cumulative set), so the checked values from the previous
+   * file stay on screen and the next file's column fills in beside them — a
+   * live side-by-side comparison. Same model is shared by every match stage.
+   */
+  matchGrid?: MatchGrid;
+};
+
+/** One cell of the four-way-match grid — a value and whether it agrees. */
+export type MatchCell = { value: string; ok: boolean };
+
+/** The shared four-way-match comparison grid (contract · PO · GR · invoice). */
+export type MatchGrid = {
+  columns: { key: string; label: string }[];
+  rows: { dimension: string; cells: Record<string, MatchCell> }[];
+  /** Cumulative columns visible by the end of THIS stage (left → right fill). */
+  reveal: string[];
+  /** Summary line shown under the grid once every column is in. */
+  verdict?: string;
 };
 
 export type RunStep = {
@@ -569,6 +591,66 @@ const poStep: RunStep = {
 
 /* ── Step 4 · Invoice — INV-BPI-5567 ─────────────────────────────────────── */
 
+/**
+ * The four-way-match comparison grid the Invoice agent builds up as it reads
+ * each file. Columns fill left → right (invoice seeded, then PO, then GR, then
+ * contract); a row's verdict tick lights once every column that carries the
+ * dimension agrees. "—" means the dimension doesn't apply to that document.
+ */
+const beltMatchColumns = [
+  { key: "invoice", label: "Invoice" },
+  { key: "po", label: "PO" },
+  { key: "gr", label: "GR" },
+  { key: "contract", label: "Contract" },
+];
+const beltMatchRows = [
+  {
+    dimension: "Unit price (USD)",
+    cells: {
+      invoice: { value: "48,200.00", ok: true },
+      po: { value: "48,200.00", ok: true },
+      gr: { value: "—", ok: false },
+      contract: { value: "48,200.00", ok: true },
+    },
+  },
+  {
+    dimension: "Quantity (EA)",
+    cells: {
+      invoice: { value: "1", ok: true },
+      po: { value: "1", ok: true },
+      gr: { value: "1", ok: true },
+      contract: { value: "1", ok: true },
+    },
+  },
+  {
+    dimension: "Net value (USD)",
+    cells: {
+      invoice: { value: "48,200.00", ok: true },
+      po: { value: "48,200.00", ok: true },
+      gr: { value: "48,200.00", ok: true },
+      contract: { value: "48,200.00", ok: true },
+    },
+  },
+  {
+    dimension: "Tax code",
+    cells: {
+      invoice: { value: "U1", ok: true },
+      po: { value: "U1", ok: true },
+      gr: { value: "—", ok: false },
+      contract: { value: "U1", ok: true },
+    },
+  },
+  {
+    dimension: "Payment terms",
+    cells: {
+      invoice: { value: "Net 30", ok: true },
+      po: { value: "Net 30", ok: true },
+      gr: { value: "—", ok: false },
+      contract: { value: "Net 30", ok: true },
+    },
+  },
+];
+
 const invoiceStep: RunStep = {
   id: "invoice",
   n: 4,
@@ -672,35 +754,25 @@ const invoiceStep: RunStep = {
     {
       sourceId: "po-match",
       reasoning: "Matching against PO-77310 — price, quantity, net value",
-      title: "Four-way match — purchase order",
-      fields: [
-        { label: "PO unit price", value: "USD 48,200.00 ✓" },
-        { label: "PO quantity", value: "1 EA ✓" },
-        { label: "PO net value", value: "USD 48,200.00 ✓" },
-        { label: "PO terms", value: "Net 30 ✓" },
-      ],
+      title: "Four-way match — invoice vs PO",
+      matchGrid: { columns: beltMatchColumns, rows: beltMatchRows, reveal: ["invoice", "po"] },
     },
     {
       sourceId: "gr-match",
       reasoning: "Matching against the goods receipt GR-77310 — received quantity",
-      title: "Four-way match — goods receipt",
-      fields: [
-        { label: "GR quantity", value: "1 EA ✓" },
-        { label: "GR net value", value: "USD 48,200.00 ✓" },
-        { label: "Posting", value: "MIGO · plant-posted" },
-        { label: "Movement type", value: "101 · goods receipt" },
-      ],
+      title: "Four-way match — adding the goods receipt",
+      matchGrid: { columns: beltMatchColumns, rows: beltMatchRows, reveal: ["invoice", "po", "gr"] },
     },
     {
       sourceId: "framework-invoice",
       reasoning: "Confirming the contract price and the four-way verdict",
-      title: "Four-way match — contract & verdict",
-      fields: [
-        { label: "Contract price", value: "USD 48,200.00 (−8%)" },
-        { label: "Contract terms", value: "Net 30" },
-        { label: "Variance", value: "USD 0.00" },
-        { label: "Verdict", value: "All four agree ✓ · clean" },
-      ],
+      title: "Four-way match — adding the contract · verdict",
+      matchGrid: {
+        columns: beltMatchColumns,
+        rows: beltMatchRows,
+        reveal: ["invoice", "po", "gr", "contract"],
+        verdict: "All four agree · variance USD 0.00 · contract −8% vs list · clean",
+      },
     },
     {
       sourceId: "invoice-pdf",
