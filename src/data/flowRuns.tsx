@@ -50,6 +50,20 @@ export type FlowRun = {
     routedSub: string;
     stats: { value: string; label: string }[];
     caption: string;
+    /**
+     * When present, the happy-path close shows the payment-scheduled success
+     * card (animated) instead of the generic flow-complete modal — the F110
+     * schedule the Invoice agent just booked.
+     */
+    paymentSchedule?: {
+      vendor: string;
+      amount: string;
+      terms: string;
+      method: string;
+      reference: string;
+      /** Three points on the pay timeline — posted → due → run. */
+      timeline: { label: string; date: string; done: boolean }[];
+    };
   };
 };
 
@@ -970,6 +984,18 @@ export const flowRuns: Record<FlowId, FlowRun> = {
       ],
       caption:
         "Posted to SAP · payment released to AP on net 30 · audit envelope closed with every artifact attached · 0 exceptions.",
+      paymentSchedule: {
+        vendor: "BeltPro Industrial · 100482",
+        amount: "USD 48,200.00",
+        terms: "NT30 · Net 30 · per contract 4600001207",
+        method: "F110 payment run · bank ACH",
+        reference: "INV-BPI-5567 · PO-77310",
+        timeline: [
+          { label: "Invoice posted", date: "2026-06-09", done: true },
+          { label: "Net due", date: "2026-07-09", done: false },
+          { label: "F110 payment run", date: "2026-07-09", done: false },
+        ],
+      },
     },
   },
   pump: {

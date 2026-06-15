@@ -3,6 +3,7 @@ import { Check, CornerUpRight, RotateCcw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ai/Spinner";
 import { SpringIn } from "@/components/ai/SpringIn";
+import { StreamingText } from "@/components/ai/StreamingText";
 import { SourceLogo } from "@/components/brand/SourceLogo";
 import type { ExtractStage, SourceArtifact } from "@/data/runSteps";
 
@@ -23,12 +24,14 @@ function EditableField({
   value,
   hot,
   options,
+  type,
   onChange,
 }: {
   label: string;
   value: string;
   hot: boolean;
   options?: string[];
+  type?: "date";
   onChange: (v: string) => void;
 }) {
   const fieldClass = cn(
@@ -63,6 +66,16 @@ function EditableField({
             </option>
           ))}
         </select>
+      ) : type === "date" ? (
+        // Date input — clicking opens the browser's native calendar so the
+        // reviewer can pick a different baseline / due / run date. The value is
+        // already ISO (YYYY-MM-DD); blank during the auto-fill beat.
+        <input
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(fieldClass, "cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer")}
+        />
       ) : (
         <input value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} />
       )}
@@ -162,6 +175,18 @@ export function ExtractionWizard({
                 )}
               </span>
             </div>
+            {stage.narrative && (
+              // The agent writes out its rationale in prose — typed character by
+              // character — before (and above) the values it recommends.
+              <div className="px-4 pt-3.5">
+                <div className="rounded-md bg-surface-mint/40 border border-surface-mint px-3 py-2.5 flex gap-2">
+                  <Sparkles size={13} className="text-surface-deep mt-[2px] shrink-0" />
+                  <p className="text-[12.5px] text-ink leading-relaxed min-h-[1.2em]">
+                    <StreamingText text={stage.narrative} cps={52} startDelay={350} />
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="p-4 grid grid-cols-2 gap-x-3 gap-y-3">
               {stage.fields.map((f, i) => (
                 <EditableField
@@ -170,6 +195,7 @@ export function ExtractionWizard({
                   value={vals[i] ?? ""}
                   hot={hot === i}
                   options={f.options}
+                  type={f.type}
                   onChange={(v) => setVals((arr) => arr.map((x, j) => (j === i ? v : x)))}
                 />
               ))}

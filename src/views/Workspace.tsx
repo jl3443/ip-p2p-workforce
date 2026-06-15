@@ -23,6 +23,7 @@ import { SourceFilesPanel } from "@/components/workspace/SourceFilesPanel";
 import { AiWorkspacePanel } from "@/components/workspace/AiWorkspacePanel";
 import { HandoffOverlay } from "@/components/workspace/HandoffOverlay";
 import { FlowCompleteModal } from "@/components/workspace/FlowCompleteModal";
+import { PaymentScheduledModal } from "@/components/workspace/PaymentScheduledModal";
 import { SourceArtifactModal } from "@/components/workspace/SourceArtifactModal";
 import { Toast } from "@/components/workspace/Toast";
 
@@ -188,14 +189,22 @@ export function Workspace({ flow }: { flow: FlowId }) {
         </div>
       </div>
 
-      {showComplete && run.completion && (
-        <FlowCompleteModal
-          run={run}
-          onOpenArtifact={setOpenSource}
-          onBackToCockpit={() => go({ kind: "cockpit" })}
-          onClose={() => setShowComplete(false)}
-        />
-      )}
+      {showComplete &&
+        run.completion &&
+        (run.completion.paymentSchedule && decisions[LAST] === "approved" ? (
+          <PaymentScheduledModal
+            schedule={run.completion.paymentSchedule}
+            onBackToCockpit={() => go({ kind: "cockpit" })}
+            onClose={() => setShowComplete(false)}
+          />
+        ) : (
+          <FlowCompleteModal
+            run={run}
+            onOpenArtifact={setOpenSource}
+            onBackToCockpit={() => go({ kind: "cockpit" })}
+            onClose={() => setShowComplete(false)}
+          />
+        ))}
 
       <SourceArtifactModal source={openSource} onClose={() => setOpenSource(null)} />
 

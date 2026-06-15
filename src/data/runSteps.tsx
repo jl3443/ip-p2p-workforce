@@ -122,11 +122,18 @@ export type ExtractStage = {
   /** The form-box section title (a section of the produced doc). */
   title: string;
   /**
+   * A short AI rationale written out (typed) above the fields — used on the
+   * recommendation stage so the agent explains its pick in prose, not just
+   * form cells. Omit on the plain extraction stages.
+   */
+  narrative?: string;
+  /**
    * Auto-filled, editable fields extracted from the source. A field with
    * `options` renders as a dropdown (e.g. payment terms — Net 30 / 60 / 90) so
-   * the reviewer can override the agent's pick; otherwise it's a text input.
+   * the reviewer can override the agent's pick; a field with `type: "date"`
+   * renders a date input with a native calendar picker; otherwise text.
    */
-  fields: { label: string; value: string; options?: string[] }[];
+  fields: { label: string; value: string; options?: string[]; type?: "date" }[];
 };
 
 export type RunStep = {
@@ -259,7 +266,7 @@ const intakeStep: RunStep = {
         { label: "Material", value: "88-DBX" },
         { label: "Short text", value: "Belt, double-backer — Corrugator No.2" },
         { label: "Quantity", value: "1 EA" },
-        { label: "Delivery date", value: "2026-06-10" },
+        { label: "Delivery date", value: "2026-06-10", type: "date" },
         { label: "Plant", value: "M042 · Containerboard mill" },
         { label: "Requisitioner", value: "R. Alvarez · Reliability" },
       ],
@@ -554,7 +561,7 @@ const poStep: RunStep = {
         { label: "G/L account", value: "510000 · Repairs & maintenance" },
         { label: "Cost center", value: "0000041702 · Corrugating No.2" },
         { label: "Budget after", value: "Headroom available" },
-        { label: "Delivery date", value: "2026-06-10" },
+        { label: "Delivery date", value: "2026-06-10", type: "date" },
       ],
     },
   ],
@@ -656,7 +663,7 @@ const invoiceStep: RunStep = {
       fields: [
         { label: "Vendor", value: "100482 · BeltPro Industrial" },
         { label: "Invoice reference", value: "BPI-5567" },
-        { label: "Invoice date", value: "2026-06-09" },
+        { label: "Invoice date", value: "2026-06-09", type: "date" },
         { label: "Gross amount", value: "USD 48,200.00" },
         { label: "Tax (U1)", value: "USD 0.00" },
         { label: "Stated terms", value: "Net 30", options: ["Net 30", "Net 45", "Net 60", "Net 90"] },
@@ -710,13 +717,15 @@ const invoiceStep: RunStep = {
       sourceId: "framework-invoice",
       reasoning: "Recommending the payment terms — read from the contract",
       title: "AI recommendation — payment terms",
+      narrative:
+        "Contract 4600001207 fixes BeltPro at NT30 · Net 30 — not the Net 60/90 some suppliers push. I'm keeping Net 30: it honours the framework and there's no early-pay discount that would beat holding the cash. Baseline is the 2026-06-09 invoice date, so payment is due 2026-07-09; I've scheduled the F110 run for that date. Adjust any term or date below before you approve.",
       fields: [
         { label: "Recommended terms", value: "NT30 · Net 30", options: ["NT30 · Net 30", "NT45 · Net 45", "NT60 · Net 60", "NT90 · Net 90"] },
         { label: "Per contract", value: "4600001207 · not Net 60/90" },
-        { label: "Baseline date", value: "2026-06-09" },
-        { label: "Net due date", value: "2026-07-09" },
+        { label: "Baseline date", value: "2026-06-09", type: "date" },
+        { label: "Net due date", value: "2026-07-09", type: "date" },
         { label: "Cash discount", value: "None · pay on the net date", options: ["None · pay on the net date", "2% 10 · net 30", "1% 15 · net 30"] },
-        { label: "Payment run (F110)", value: "2026-07-09" },
+        { label: "Payment run (F110)", value: "2026-07-09", type: "date" },
       ],
     },
   ],
