@@ -7,14 +7,17 @@ import {
   ShoppingCart,
   Banknote,
   LogIn,
+  Lock,
+  User as UserIcon,
 } from "lucide-react";
 import type { Product } from "@/Root";
 
 /**
  * Single entry sign-in for both agentic workforces. Same two-phase design as the
  * product logins (hero splash → sign-in), but the sign-in step shows TWO persona
- * cards — Procurement (Procure-to-Pay) and Receivables (Order-to-Cash). Picking
- * one signs straight into that workforce.
+ * cards — Procurement (Procure-to-Pay) and Receivables (Order-to-Cash) — each
+ * with its own User ID / Password and a Sign-in button that launches that
+ * workforce.
  */
 
 const HERO_COLUMNS = [
@@ -190,7 +193,7 @@ function Hero({ onAccess }: { onAccess: () => void }) {
 
 function SignInPanel({ onPick }: { onPick: (p: Product) => void }) {
   return (
-    <div className="relative z-10 mx-auto w-full max-w-[820px]">
+    <div className="relative z-10 mx-auto w-full max-w-[860px]">
       <div className="text-center mb-8">
         <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
           Choose your workspace
@@ -205,60 +208,7 @@ function SignInPanel({ onPick }: { onPick: (p: Product) => void }) {
 
       <div className="grid gap-5 sm:grid-cols-2">
         {PERSONAS.map((p) => (
-          <article
-            key={p.id}
-            style={{ boxShadow: `inset 0 0 0 1px ${ACCENT.hex}33, 0 25px 70px -30px ${ACCENT.halo}` }}
-            className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-white backdrop-blur-xl"
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full opacity-25 blur-3xl"
-              style={{ background: ACCENT.hex }}
-            />
-
-            <div className="relative flex items-center justify-between gap-3">
-              <span className="grid w-10 h-10 shrink-0 place-items-center rounded-xl border border-white/12 bg-white/[0.06] text-white/85">
-                <p.icon size={16} strokeWidth={1.75} />
-              </span>
-              <span
-                className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
-                style={{ color: ACCENT.hex, background: `${ACCENT.hex}14`, border: `1px solid ${ACCENT.hex}55` }}
-              >
-                {p.badge}
-              </span>
-            </div>
-
-            <h3 className="relative mt-5 text-[19px] font-bold leading-[1.15] tracking-[-0.015em] text-white">
-              {p.name}
-            </h3>
-
-            <ul className="relative mt-4 space-y-2">
-              {p.capabilities.map((cap) => (
-                <li key={cap} className="flex items-start gap-2.5 text-[12.5px] leading-[1.5] text-white/80">
-                  <span aria-hidden className="mt-[6px] block w-1.5 h-1.5 shrink-0 rounded-full" style={{ background: ACCENT.hex }} />
-                  <span>{cap}</span>
-                </li>
-              ))}
-            </ul>
-
-            <div
-              className="relative my-5 h-px w-full"
-              style={{ background: `linear-gradient(to right, transparent, ${ACCENT.hex}55, transparent)` }}
-            />
-
-            <div className="relative mt-auto flex items-center justify-between gap-3">
-              <span className="font-mono text-[11px] text-white/45">{p.userId}</span>
-              <button
-                type="button"
-                onClick={() => onPick(p.id)}
-                style={{ background: ACCENT.hex }}
-                className="ui-pill inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-neutral-950 transition-all duration-300 hover:brightness-110 active:scale-[0.97]"
-              >
-                <LogIn size={14} />
-                Sign in
-              </button>
-            </div>
-          </article>
+          <PersonaCard key={p.id} persona={p} onPick={onPick} />
         ))}
       </div>
 
@@ -266,5 +216,95 @@ function SignInPanel({ onPick }: { onPick: (p: Product) => void }) {
         Agents activate on sign-in · every action is audited
       </p>
     </div>
+  );
+}
+
+function PersonaCard({ persona, onPick }: { persona: Persona; onPick: (p: Product) => void }) {
+  const [user, setUser] = useState(persona.userId);
+  const [pwd, setPwd] = useState("agentic-demo");
+  const Icon = persona.icon;
+
+  return (
+    <article
+      style={{ boxShadow: `inset 0 0 0 1px ${ACCENT.hex}33, 0 25px 70px -30px ${ACCENT.halo}` }}
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-white backdrop-blur-xl"
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full opacity-25 blur-3xl"
+        style={{ background: ACCENT.hex }}
+      />
+
+      <div className="relative flex items-center justify-between gap-3">
+        <span className="grid w-10 h-10 shrink-0 place-items-center rounded-xl border border-white/12 bg-white/[0.06] text-white/85">
+          <Icon size={16} strokeWidth={1.75} />
+        </span>
+        <span
+          className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+          style={{ color: ACCENT.hex, background: `${ACCENT.hex}14`, border: `1px solid ${ACCENT.hex}55` }}
+        >
+          {persona.badge}
+        </span>
+      </div>
+
+      <h3 className="relative mt-5 text-[19px] font-bold leading-[1.15] tracking-[-0.015em] text-white">
+        {persona.name}
+      </h3>
+
+      <ul className="relative mt-4 space-y-2">
+        {persona.capabilities.map((cap) => (
+          <li key={cap} className="flex items-start gap-2.5 text-[12.5px] leading-[1.5] text-white/80">
+            <span aria-hidden className="mt-[6px] block w-1.5 h-1.5 shrink-0 rounded-full" style={{ background: ACCENT.hex }} />
+            <span>{cap}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div
+        className="relative my-5 h-px w-full"
+        style={{ background: `linear-gradient(to right, transparent, ${ACCENT.hex}55, transparent)` }}
+      />
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onPick(persona.id);
+        }}
+        className="relative mt-auto flex flex-col gap-2"
+      >
+        <Field icon={UserIcon} label="User ID" name={`${persona.id}-user`} value={user} onChange={(e) => setUser(e.target.value)} />
+        <Field icon={Lock} label="Password" name={`${persona.id}-pwd`} type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} />
+        <button
+          type="submit"
+          style={{ background: ACCENT.hex }}
+          className="ui-pill mt-3 inline-flex items-center justify-center gap-2 rounded-md px-4 py-3 text-[12px] font-bold uppercase tracking-[0.22em] text-neutral-950 transition-all duration-300 hover:brightness-110 active:scale-[0.97]"
+        >
+          <LogIn size={14} />
+          Sign in
+        </button>
+      </form>
+    </article>
+  );
+}
+
+function Field({
+  icon: Icon,
+  label,
+  ...rest
+}: {
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+  label: string;
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="group relative flex items-center gap-2.5 rounded-xl border border-white/15 bg-white/[0.04] px-3.5 py-2.5 transition-colors duration-200 focus-within:bg-white/[0.07] focus-within:border-white/40">
+      <Icon size={14} strokeWidth={1.8} className="text-white/55 shrink-0" />
+      <input
+        {...rest}
+        className="flex-1 bg-transparent text-[13px] font-medium tracking-[0.02em] text-white placeholder-white/40 outline-none"
+      />
+      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40 shrink-0">
+        {label}
+      </span>
+    </label>
   );
 }
