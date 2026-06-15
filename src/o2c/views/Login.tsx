@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useApp } from "@/state";
-import { cn } from "@/lib/utils";
+import { useApp } from "@/o2c/state";
+import { cn } from "@/o2c/lib/utils";
 import {
   ArrowRight,
   ArrowLeft,
@@ -15,22 +15,22 @@ import {
 // locally from /public so the page works on corporate networks that block
 // remote image CDNs.
 const HERO_COLUMNS = [
-  { label: "Sourcing & Spot-Buy", src: "/hero-factory.jpg" },
+  { label: "Cash & remittance", src: "/hero-factory.jpg" },
   { label: "Orders & delivery", src: "/hero-boxes.jpg" },
-  { label: "Invoices & Suppliers", src: "/hero-paper.jpg" },
+  { label: "Disputes & recovery", src: "/hero-paper.jpg" },
 ];
 
 const ACCENT = { hex: "#14b8a6", halo: "rgba(20,184,166,0.45)" };
 
 const PERSONA = {
-  badge: "Procurement Ops",
-  name: "Procurement workspace",
+  badge: "Order-to-cash",
+  name: "Receivables workspace",
   capabilities: [
     "One cockpit over 5 agents and the orchestrator",
-    "Touchless orders within policy · approvals only when it matters",
-    "Every order issued with a full audit trail",
+    "Cash applied touchless · approvals only when it matters",
+    "Every deduction resolved with a full audit trail",
   ],
-  userId: "buyer01",
+  userId: "controller01",
 };
 
 export function Login({ onExit }: { onExit?: () => void }) {
@@ -116,10 +116,10 @@ function TopBar({
         </span>
         <span className="flex flex-col leading-tight">
           <span className="text-[15px] font-bold tracking-[-0.01em] text-white">
-            Agentic Procure-to-Pay
+            Agentic Order-to-Cash
           </span>
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">
-            Multi-agent procurement workforce
+            Multi-agent receivables workforce
           </span>
         </span>
       </div>
@@ -151,18 +151,18 @@ function Hero({ onAccess }: { onAccess: () => void }) {
   return (
     <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center px-6 text-center">
       <span className="mb-5 text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
-        Global procurement intelligence
+        Global receivables intelligence
       </span>
       <h1
         className="font-bold leading-[1.04] tracking-[-0.025em] text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.6)]"
         style={{ fontSize: "clamp(2rem, 5.6vw, 4.4rem)" }}
       >
-        Agentic Procure-to-Pay
+        Agentic Order-to-Cash
       </h1>
       <p className="mt-6 max-w-xl text-[14px] font-normal leading-[1.55] text-white/80 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] sm:text-[15px]">
-        Turn requests into requisitions, run spot tenders, draft and check
-        orders, route the ones that need a person, and issue them with a
-        complete audit trail.
+        Apply the cash, classify every deduction, pull the proof that refutes
+        the bad ones, route the ones that need a person, and recover the money
+        with a complete audit trail.
       </p>
       <button
         type="button"
@@ -189,7 +189,7 @@ function SignInPanel({ signIn }: { signIn: () => void }) {
     <div className="relative z-10 mx-auto w-full max-w-[440px]">
       <div className="text-center mb-8">
         <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
-          Procurement workspace
+          Receivables workspace
         </span>
         <h2
           className="mt-3 font-bold leading-[1.05] tracking-[-0.02em] text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.55)]"

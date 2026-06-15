@@ -1,15 +1,15 @@
-import { AppProvider, useApp } from "@/state";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { Login } from "@/views/Login";
-import { Cockpit } from "@/views/Cockpit";
-import { Workspace } from "@/views/Workspace";
-import { DocView } from "@/views/DocView";
-import { IntakeConsole } from "@/views/IntakeConsole";
-import { SourcingConsole } from "@/views/SourcingConsole";
-import { POConsole } from "@/views/POConsole";
-import { InvoiceConsole } from "@/views/InvoiceConsole";
-import { VendorConsole } from "@/views/VendorConsole";
-import { OrchestratorConsole } from "@/views/OrchestratorConsole";
+import { AppProvider, useApp } from "@/o2c/state";
+import { Sidebar } from "@/o2c/components/layout/Sidebar";
+import { Login } from "@/o2c/views/Login";
+import { Cockpit } from "@/o2c/views/Cockpit";
+import { Workspace } from "@/o2c/views/Workspace";
+import { DocView } from "@/o2c/views/DocView";
+import { IntakeConsole } from "@/o2c/views/IntakeConsole";
+import { SourcingConsole } from "@/o2c/views/SourcingConsole";
+import { POConsole } from "@/o2c/views/POConsole";
+import { InvoiceConsole } from "@/o2c/views/InvoiceConsole";
+import { VendorConsole } from "@/o2c/views/VendorConsole";
+import { OrchestratorConsole } from "@/o2c/views/OrchestratorConsole";
 
 function Router({ onExit }: { onExit?: () => void }) {
   const { view } = useApp();
