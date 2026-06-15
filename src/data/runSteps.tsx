@@ -644,6 +644,78 @@ const invoiceStep: RunStep = {
   },
   recommendation:
     "Four-way match clean, $0 variance, fraud score 0.02, under the threshold. Auto-posted in MIRO — GR/IR cleared, AP booked — and scheduled for payment on the contract's Net 30 terms (due 2026-07-09).",
+  stages: [
+    {
+      sourceId: "invoice-pdf",
+      reasoning: "Reading the supplier invoice received by email — BPI-5567",
+      title: "Invoice — extracted from email",
+      fields: [
+        { label: "Vendor", value: "100482 · BeltPro Industrial" },
+        { label: "Invoice reference", value: "BPI-5567" },
+        { label: "Invoice date", value: "2026-06-09" },
+        { label: "Gross amount", value: "USD 48,200.00" },
+        { label: "Tax (U1)", value: "USD 0.00" },
+        { label: "Stated terms", value: "Net 30" },
+      ],
+    },
+    {
+      sourceId: "po-match",
+      reasoning: "Matching against PO-77310 — price, quantity, net value",
+      title: "Four-way match — purchase order",
+      fields: [
+        { label: "PO unit price", value: "USD 48,200.00 ✓" },
+        { label: "PO quantity", value: "1 EA ✓" },
+        { label: "PO net value", value: "USD 48,200.00 ✓" },
+        { label: "PO terms", value: "Net 30 ✓" },
+      ],
+    },
+    {
+      sourceId: "gr-match",
+      reasoning: "Matching against the goods receipt GR-77310 — received quantity",
+      title: "Four-way match — goods receipt",
+      fields: [
+        { label: "GR quantity", value: "1 EA ✓" },
+        { label: "GR net value", value: "USD 48,200.00 ✓" },
+        { label: "Posting", value: "MIGO · plant-posted" },
+        { label: "Movement type", value: "101 · goods receipt" },
+      ],
+    },
+    {
+      sourceId: "framework-invoice",
+      reasoning: "Confirming the contract price and the four-way verdict",
+      title: "Four-way match — contract & verdict",
+      fields: [
+        { label: "Contract price", value: "USD 48,200.00 (−8%)" },
+        { label: "Contract terms", value: "Net 30" },
+        { label: "Variance", value: "USD 0.00" },
+        { label: "Verdict", value: "All four agree ✓ · clean" },
+      ],
+    },
+    {
+      sourceId: "invoice-pdf",
+      reasoning: "Posting in MIRO — clearing GR/IR and booking the AP liability",
+      title: "General ledger — invoice posting (MIRO)",
+      fields: [
+        { label: "Dr · 191100 GR/IR clearing", value: "USD 48,200.00" },
+        { label: "Cr · 160000 Accounts payable", value: "USD 48,200.00" },
+        { label: "Document type", value: "RE · invoice receipt" },
+        { label: "Balance", value: "USD 0.00 · Dr = Cr" },
+      ],
+    },
+    {
+      sourceId: "framework-invoice",
+      reasoning: "Recommending the payment terms — read from the contract",
+      title: "AI recommendation — payment terms",
+      fields: [
+        { label: "Recommended terms", value: "NT30 · Net 30" },
+        { label: "Per contract", value: "4600001207 · not Net 60/90" },
+        { label: "Baseline date", value: "2026-06-09" },
+        { label: "Net due date", value: "2026-07-09" },
+        { label: "Cash discount", value: "None · pay on the net date" },
+        { label: "Payment run (F110)", value: "2026-07-09" },
+      ],
+    },
+  ],
 };
 
 export const runSteps: RunStep[] = [
