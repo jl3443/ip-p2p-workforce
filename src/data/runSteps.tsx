@@ -561,16 +561,17 @@ const poStep: RunStep = {
 const invoiceStep: RunStep = {
   id: "invoice",
   n: 4,
-  title: "Invoice match & release",
-  sub: "Four-way matches and releases to AP",
+  title: "Invoice — match, post & pay",
+  sub: "Four-way matches, posts the ledger, schedules payment",
   reasoning: [
     "Extracting invoice BPI-5567 — vendor, amount, terms, tax",
     "Running the four-way match — contract ↔ PO ↔ goods receipt ↔ invoice",
     "Checking price and quantity — $48,200 · 1 EA · all agree",
     "Scoring fraud — 0.02, low",
-    "Posting to SAP and releasing to AP — balance $0.00",
+    "Posting in MIRO — clearing GR/IR, booking the $48,200 AP liability",
+    "Applying the contract terms — Net 30, payment scheduled for 2026-07-09",
   ],
-  docLabel: "INV-BPI-5567 · Four-way match",
+  docLabel: "INV-BPI-5567 · Match · post · pay",
   document: <InvoiceMatch />,
   sources: [
     {
@@ -642,7 +643,7 @@ const invoiceStep: RunStep = {
     },
   },
   recommendation:
-    "Four-way match clean, $0 variance, fraud score 0.02, under the threshold. Auto-posted and released to AP.",
+    "Four-way match clean, $0 variance, fraud score 0.02, under the threshold. Auto-posted in MIRO — GR/IR cleared, AP booked — and scheduled for payment on the contract's Net 30 terms (due 2026-07-09).",
 };
 
 export const runSteps: RunStep[] = [
