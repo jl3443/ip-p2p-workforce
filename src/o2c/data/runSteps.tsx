@@ -193,7 +193,7 @@ const cashAppStep: RunStep = {
           <EmailDoc
             from="BlueRidge Foods · Accounts Payable"
             fromAddr="ap@blueridgefoods.com"
-            to="International Paper · Cash Application"
+            to="Northgate Paper · Cash Application"
             sent="2026-06-09 · 08:31"
             subject="RE: Payment received on 9100488"
             tone="inbound"
@@ -282,7 +282,7 @@ const triageStep: RunStep = {
         <EmailDoc
           from="BlueRidge Foods · Deductions"
           fromAddr="deductions@blueridgefoods.com"
-          to="International Paper · Order-to-Cash"
+          to="Northgate Paper · Order-to-Cash"
           sent="2026-06-09 · 08:10"
           subject="Chargeback BRF-CB-2218 — shortage on PO 55-22418"
           tone="inbound"
@@ -491,7 +491,7 @@ const resolutionStep: RunStep = {
           <EmailDoc
             from="BlueRidge Foods · Deductions"
             fromAddr="deductions@blueridgefoods.com"
-            to="International Paper · Order-to-Cash"
+            to="Northgate Paper · Order-to-Cash"
             sent="2026-06-09 · 16:40"
             subject="RE: Chargeback BRF-CB-2218 declined"
             tone="inbound"

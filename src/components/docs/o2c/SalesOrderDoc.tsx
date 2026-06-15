@@ -45,7 +45,7 @@ export const orderBlueRidge: SalesOrder = {
   shipTo: "BlueRidge Foods Co. · DC Memphis (Ship-to 0000610248-01)",
   customerPo: "BRF-PO-7741",
   terms: "ZB45 · Net 45 (contract CTR-BRF-2024)",
-  incoterms: "FCA · IP Memphis Mill",
+  incoterms: "FCA · Northgate Memphis Mill",
   currency: "USD",
   item: {
     line: "10",

@@ -1,8 +1,8 @@
 /**
  * Agent catalog — the authoritative spec for the five specialist agents and the
- * orchestrator that make up IP's 6-tower procure-to-pay workforce: PR Processing ·
+ * orchestrator that make up the 6-tower procure-to-pay workforce: PR Processing ·
  * Tactical & Spot Buying · PO Management · Invoice Resolution · MDM Support, with
- * the orchestrator owning Reporting & CI. Transcribed from the TCS → IP brief and
+ * the orchestrator owning Reporting & CI. Transcribed from the engagement brief and
  * aligned to the official scope deck. Every agent surface (work-menu pages, cockpit
  * fleet, run accountability) reads from here so names and autonomy stay consistent.
  */
@@ -55,7 +55,7 @@ export type AgentSpec = {
   /** Throughput stat shown on rows and the detail hero. */
   stat: string;
   status: AgentStatus;
-  /** IP-specific context callout (e.g. DS Smith for the vendor agent). */
+  /** client-specific context callout (e.g. post-merger dedup for the vendor agent). */
   note?: string;
   /** The orchestrator coordinates rather than executes — no autonomy dial. */
   coordinator?: boolean;
@@ -71,7 +71,7 @@ export const agents: AgentSpec[] = [
       "Turns an employee's plain-language need into a structured, compliant purchase requisition — PR gatekeeping, compliance checks and approval routing through LevelPath.",
     inputs: [
       "Employee request (chat, email or LevelPath form)",
-      "IP category tree and spending policy",
+      "category tree and spending policy",
       "Active contracts and preferred-supplier list",
       "Budget mapping (employee → cost center → budget)",
       "Historical purchasing patterns for the department",
@@ -237,7 +237,7 @@ export const agents: AgentSpec[] = [
     ],
     stat: "1,204 cleaned",
     status: "running",
-    note: "Directly attacks the DS Smith duplicate-vendor problem (TCS estimate: 30–40% duplicates) — part of unlocking $117M of IP's $514M DS Smith synergy target.",
+    note: "Directly attacks the post-merger duplicate-vendor problem (estimated 30–40% duplicates) — part of unlocking $117M of the $514M synergy target.",
   },
   {
     id: "orchestrator",

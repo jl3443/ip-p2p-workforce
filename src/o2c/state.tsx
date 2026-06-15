@@ -1,5 +1,5 @@
 /**
- * View-state machine for the IP Procure-to-Pay workforce demo.
+ * View-state machine for the Procure-to-Pay workforce demo.
  * Forked from the HR Concierge engine: no real router, just a typed `view`
  * field that App.tsx switches on. Single buyer persona for v1.
  */

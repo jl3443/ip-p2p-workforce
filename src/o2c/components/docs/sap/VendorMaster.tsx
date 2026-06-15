@@ -4,7 +4,7 @@
  * dimensions XK03 maintains (general data · company-code data with recon
  * account/terms · purchasing data · bank details · tax numbers), with a match
  * score per dimension and a golden-record decision. The Vendor agent's output —
- * it merges the duplicate before the tender opens (the DS Smith problem).
+ * it merges the duplicate before the tender opens (the post-merger duplicate problem).
  */
 
 import { DocShell, DocTitleBand, SectionBand } from "./parts";
@@ -59,7 +59,7 @@ export const vendorMergeBelt: VendorMerge = {
     { field: "Bank key / account", golden: "084000026 · ••••4471", duplicate: "084000026 · ••••4471", match: "exact" },
     { field: "Recon. account", golden: "211000 · Trade payables", duplicate: "211000 · Trade payables", match: "exact" },
     { field: "Payment terms", golden: "Net 30", duplicate: "Net 30", match: "exact" },
-    { field: "Purchasing org", golden: "IP01", duplicate: "IP01", match: "exact" },
+    { field: "Purchasing org", golden: "NG01", duplicate: "NG01", match: "exact" },
   ],
   decision:
     "Keep 100482 as the golden record (active framework 4600001207, full purchasing-org data). Retire 100731, redirect its info records and re-point any source-list entries. Matching EIN, DUNS, bank key and address confirm one legal entity.",

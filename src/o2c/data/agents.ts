@@ -1,9 +1,9 @@
 /**
  * Agent catalog — the authoritative spec for the five specialist agents and the
- * orchestrator that make up IP's order-to-cash (O2C) workforce: Cash Application ·
+ * orchestrator that make up the order-to-cash (O2C) workforce: Cash Application ·
  * Deduction Triage · Evidence & Validation · Dispute Resolution · Customer Master
  * & Credit, with the orchestrator owning Reporting & CI. Transcribed from the
- * TCS → IP brief (IP - Solutions V0.96) and aligned to the official scope deck.
+ * the engagement brief (the engagement brief) and aligned to the official scope deck.
  * Every agent surface (work-menu pages, cockpit fleet, run accountability) reads
  * from here so names and autonomy stay consistent.
  *
@@ -59,7 +59,7 @@ export type AgentSpec = {
   /** Throughput stat shown on rows and the detail hero. */
   stat: string;
   status: AgentStatus;
-  /** IP-specific context callout (e.g. DS Smith for the customer agent). */
+  /** client-specific context callout (e.g. post-merger dedup for the customer agent). */
   note?: string;
   /** The orchestrator coordinates rather than executes — no autonomy dial. */
   coordinator?: boolean;
@@ -220,7 +220,7 @@ export const agents: AgentSpec[] = [
       "Credit exposure, DSO and payment behavior per customer",
       "External credit data (D&B, credit insurance, watchlists)",
       "Open AR, disputes and deduction history",
-      "DS Smith customer overlap and consolidation file",
+      "post-merger customer overlap and consolidation file",
     ],
     outputs: [
       "Duplicate / hierarchy detection with merge proposals",
@@ -237,12 +237,12 @@ export const agents: AgentSpec[] = [
       "New or over-limit customer",
       "Credit deterioration",
       "Watchlist or insurance withdrawal",
-      "Duplicate across the DS Smith book",
+      "Duplicate across the merged book",
       "Concentration above the threshold",
     ],
     stat: "880 cleaned",
     status: "running",
-    note: "The DS Smith merger left an estimated 30–40% duplicate customers across the combined book — cleaning it is part of unlocking IP's $514M synergy target.",
+    note: "A recent merger left an estimated 30–40% duplicate customers across the combined book — cleaning it is part of unlocking the $514M synergy target.",
   },
   {
     id: "orchestrator",

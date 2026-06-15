@@ -171,7 +171,7 @@ const intakeStep: RunStep = {
       body: (
         <EmailDoc
           from="Dale Whitfield"
-          fromAddr="dwhitfield@ipaper.com"
+          fromAddr="dwhitfield@northgatepaper.com"
           to="Procurement Intake"
           sent="2026-06-03 · 09:01"
           subject="No.2 double-backer belt — wear beyond limit"
@@ -230,7 +230,7 @@ const intakeStep: RunStep = {
         body: (
           <EmailDoc
             from="Dale Whitfield"
-            fromAddr="dwhitfield@ipaper.com"
+            fromAddr="dwhitfield@northgatepaper.com"
             to="Procurement Intake"
             sent="2026-06-03 · 09:14"
             subject="RE: PR-48201 raised"
@@ -265,7 +265,7 @@ const intakeStep: RunStep = {
       reasoning: "Checking the spending policy — on-contract, under the $50k MRO ceiling",
       title: "Release strategy",
       fields: [
-        { label: "Purchasing org", value: "IP01 · IP North America" },
+        { label: "Purchasing org", value: "NG01 · Northgate North America" },
         { label: "Purchasing group", value: "P12 · MRO & Spares" },
         { label: "Release strategy", value: "MRO1 — auto-released · under the L3 limit" },
         { label: "Policy", value: "POL-MRO-04 · maintenance-spend" },
@@ -341,7 +341,7 @@ const sourcingStep: RunStep = {
     to: "BeltPro · Heartland Rubber · Midwest Belting",
     subject: "RFQ-6600-2241 — Belt, double-backer 88-DBX (1 EA)",
     lines: [
-      "Please quote your best delivered price and lead time for 1 EA of material 88-DBX — double-backer belt for Corrugator No.2, ship-to International Paper M042.",
+      "Please quote your best delivered price and lead time for 1 EA of material 88-DBX — double-backer belt for Corrugator No.2, ship-to Northgate Paper M042.",
       "Evaluation is on delivered cost, lead time and quality/OTIF. Net 30 terms. Please respond by end of day.",
       "Reference RFQ-6600-2241 in your reply.",
     ],
@@ -468,7 +468,7 @@ const poStep: RunStep = {
   email: {
     cta: "Transmit the PO to BeltPro",
     to: "BeltPro Industrial · orders@beltpro.com",
-    subject: "PO-77310 issued — 1 EA 88-DBX to International Paper M042",
+    subject: "PO-77310 issued — 1 EA 88-DBX to Northgate Paper M042",
     lines: [
       "Issuing PO-77310 against framework 4600001207 · item 10 — 1 EA of 88-DBX at $48,200.00 net, FCA Memphis DC, Net 30.",
       "Requested delivery 2026-06-10 to the Containerboard mill (M042). Please acknowledge and confirm the ship date.",
@@ -513,7 +513,7 @@ const poStep: RunStep = {
       title: "Header & terms",
       fields: [
         { label: "Vendor", value: "BeltPro Industrial · 100482" },
-        { label: "Company code", value: "1000 · International Paper" },
+        { label: "Company code", value: "1000 · Northgate Paper" },
         { label: "Payment terms", value: "NT30 · Net 30 days" },
         { label: "Incoterms", value: "FCA · Memphis DC" },
         { label: "Reference agreement", value: "4600001207 · item 10" },

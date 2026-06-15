@@ -167,7 +167,7 @@ export function PaymentCollectionsWorkspace() {
             <EmailDoc
               from="BlueRidge Foods · AP"
               fromAddr="ap@blueridgefoods.com"
-              to="International Paper · Collections"
+              to="Northgate Paper · Collections"
               sent="2026-06-09 · 11:02"
               subject="RE: FINAL NOTICE — INV-90357 · payment today"
               tone="inbound"

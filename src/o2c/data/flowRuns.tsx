@@ -61,7 +61,7 @@ const beltRun: FlowRun = {
       ? { label: "Held · routed for review", kind: "critical" }
       : { label: "Recovered · $208,400", kind: "ready" },
   completion: {
-    title: "Deduction recovered · $208,400 back to IP",
+    title: "Deduction recovered · $208,400 back to Northgate",
     tone: "ready",
     routedTo: "AR ledger · BlueRidge Foods",
     routedSub: "rebill posted · invoice 9100488 reopened to full value",

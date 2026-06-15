@@ -152,7 +152,7 @@ export function AgentFlowDiagram() {
           >
             <defs>
               <marker
-                id="ip-flow-arrow"
+                id="flow-arrow"
                 markerWidth="7"
                 markerHeight="7"
                 refX="5.5"
@@ -191,7 +191,7 @@ export function AgentFlowDiagram() {
                 stroke="var(--mark-red)"
                 strokeWidth={2.4}
                 opacity={0.7}
-                markerEnd="url(#ip-flow-arrow)"
+                markerEnd="url(#flow-arrow)"
               />
             ))}
 

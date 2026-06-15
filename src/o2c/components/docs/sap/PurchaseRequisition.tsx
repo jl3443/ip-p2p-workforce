@@ -71,7 +71,7 @@ export const prBelt: SapPR = {
   releaseStrategy: "MRO1 — auto-released · on-contract, under the L3 limit",
   createdBy: "Intake Agent",
   createdOn: "2026-06-03 · 09:04",
-  purchasingOrg: "IP01 · IP North America",
+  purchasingOrg: "NG01 · Northgate North America",
   purchasingGroup: "P12 · MRO & Spares",
   headerNote:
     "Corrugator No.2 double-backer belt flagged at 09:01 — wear beyond limit, production line at risk. Replacement is on the BeltPro MRO framework; raised under the maintenance-spend policy.",

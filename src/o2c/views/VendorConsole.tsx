@@ -245,7 +245,7 @@ function QualityPanel() {
         ))}
       </div>
       <p className="text-[11px] text-mute leading-snug mt-3 pt-3 border-t border-divider">
-        DS Smith integration runs ~30–40% duplicate vendors — clearing them unlocks part of IP's $117M synergy slice.
+        post-merger integration runs ~30–40% duplicate vendors — clearing them unlocks part of the $117M synergy slice.
       </p>
     </article>
   );

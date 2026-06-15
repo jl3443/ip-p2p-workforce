@@ -135,7 +135,7 @@ function TopBar({
         <span className="flex flex-col leading-tight">
           <span className="text-[15px] font-bold tracking-[-0.01em] text-white">Agentic Operations</span>
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">
-            International Paper · multi-agent workforce
+            Multi-agent operations workforce
           </span>
         </span>
       </div>

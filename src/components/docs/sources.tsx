@@ -137,7 +137,7 @@ export function OutlineAgreementDoc() {
         <Field label="Target value" value="USD 2,400,000.00" mono />
         <Field label="Payment terms" value="NT30 · Net 30 days" mono />
         <Field label="Incoterms" value="FCA · BeltPro Memphis DC" />
-        <Field label="Purchasing org" value="IP01 · IP North America" mono />
+        <Field label="Purchasing org" value="NG01 · Northgate North America" mono />
       </div>
       <SectionBand>Item 10 — pricing condition</SectionBand>
       <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
@@ -288,7 +288,7 @@ export function VendorRecordDoc({ variant }: { variant: "golden" | "duplicate" }
       <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-3">
         <Field label="Recon. account" value="211000 · Trade payables" mono />
         <Field label="Payment terms" value="Net 30" mono />
-        <Field label="Purchasing org" value="IP01" mono />
+        <Field label="Purchasing org" value="NG01" mono />
         <Field
           label="Open items"
           value={golden ? "1 active framework 4600001207" : "0 open POs · 0 open invoices"}
