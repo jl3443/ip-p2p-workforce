@@ -3,6 +3,7 @@ import { Check, CornerUpRight, RotateCcw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ai/Spinner";
 import { SpringIn } from "@/components/ai/SpringIn";
+import { SourceLogo } from "@/components/brand/SourceLogo";
 import type { ExtractStage, SourceArtifact } from "@/data/runSteps";
 
 /**
@@ -179,11 +180,14 @@ export function ExtractionWizard({
         {source && (
           <SpringIn key={stage.sourceId}>
             <div className="bg-white border border-divider rounded-md overflow-hidden">
-              <div className="px-3.5 py-2 border-b border-divider bg-surface-fog">
-                <div className="text-[12px] font-bold text-ink truncate">{source.label}</div>
-                <div className="text-[10.5px] uppercase tracking-[0.06em] text-mute truncate">
-                  {source.meta}
+              <div className="px-3.5 py-2 border-b border-divider bg-surface-fog flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[12px] font-bold text-ink truncate">{source.label}</div>
+                  <div className="text-[10.5px] uppercase tracking-[0.06em] text-mute truncate">
+                    {source.meta}
+                  </div>
                 </div>
+                <SourceLogo kind={source.kind} />
               </div>
               <div className="p-3 overflow-x-auto">{source.body}</div>
             </div>

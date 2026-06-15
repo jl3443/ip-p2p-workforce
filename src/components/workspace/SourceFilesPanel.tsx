@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SourceLogo } from "@/components/brand/SourceLogo";
 import type { SourceArtifact, SourceKind } from "@/data/runSteps";
 
 const kindIcon: Record<SourceKind, LucideIcon> = {
@@ -100,9 +101,12 @@ export function SourceFilesPanel({
                     {s.meta}
                   </span>
                 </span>
+                <span className="shrink-0 mt-0.5">
+                  <SourceLogo kind={s.kind} />
+                </span>
                 <ArrowRight
                   size={14}
-                  className="text-mute opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1"
+                  className="text-mute opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1.5 -ml-1"
                 />
               </button>
             </li>

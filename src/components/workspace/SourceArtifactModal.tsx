@@ -1,6 +1,7 @@
 import * as React from "react";
 import { X } from "lucide-react";
 import { SpringIn } from "@/components/ai/SpringIn";
+import { SourceLogo } from "@/components/brand/SourceLogo";
 import type { SourceArtifact } from "@/data/runSteps";
 
 /**
@@ -40,14 +41,17 @@ export function SourceArtifactModal({
                 {source.meta}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="ui-pill w-8 h-8 rounded-full bg-surface-fog text-ink hover:bg-[#e3e8ef] flex items-center justify-center shrink-0"
-            >
-              <X size={16} />
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              <SourceLogo kind={source.kind} />
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="ui-pill w-8 h-8 rounded-full bg-surface-fog text-ink hover:bg-[#e3e8ef] flex items-center justify-center shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </header>
           <div className="overflow-y-auto p-4">{source.body}</div>
         </div>
