@@ -132,9 +132,17 @@ const freshConfig = (): Record<AgentId, AgentConfig> =>
 
 const Ctx = React.createContext<(AppState & AppActions) | null>(null);
 
-export function AppProvider({ children }: { children: React.ReactNode }) {
+export function AppProvider({
+  children,
+  initialView,
+  onExit,
+}: {
+  children: React.ReactNode;
+  initialView?: View;
+  onExit?: () => void;
+}) {
   const [state, setState] = React.useState<AppState>({
-    view: { kind: "login" },
+    view: initialView ?? { kind: "login" },
     history: [],
     flowProgress: freshProgress(),
     agentOutputs: freshOutputs(),
@@ -176,15 +184,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const signOut = React.useCallback(
-    () =>
-      setState((s) => ({
-        ...s,
-        view: { kind: "login" },
-        history: [],
-      })),
-    [],
-  );
+  const signOut = React.useCallback(() => {
+    if (onExit) {
+      onExit();
+      return;
+    }
+    setState((s) => ({ ...s, view: { kind: "login" }, history: [] }));
+  }, [onExit]);
 
   const setFlowProgress = React.useCallback(
     (flow: FlowId, next: Partial<FlowProgress>) =>

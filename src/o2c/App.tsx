@@ -58,9 +58,15 @@ function Shell({ onExit }: { onExit?: () => void }) {
   );
 }
 
-export default function App({ onExit }: { onExit?: () => void }) {
+export default function App({
+  onExit,
+  startSignedIn,
+}: {
+  onExit?: () => void;
+  startSignedIn?: boolean;
+}) {
   return (
-    <AppProvider>
+    <AppProvider initialView={startSignedIn ? { kind: "cockpit" } : undefined} onExit={onExit}>
       <Shell onExit={onExit} />
     </AppProvider>
   );
