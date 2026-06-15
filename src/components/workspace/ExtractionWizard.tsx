@@ -22,28 +22,50 @@ function EditableField({
   label,
   value,
   hot,
+  options,
   onChange,
 }: {
   label: string;
   value: string;
   hot: boolean;
+  options?: string[];
   onChange: (v: string) => void;
 }) {
+  const fieldClass = cn(
+    "w-full rounded px-2.5 py-1.5 text-[12.5px] text-ink transition-all duration-300 focus:outline-none focus:border-[#0a6ed1] focus:bg-white",
+    hot
+      ? "bg-surface-mint/50 border border-surface-deep/55 ring-2 ring-surface-deep/20"
+      : "bg-[#f4f6f9] border border-[#dfe3e8]",
+  );
   return (
     <label className="block min-w-0">
       <span className="block text-[10px] uppercase tracking-[0.06em] text-mute font-medium mb-1">
         {label}
       </span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "w-full rounded px-2.5 py-1.5 text-[12.5px] text-ink transition-all duration-300 focus:outline-none focus:border-[#0a6ed1] focus:bg-white",
-          hot
-            ? "bg-surface-mint/50 border border-surface-deep/55 ring-2 ring-surface-deep/20"
-            : "bg-[#f4f6f9] border border-[#dfe3e8]",
-        )}
-      />
+      {options ? (
+        // Dropdown — the agent's pick is pre-selected; the reviewer can switch
+        // it (e.g. Net 30 → Net 60). An empty value keeps the cell blank during
+        // the auto-fill beat, matching the text fields.
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(fieldClass, "appearance-none bg-no-repeat pr-7 cursor-pointer", value ? "" : "text-mute")}
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+            backgroundPosition: "right 0.55rem center",
+          }}
+        >
+          {!value && <option value="" />}
+          {[...new Set([value, ...options].filter(Boolean))].map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input value={value} onChange={(e) => onChange(e.target.value)} className={fieldClass} />
+      )}
     </label>
   );
 }
@@ -147,6 +169,7 @@ export function ExtractionWizard({
                   label={f.label}
                   value={vals[i] ?? ""}
                   hot={hot === i}
+                  options={f.options}
                   onChange={(v) => setVals((arr) => arr.map((x, j) => (j === i ? v : x)))}
                 />
               ))}

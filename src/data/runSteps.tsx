@@ -121,8 +121,12 @@ export type ExtractStage = {
   reasoning: string;
   /** The form-box section title (a section of the produced doc). */
   title: string;
-  /** Auto-filled, editable fields extracted from the source. */
-  fields: { label: string; value: string }[];
+  /**
+   * Auto-filled, editable fields extracted from the source. A field with
+   * `options` renders as a dropdown (e.g. payment terms — Net 30 / 60 / 90) so
+   * the reviewer can override the agent's pick; otherwise it's a text input.
+   */
+  fields: { label: string; value: string; options?: string[] }[];
 };
 
 export type RunStep = {
@@ -514,7 +518,7 @@ const poStep: RunStep = {
       fields: [
         { label: "Vendor", value: "BeltPro Industrial · 100482" },
         { label: "Company code", value: "1000 · Northgate Paper" },
-        { label: "Payment terms", value: "NT30 · Net 30 days" },
+        { label: "Payment terms", value: "NT30 · Net 30 days", options: ["NT30 · Net 30 days", "NT45 · Net 45 days", "NT60 · Net 60 days", "NT90 · Net 90 days"] },
         { label: "Incoterms", value: "FCA · Memphis DC" },
         { label: "Reference agreement", value: "4600001207 · item 10" },
         { label: "Tax code", value: "U1 · self-assessed use tax" },
@@ -655,7 +659,7 @@ const invoiceStep: RunStep = {
         { label: "Invoice date", value: "2026-06-09" },
         { label: "Gross amount", value: "USD 48,200.00" },
         { label: "Tax (U1)", value: "USD 0.00" },
-        { label: "Stated terms", value: "Net 30" },
+        { label: "Stated terms", value: "Net 30", options: ["Net 30", "Net 45", "Net 60", "Net 90"] },
       ],
     },
     {
@@ -707,11 +711,11 @@ const invoiceStep: RunStep = {
       reasoning: "Recommending the payment terms — read from the contract",
       title: "AI recommendation — payment terms",
       fields: [
-        { label: "Recommended terms", value: "NT30 · Net 30" },
+        { label: "Recommended terms", value: "NT30 · Net 30", options: ["NT30 · Net 30", "NT45 · Net 45", "NT60 · Net 60", "NT90 · Net 90"] },
         { label: "Per contract", value: "4600001207 · not Net 60/90" },
         { label: "Baseline date", value: "2026-06-09" },
         { label: "Net due date", value: "2026-07-09" },
-        { label: "Cash discount", value: "None · pay on the net date" },
+        { label: "Cash discount", value: "None · pay on the net date", options: ["None · pay on the net date", "2% 10 · net 30", "1% 15 · net 30"] },
         { label: "Payment run (F110)", value: "2026-07-09" },
       ],
     },
