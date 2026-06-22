@@ -10,6 +10,7 @@ import { AiDraftEmailCard } from "@/components/workspace/AiDraftEmailCard";
 import { ExceptionResolutionCard } from "@/components/workspace/ExceptionResolutionCard";
 import { ExtractionWizard } from "@/components/workspace/ExtractionWizard";
 import { StageDossier } from "@/components/workspace/StageDossier";
+import { StepProgress } from "@/components/ai/StepProgress";
 import { agentsById } from "@/data/agents";
 import type { AgentOutputStatus } from "@/state";
 import type { RunStep } from "@/data/runSteps";
@@ -66,7 +67,7 @@ export function AiWorkspacePanel({
       setShownLines(Math.min(step.reasoning.length, n));
       if (n >= step.reasoning.length) {
         window.clearInterval(iv);
-        revealTimer = window.setTimeout(() => setRevealed(true), 420);
+        revealTimer = window.setTimeout(() => setRevealed(true), 1100);
       }
     }, LINE_MS);
     return () => {
@@ -130,13 +131,19 @@ export function AiWorkspacePanel({
 
       <div className="p-5 space-y-4">
         {staged && step.stages && !revealed ? (
-          <ExtractionWizard
-            stages={step.stages}
-            sources={step.sources}
-            onComplete={() => setRevealed(true)}
-          />
+          <div className="space-y-4">
+            <StepProgress agentName={step.agentName ?? agent.name} docLabel={step.docLabel} />
+            <ExtractionWizard
+              stages={step.stages}
+              sources={step.sources}
+              onComplete={() => setRevealed(true)}
+            />
+          </div>
         ) : (
         <>
+        {!revealed && (
+          <StepProgress agentName={step.agentName ?? agent.name} docLabel={step.docLabel} />
+        )}
         {/* Reasoning trace — the line in progress spins, finished lines check */}
         <div className="space-y-1.5">
           {reasoningLines.map((line, i) => {
