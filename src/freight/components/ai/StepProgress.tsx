@@ -5,33 +5,71 @@ import { AIDot } from "@/freight/components/ai/AIDot";
 import { cn } from "@/freight/lib/utils";
 
 /**
- * The "agent is working" loading chrome shown above a step's reasoning trace or
- * extraction wizard. A spinner + phase title, an animated progress bar with a
- * live percentage, and four phase chips that light up in sequence — so every
- * step opens with a visible "AI is running" moment before the artifact reveals.
- * Self-animating and decorative; it unmounts once the produced doc is shown.
+ * The "agent is working" loader shown before a step's wizard or reveal. The bar
+ * fills 0 → 100% over `durationMs`, the four phase chips light up in sequence,
+ * and once it reaches 100% it holds briefly on a "done" state and then calls
+ * `onDone`. The caller advances on `onDone` (not a competing timer) so the bar
+ * always finishes before it hands off — it never gets cut mid-animation.
  */
 
 const PHASES = ["Read", "Reason", "Draft", "Verify"];
+const HOLD_MS = 320; // show the completed 100% state briefly before handing off
+const TICK_MS = 50;
 
-export function StepProgress({ agentName, docLabel }: { agentName: string; docLabel: string }) {
+export function StepProgress({
+  agentName,
+  docLabel,
+  durationMs = 2600,
+  onDone,
+}: {
+  agentName: string;
+  docLabel: string;
+  /** How long the bar takes to fill to 100%. */
+  durationMs?: number;
+  /** Fired once, after the bar reaches 100% and a short hold. */
+  onDone?: () => void;
+}) {
   const [pct, setPct] = React.useState(0);
+  const onDoneRef = React.useRef(onDone);
+  onDoneRef.current = onDone;
 
-  // Decelerating fill toward ~96% (held, "in progress") — the step reveal
-  // unmounts this card, so it never needs to hit 100%.
   React.useEffect(() => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      setPct(100);
+      window.setTimeout(() => onDoneRef.current?.(), HOLD_MS);
+    };
+    // Hidden tabs freeze RAF/intervals — skip straight to the completed state so
+    // the sequence never stalls on a frozen spinner.
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      finish();
+      return;
+    }
     setPct(0);
+    const start = Date.now();
     const iv = window.setInterval(() => {
-      setPct((p) => {
-        if (p >= 96) return 96;
-        const step = p < 55 ? 6 : p < 80 ? 3 : 1;
-        return Math.min(96, p + step);
-      });
-    }, 130);
-    return () => window.clearInterval(iv);
-  }, [docLabel]);
+      const elapsed = Date.now() - start; // real elapsed, robust to throttling
+      const p = Math.min(100, Math.round((elapsed / durationMs) * 100));
+      setPct(p);
+      if (p >= 100) {
+        window.clearInterval(iv);
+        finish();
+      }
+    }, TICK_MS);
+    // Fallback if the interval is throttled (e.g. briefly backgrounded mid-run).
+    const fallback = window.setTimeout(finish, durationMs + 500);
+    return () => {
+      window.clearInterval(iv);
+      window.clearTimeout(fallback);
+    };
+  }, [durationMs]);
 
-  const activePhase = Math.min(PHASES.length - 1, Math.floor((pct / 100) * PHASES.length));
+  const complete = pct >= 100;
+  const activePhase = complete
+    ? PHASES.length
+    : Math.min(PHASES.length - 1, Math.floor((pct / 100) * PHASES.length));
   const docName = docLabel.split(" · ")[0];
   const titles = [
     "Reading the sources",
@@ -43,8 +81,14 @@ export function StepProgress({ agentName, docLabel }: { agentName: string; docLa
   return (
     <div className="rounded-md border border-divider bg-white px-4 py-3">
       <div className="flex items-center gap-2">
-        <Spinner size={14} className="shrink-0" />
-        <span className="text-[13px] font-bold text-ink leading-tight truncate">{titles[activePhase]}…</span>
+        {complete ? (
+          <Check size={14} className="text-surface-deep shrink-0" strokeWidth={3} />
+        ) : (
+          <Spinner size={14} className="shrink-0" />
+        )}
+        <span className="text-[13px] font-bold text-ink leading-tight truncate">
+          {complete ? "Done" : `${titles[activePhase]}…`}
+        </span>
         <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-mute shrink-0">
           <AIDot size={6} tone="deep" pulse /> {agentName}
         </span>

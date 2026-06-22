@@ -73,29 +73,8 @@ export function AiWorkspacePanel({
   const revealed = phase === "revealed";
   const decided = status !== "none";
 
-  // Run a loader for `ms`, then move to `next`. Hidden tabs don't run timers
-  // reliably (they freeze), so when the tab isn't visible jump straight to the
-  // next phase rather than hang on the spinner forever.
-  const advanceAfter = React.useCallback((ms: number, next: Phase) => {
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-      setPhase(next);
-      return undefined;
-    }
-    const t = window.setTimeout(() => setPhase(next), ms);
-    return () => window.clearTimeout(t);
-  }, []);
-
-  // loading spinner → wizard (staged) or straight to the reveal loader (L4)
-  React.useEffect(() => {
-    if (phase !== "loading") return;
-    return hasWizard ? advanceAfter(SPIN_MS, "working") : advanceAfter(REVEAL_MS, "revealed");
-  }, [phase, hasWizard, advanceAfter]);
-
-  // finalizing loader → reveal
-  React.useEffect(() => {
-    if (phase !== "finalizing") return;
-    return advanceAfter(REVEAL_MS, "revealed");
-  }, [phase, advanceAfter]);
+  // Phase advance is driven by the loader finishing (StepProgress onDone below),
+  // so the bar always fills to 100% before it hands off.
 
   // Once the recommendation has typed out, drop the artifact + decision beneath.
   React.useEffect(() => {
@@ -160,8 +139,17 @@ export function AiWorkspacePanel({
 
       <div className="p-5 space-y-4">
         {phase === "loading" || phase === "finalizing" ? (
-          /* The AI works for a beat before anything for this step appears. */
-          <StepProgress agentName={step.agentName ?? agent.name} docLabel={step.docLabel} />
+          /* The loader fills to 100% and finishes before it hands off — the
+             lead-in (图2) loader → wizard, the finalizing loader → reveal. */
+          <StepProgress
+            key={phase}
+            agentName={step.agentName ?? agent.name}
+            docLabel={step.docLabel}
+            durationMs={phase === "loading" && hasWizard ? SPIN_MS : REVEAL_MS}
+            onDone={() =>
+              setPhase(phase === "loading" ? (hasWizard ? "working" : "revealed") : "revealed")
+            }
+          />
         ) : phase === "working" && step.stages ? (
           /* The extraction wizard appears only after the spinner has finished. */
           <ExtractionWizard
