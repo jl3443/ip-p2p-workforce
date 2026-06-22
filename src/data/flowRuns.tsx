@@ -12,19 +12,20 @@
  */
 
 import type { FlowId, Decision, View } from "@/state";
-import { beltUpstreamSteps, beltDownstreamSteps, type RunStep } from "@/data/runSteps";
+import { beltUpstreamSteps, beltDownstreamSteps, type RunStep, type ExceptionResolution } from "@/data/runSteps";
 
 import { PurchaseRequisition, type SapPR } from "@/components/docs/sap/PurchaseRequisition";
 import { RfqComparison, type RfqTender } from "@/components/docs/sap/RfqComparison";
 import { PurchaseOrder, type SapPO } from "@/components/docs/sap/PurchaseOrder";
 import { GoodsReceipt, type SapGR } from "@/components/docs/sap/GoodsReceipt";
 import { InvoiceMatch, type SapInvoice } from "@/components/docs/sap/InvoiceMatch";
-import { EmailDoc, SpendingPolicyDoc } from "@/components/docs/sources";
+import { EmailDoc, SpendingPolicyDoc, VendorRecordDoc, ExternalMatchDoc, DeliveryNoteDoc } from "@/components/docs/sources";
 import { LedgerDoc } from "@/components/docs/finance/LedgerDoc";
 import { SalesOrderDoc } from "@/components/docs/o2c/SalesOrderDoc";
 import { DeliveryDoc } from "@/components/docs/o2c/DeliveryDoc";
 import { CustomerInvoiceDoc } from "@/components/docs/o2c/CustomerInvoiceDoc";
 import { PaymentCollectionsWorkspace } from "@/components/workspace/PaymentCollectionsWorkspace";
+import { ExceptionResolutionCard } from "@/components/workspace/ExceptionResolutionCard";
 
 export type TerminalPill = { label: string; kind: "ready" | "critical" | "progress" };
 
@@ -587,28 +588,72 @@ const gearboxFulfillmentStep: RunStep = {
       ],
     },
   ],
+  dossier: {
+    swimlane: "Procurement Operations",
+    rows: [
+      { lane: "Key process steps", points: ["Goods receipt", "Service-entry approval"] },
+      { lane: "AI intervention points", points: ["Predictive GRN creation (services)", "IoT / digital-proof validation", "NLP on emails / documents to confirm completion"] },
+      { lane: "Value delivered", points: ["20–40% fewer missing-GRN issues"] },
+      { lane: "Key controls", points: ["System-enforced — no invoice without GRN", "AI flags delays / inconsistencies"] },
+      { lane: "Systems / tools", points: ["SAP S/4HANA", "Coupa", "Oracle Cloud", "IoT platforms"] },
+    ],
+  },
 };
+
+/* The Orchestrator's routing of the two exceptions to the agents that own them. */
+const gearboxRoutingPanel = (
+  <div className="rounded-md border border-divider bg-surface-fog/40 px-4 py-3">
+    <div className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
+      Orchestrator · routed to the agents that own it
+    </div>
+    <div className="grid grid-cols-3 gap-2 mt-2">
+      <div className="rounded border border-divider bg-white px-2.5 py-2">
+        <div className="text-[10px] uppercase tracking-[0.04em] text-mute font-bold">Bank change</div>
+        <div className="text-[12px] font-bold text-ink mt-0.5 leading-snug">MDM Support Agent</div>
+        <div className="text-[10px] text-mute mt-0.5 leading-snug">reject ·· 9920 · keep ·· 4471 · report</div>
+      </div>
+      <div className="rounded border border-divider bg-white px-2.5 py-2">
+        <div className="text-[10px] uppercase tracking-[0.04em] text-mute font-bold">Short receipt</div>
+        <div className="text-[12px] font-bold text-ink mt-0.5 leading-snug">Invoice Resolution Agent</div>
+        <div className="text-[10px] text-mute mt-0.5 leading-snug">short-pay 1 of 2 · park the rest</div>
+      </div>
+      <div className="rounded border border-divider bg-white px-2.5 py-2">
+        <div className="text-[10px] uppercase tracking-[0.04em] text-mute font-bold">Replacement</div>
+        <div className="text-[12px] font-bold text-ink mt-0.5 leading-snug">PO Management Agent</div>
+        <div className="text-[10px] text-mute mt-0.5 leading-snug">claim · expedite · re-receive</div>
+      </div>
+    </div>
+    <p className="text-[11.5px] text-ink leading-snug mt-2.5">
+      The exception is detected here, then resolved by the agents already in the workforce — you approve every hand-off.
+    </p>
+  </div>
+);
 
 const gearboxInvoiceStep: RunStep = {
   id: "invoice",
   n: 2,
-  title: "Invoices — payment blocked",
-  sub: "New bank detail and short receipt — fraud hold",
+  title: "Invoice — exceptions detected & routed",
+  sub: "Two exceptions on one invoice — the Orchestrator routes the fix",
   reasoning: [
     "Extracting invoice ADS-4419 — $72,000 for 2 units",
-    "Matching to PO-77642 and the partial goods receipt",
-    "Quantity mismatch — invoiced 2, received 1",
+    "Running the four-way match against PO-77642 and the partial goods receipt",
+    "Quantity mismatch — invoiced 2, received 1 (unit 2 damaged)",
     "Bank account changed — IBAN ·· 9920 does not match vendor master 201185",
-    "Scoring fraud 0.86 — blocking payment and flagging the vendor record",
+    "Holding payment · routing each exception to the agent that owns it",
   ],
   docLabel: "INV-ADS-4419 · Four-way match",
-  document: <InvoiceMatch invoice={invGearbox} />,
+  document: (
+    <div className="space-y-4">
+      <InvoiceMatch invoice={invGearbox} />
+      {gearboxRoutingPanel}
+    </div>
+  ),
   sources: [
     { id: "gbx-bank", label: "Bank-change email", meta: "Apex AR · 09:12", kind: "email", body: gearboxBankChange },
     { id: "gr-gbx-handoff", label: "GR-77642", meta: "from PO management · MIGO", kind: "sap", handoff: true, body: <GoodsReceipt gr={grGearbox} /> },
   ],
   recommendation:
-    "Bank detail changed to an unverified account and the receipt is short. Recommend reject and route to Supplier onboarding to re-verify before any payment.",
+    "Two exceptions on one invoice: a short receipt (1 of 2 received, unit 2 damaged) and a bank-detail change to an unverified account (IBAN ·· 9920, fraud 0.86). Nothing pays yet. The Orchestrator routes the bank change to MDM Support, the short-pay to Invoice Resolution and the replacement to PO Management. Approve to work the resolution.",
   stages: [
     {
       sourceId: "gbx-bank",
@@ -623,50 +668,379 @@ const gearboxInvoiceStep: RunStep = {
     },
     {
       sourceId: "gr-gbx-handoff",
-      reasoning: "Quantity mismatch + bank change → fraud 0.86, blocking payment",
+      reasoning: "Quantity mismatch + bank change → fraud 0.86, payment held",
       title: "Four-way match",
       fields: [
         { label: "Quantity", value: "invoiced 2 · received 1" },
         { label: "Net value", value: "invoiced $72,000 · received $36,000" },
         { label: "Fraud score", value: "0.86 · high" },
-        { label: "Decision", value: "Block payment — fraud hold" },
+        { label: "Decision", value: "Hold payment — route to resolution" },
       ],
     },
   ],
-  exception: {
-    title: "Payment blocked · do-not-pay envelope",
-    gates: [
-      { name: "Bank verification", state: "tripped", result: "New IBAN ·· 9920 unverified — callback unanswered, no signed bank letter, beneficiary name differs from vendor master 201185." },
-      { name: "Fraud score", state: "tripped", result: "0.86 high — a mid-stream bank change on a supplier with an open invoice is the classic redirection-fraud pattern." },
-      { name: "Three-way quantity", state: "tripped", result: "Invoiced 2 units, received 1 — unit 2 damaged in transit and on quality hold." },
-      { name: "Vendor master", state: "clear", result: "Single record 201185 · account of record remains IBAN ·· 4471." },
+  dossier: {
+    swimlane: "Accounts Payable",
+    rows: [
+      { lane: "Key process steps", points: ["Match invoice vs PO vs GRN", "Exception identification"] },
+      { lane: "AI intervention points", points: ["AI matching engine (fuzzy price / qty tolerance)", "ML learns from past exceptions", "Semantic matching for unstructured data"] },
+      { lane: "Value delivered", points: ["25–40% fewer exceptions · higher first-pass match"] },
+      { lane: "Key controls", points: ["Tolerance thresholds with AI recommendations", "Exception clustering & pattern detection"] },
+      { lane: "Systems / tools", points: ["SAP S/4HANA", "Oracle Cloud AP", "BlackLine Match", "Tradeshift"] },
     ],
-    evidence: [
-      { label: "INV-ADS-4419", detail: "four-way match · quantity and bank-account mismatches · $72,000" },
-      { label: "Bank-change email", detail: "ar@apex-drives-billing.com · look-alike domain · no signed letter" },
-      { label: "GR-77642", detail: "partial goods receipt · 1 of 2 · quality hold on unit 2" },
+  },
+};
+
+/* ── Step 3 · Bank verification & fraud control (MDM Support Agent) ──────── */
+
+const bankFraudEnvelope: ExceptionResolution = {
+  title: "Bank-change rejected · pay only the account of record",
+  gates: [
+    { name: "Callback verification", state: "tripped", result: "Callback to the AR contact on vendor master 201185 went unanswered — Apex's known line has no record of a bank-change request." },
+    { name: "Signed bank letter", state: "tripped", result: "No signed bank-change letter on company letterhead — the request arrived only by email." },
+    { name: "Sender domain", state: "tripped", result: "ar@apex-drives-billing.com is a look-alike domain, not Apex's verified apexdrives.com — classic redirection-fraud pattern (fraud score 0.86)." },
+    { name: "Beneficiary name", state: "tripped", result: "The beneficiary on IBAN ·· 9920 does not match the legal entity on record 201185." },
+    { name: "Account of record", state: "clear", result: "Verified account IBAN ·· 4471 remains on file and unchanged — all payment routes here only." },
+  ],
+  evidence: [
+    { label: "Bank-change email", detail: "ar@apex-drives-billing.com · look-alike domain · no signed letter" },
+    { label: "Vendor master 201185", detail: "account of record IBAN ·· 4471 · verified · unchanged" },
+    { label: "Identity check", detail: "D&B / OFAC — beneficiary name mismatch on the new account" },
+  ],
+  handoff: {
+    to: "Fraud desk + the genuine Apex AR (known channel)",
+    sla: "vendor record locked — no payment can route to ·· 9920",
+    nextStep: "report the look-alike domain, lock ·· 9920 out, and tell the real Apex their billing identity is being spoofed.",
+  },
+  audit: {
+    id: "EXC-ADS-4419-BANK",
+    logged: "2026-06-10 · 09:40",
+    note: "bank change rejected · account of record preserved · fraud reported · $0 exposure.",
+  },
+  draft: {
+    to: "Apex Drive Systems · AR (verified ar@apexdrives.com)",
+    subject: "We rejected a bank-change request that wasn't from you — please confirm",
+    lines: [
+      "We received a request to remit INV-ADS-4419 to a new account (IBAN ·· 9920) from ar@apex-drives-billing.com. It failed our verification — callback unanswered, no signed letter, beneficiary-name mismatch — so we have rejected it and locked the account.",
+      "Your payment will go only to the account of record on file (IBAN ·· 4471), as always. Please confirm you did not request any change, and check whether your billing identity is being spoofed.",
+      "We've reported the look-alike domain to our fraud desk. Audit ref EXC-ADS-4419-BANK.",
     ],
-    handoff: {
-      to: "Supplier onboarding · fraud desk",
-      sla: "payment stays held until a verified bank letter clears",
-      nextStep: "re-verify the beneficiary by callback and signed letter, or pay the account of record IBAN ·· 4471 only.",
-    },
-    audit: {
-      id: "EXC-ADS-4419-PAY",
-      logged: "2026-06-10 · 09:34",
-      note: "$72,000 payment blocked · routed to the fraud desk with the evidence bundle.",
-    },
-    draft: {
-      to: "Apex Drive Systems · Accounts",
-      subject: "INV-ADS-4419 — payment held pending bank-change verification",
+    sendLabel: "Send to the verified Apex AR",
+    sentLabel: "Sent · fraud reported · ·· 9920 locked out",
+  },
+};
+
+const gearboxBankVerifyStep: RunStep = {
+  id: "vendor",
+  n: 3,
+  title: "Bank verification & fraud control",
+  sub: "MDM rejects the bank change and locks the account of record",
+  reasoning: [
+    "Picking up the bank-change request routed from the Orchestrator",
+    "Calling back the AR contact on vendor master 201185 — unanswered",
+    "Checking for a signed bank-change letter — none on file",
+    "Matching the beneficiary on IBAN ·· 9920 — does not match 201185",
+    "Rejecting ·· 9920, locking the record to ·· 4471, reporting the domain",
+  ],
+  docLabel: "EXC-ADS-4419-BANK · bank-change rejected",
+  document: <ExceptionResolutionCard ex={bankFraudEnvelope} />,
+  sources: [
+    { id: "gbx-bank-3", label: "Bank-change email", meta: "look-alike · 09:12", kind: "email", body: gearboxBankChange },
+    { id: "gbx-vendor-rec", label: "Vendor 201185", meta: "golden · account ·· 4471", kind: "master", body: <VendorRecordDoc variant="golden" /> },
+    { id: "gbx-identity", label: "Identity check", meta: "D&B / OFAC", kind: "external", body: <ExternalMatchDoc /> },
+  ],
+  recommendation:
+    "Callback unanswered, no signed letter, look-alike domain, beneficiary-name mismatch — this is a redirection-fraud attempt, not a real bank change. Reject IBAN ·· 9920, keep the account of record ·· 4471, lock the vendor record and report the spoofed domain. Approve to lock it and notify the genuine Apex AR.",
+  dossier: {
+    swimlane: "Accounts Payable",
+    rows: [
+      { lane: "Key process steps", points: ["Route exceptions", "Buyer / vendor resolution"] },
+      { lane: "AI intervention points", points: ["Predictive routing to the right owner", "GenAI copilot drafts emails / summarizes issues", "Root-cause analytics"] },
+      { lane: "Value delivered", points: ["30–50% faster exception resolution"] },
+      { lane: "Key controls", points: ["Escalation workflows", "AI flags recurring supplier issues", "Explainable AI logs"] },
+      { lane: "Systems / tools", points: ["ServiceNow", "SAP Workflow", "UiPath", "MS Copilot"] },
+    ],
+  },
+};
+
+/* ── Step 4 · Short-pay the received unit (Invoice Resolution Agent) ─────── */
+
+const invGearboxShortPay: SapInvoice = {
+  number: "INV-ADS-4419 · short-pay 1 of 2",
+  status: "Short-paid · 1 of 2 · balance parked",
+  createdOn: "2026-06-10 · 10:05",
+  createdBy: "Invoice Resolution Agent",
+  vendorReference: "ADS-4419",
+  vendor: "201185 · Apex Drive Systems",
+  invoiceDate: "2026-06-10",
+  postingDate: "2026-06-10",
+  baselineDate: "2026-06-10",
+  dueDate: "2026-07-10",
+  paymentTerms: "NT30 · Net 30 days",
+  termsSource: "Pay to the account of record IBAN ·· 4471 — never the emailed ·· 9920",
+  cashDiscount: "None · pay on the net date",
+  paymentRunDate: "2026-07-10",
+  taxCode: "U1 · Self-assessed use tax",
+  grossAmount: "36,000.00",
+  taxAmount: "0.00",
+  currency: "USD",
+  balance: "0.00",
+  fraudScore: "0.02 · low — paid to verified account ·· 4471",
+  poReference: "PO-77642 · item 10",
+  grReference: "GR-77642 · 1 of 2 received",
+  match: [
+    { dimension: "Unit price (USD)", contract: "36,000.00", po: "36,000.00", goodsReceipt: "—", invoice: "36,000.00", ok: true },
+    { dimension: "Quantity paid (EA)", contract: "1", po: "1", goodsReceipt: "1", invoice: "1", ok: true },
+    { dimension: "Net value paid (USD)", contract: "36,000.00", po: "36,000.00", goodsReceipt: "36,000.00", invoice: "36,000.00", ok: true },
+    { dimension: "Bank account", contract: "IBAN ·· 4471 (on file)", po: "—", goodsReceipt: "—", invoice: "IBAN ·· 4471 (verified)", ok: true },
+    { dimension: "Payment terms", contract: "Net 30", po: "Net 30", goodsReceipt: "—", invoice: "Net 30", ok: true },
+  ],
+  postingJournal: [
+    { line: "1", glAccount: "191100", text: "GR/IR clearing — cleared against GR-77642 (1 of 2)", drcr: "Dr", amount: "36,000.00" },
+    { line: "2", glAccount: "160000", text: "Accounts payable — Apex Drive Systems (201185)", drcr: "Cr", amount: "36,000.00" },
+  ],
+  paymentJournal: [
+    { line: "1", glAccount: "160000", text: "Accounts payable — Apex (201185) · to verified IBAN ·· 4471", drcr: "Dr", amount: "36,000.00" },
+    { line: "2", glAccount: "113100", text: "Bank — outgoing payments (account of record ·· 4471)", drcr: "Cr", amount: "36,000.00" },
+  ],
+};
+
+const gearboxShortPayStep: RunStep = {
+  id: "invoice",
+  n: 4,
+  title: "Short-pay the received unit",
+  sub: "Pay the 1 received unit to the verified account, park the rest",
+  reasoning: [
+    "Bank locked to the verified account ·· 4471 — safe to pay",
+    "Matching to receipt — 1 unit received, $36,000 cleared",
+    "Posting in MIRO — clearing GR/IR for 1 unit, booking $36,000 AP",
+    "Parking the remaining $36,000 against unit 2's replacement",
+    "Raising a debit memo and requesting a corrected invoice",
+  ],
+  docLabel: "INV-ADS-4419 · short-pay 1 of 2",
+  document: <InvoiceMatch invoice={invGearboxShortPay} />,
+  sources: [
+    { id: "gbx-sp-inv", label: "INV-ADS-4419", meta: "from Matching · held", kind: "invoice", handoff: true, body: <InvoiceMatch invoice={invGearbox} /> },
+    { id: "gbx-sp-gr", label: "GR-77642", meta: "1 of 2 received", kind: "sap", handoff: true, body: <GoodsReceipt gr={grGearbox} /> },
+    { id: "gbx-sp-vendor", label: "Vendor 201185", meta: "account ·· 4471 verified", kind: "master", body: <VendorRecordDoc variant="golden" /> },
+  ],
+  email: {
+    cta: "Request the corrected invoice",
+    to: "Apex Drive Systems · AR (verified)",
+    subject: "INV-ADS-4419 — short-paid 1 of 2 · corrected invoice requested",
+    lines: [
+      "We've paid the 1 unit received against INV-ADS-4419 — $36,000 to your account of record (IBAN ·· 4471) on Net 30. The second unit was damaged in transit and is on a carrier claim.",
+      "Please issue a corrected invoice for the delivered unit and bill the replacement on dispatch. Debit memo DM-ADS-4419 raised for the over-billed unit.",
+    ],
+    toastTitle: "Corrected invoice requested",
+    toastBody: "Apex acknowledged — corrected invoice to follow.",
+    reply: {
+      from: "Apex Drive Systems",
+      receivedMeta: "Outlook · 10:40",
+      subject: "RE: INV-ADS-4419 — corrected invoice to follow",
       lines: [
-        "We received a request to remit invoice ADS-4419 ($72,000) to a new account, IBAN ·· 9920. We cannot action a mid-stream bank change without verification, so this payment is on hold.",
-        "To release it we need a signed bank-change letter on your letterhead and a successful callback to the AR contact on our vendor master — the beneficiary name on the new account does not match record 201185. Until then the account of record remains IBAN ·· 4471.",
-        "This is a routine fraud-prevention control. Audit ref EXC-ADS-4419-PAY.",
+        "Understood — we'll issue the corrected invoice for the delivered unit and bill the replacement on dispatch.",
       ],
-      sendLabel: "Send the held-payment notice",
-      sentLabel: "Sent · routed to the fraud desk",
+      source: {
+        id: "gbx-sp-reply",
+        label: "Apex reply",
+        meta: "Outlook · 10:40",
+        kind: "email",
+        body: (
+          <EmailDoc
+            from="Apex Drive Systems"
+            fromAddr="ar@apexdrives.com"
+            to="Invoice Resolution Agent"
+            sent="2026-06-10 · 10:40"
+            subject="RE: INV-ADS-4419 — corrected invoice to follow"
+            tone="inbound"
+            lines={[
+              "Understood — we'll issue the corrected invoice for the delivered unit and bill the replacement on dispatch.",
+              "Apologies for the transit damage.",
+            ]}
+          />
+        ),
+      },
     },
+  },
+  recommendation:
+    "Bank is locked to the verified account, so pay to receipt: short-pay the 1 delivered unit — $36,000 to IBAN ·· 4471 on Net 30 — and park the remaining $36,000 until the replacement is received. Debit memo raised; corrected invoice requested. Approve the short payment.",
+  stages: [
+    {
+      sourceId: "gbx-sp-gr",
+      reasoning: "Matching to the receipt — pay only the 1 unit received",
+      title: "Short-pay decision",
+      fields: [
+        { label: "Invoiced", value: "2 EA · $72,000.00" },
+        { label: "Received & matched", value: "1 EA · $36,000.00" },
+        { label: "Pay now", value: "$36,000.00" },
+        { label: "Pay to account", value: "IBAN ·· 4471 (verified)", options: ["IBAN ·· 4471 (verified)", "IBAN ·· 9920 (rejected)"] },
+        { label: "Parked balance", value: "$36,000.00 · awaiting replacement" },
+      ],
+    },
+    {
+      sourceId: "gbx-sp-inv",
+      reasoning: "Posting the short-pay in MIRO and raising the debit memo",
+      title: "Posting & debit memo",
+      fields: [
+        { label: "Dr · 191100 GR/IR clearing", value: "USD 36,000.00" },
+        { label: "Cr · 160000 Accounts payable", value: "USD 36,000.00" },
+        { label: "Debit memo", value: "DM-ADS-4419 · 1 unit over-billed" },
+        { label: "Corrected invoice", value: "Requested from Apex" },
+      ],
+    },
+  ],
+  dossier: {
+    swimlane: "Accounts Payable",
+    rows: [
+      { lane: "Key process steps", points: ["Payment run", "Bank-file creation"] },
+      { lane: "AI intervention points", points: ["Fraud detection (bank-details anomaly)", "Payment-pattern anomaly", "Dynamic-discounting optimization"] },
+      { lane: "Value delivered", points: ["2–5% working-capital improvement / discount capture"] },
+      { lane: "Key controls", points: ["Vendor bank validation", "Payment-anomaly monitoring", "Dual approval + AI alerts"] },
+      { lane: "Systems / tools", points: ["SAP S/4HANA", "Kyriba", "TIS", "Treasury"] },
+    ],
+  },
+};
+
+/* ── Step 5 · Replacement & release (PO Management → Invoice Resolution) ──── */
+
+const grGearboxReplacement: SapGR = {
+  number: "GR-77642-2 · 5000033010",
+  status: "Posted · replacement",
+  createdOn: "2026-06-15 · 08:05",
+  createdBy: "PO Management Agent",
+  movementType: "101 · GR goods receipt for PO",
+  postingDate: "2026-06-15",
+  documentDate: "2026-06-15",
+  deliveryNote: "ADS-DN-2261",
+  billOfLading: "HOUSTON-8919-2026",
+  poReference: "PO-77642 · item 10 (unit 2 replacement)",
+  item: {
+    line: "1",
+    material: "GBX-220K",
+    shortText: "Drive gearbox — Containerboard line (unit 2 replacement)",
+    quantity: "1",
+    unit: "EA",
+    plant: "M042 · Containerboard mill",
+    storageLocation: "MNT1 · Maintenance store",
+    stockType: "Unrestricted-use",
+    okIndicator: "Item OK · inspected · replacement received",
+  },
+};
+
+const invGearboxRelease: SapInvoice = {
+  number: "INV-ADS-4419 · release 2 of 2",
+  status: "Released · 2 of 2 · paid in full",
+  createdOn: "2026-06-15 · 09:10",
+  createdBy: "Invoice Resolution Agent",
+  vendorReference: "ADS-4419",
+  vendor: "201185 · Apex Drive Systems",
+  invoiceDate: "2026-06-15",
+  postingDate: "2026-06-15",
+  baselineDate: "2026-06-15",
+  dueDate: "2026-07-15",
+  paymentTerms: "NT30 · Net 30 days",
+  termsSource: "Released to the account of record IBAN ·· 4471",
+  cashDiscount: "None · pay on the net date",
+  paymentRunDate: "2026-07-15",
+  taxCode: "U1 · Self-assessed use tax",
+  grossAmount: "72,000.00",
+  taxAmount: "0.00",
+  currency: "USD",
+  balance: "0.00",
+  fraudScore: "0.02 · low — paid to verified account ·· 4471",
+  poReference: "PO-77642 · item 10",
+  grReference: "GR-77642-2 · replacement received",
+  match: [
+    { dimension: "Unit price (USD)", contract: "36,000.00", po: "36,000.00", goodsReceipt: "—", invoice: "36,000.00", ok: true },
+    { dimension: "Quantity (EA)", contract: "2", po: "2", goodsReceipt: "2", invoice: "2", ok: true },
+    { dimension: "Net value (USD)", contract: "72,000.00", po: "72,000.00", goodsReceipt: "72,000.00", invoice: "72,000.00", ok: true },
+    { dimension: "Bank account", contract: "IBAN ·· 4471 (on file)", po: "—", goodsReceipt: "—", invoice: "IBAN ·· 4471 (verified)", ok: true },
+    { dimension: "Payment terms", contract: "Net 30", po: "Net 30", goodsReceipt: "—", invoice: "Net 30", ok: true },
+  ],
+  postingJournal: [
+    { line: "1", glAccount: "191100", text: "GR/IR clearing — cleared against GR-77642-2 (replacement)", drcr: "Dr", amount: "36,000.00" },
+    { line: "2", glAccount: "160000", text: "Accounts payable — Apex Drive Systems (201185)", drcr: "Cr", amount: "36,000.00" },
+  ],
+  paymentJournal: [
+    { line: "1", glAccount: "160000", text: "Accounts payable — Apex (201185) · to verified IBAN ·· 4471", drcr: "Dr", amount: "36,000.00" },
+    { line: "2", glAccount: "113100", text: "Bank — outgoing payments (account of record ·· 4471)", drcr: "Cr", amount: "36,000.00" },
+  ],
+};
+
+const gearboxClaimEmail = (
+  <EmailDoc
+    from="PO Management Agent"
+    fromAddr="po@northgatepaper.com"
+    to="Houston Freight Lines · Claims"
+    sent="2026-06-10 · 10:20"
+    subject="Damage claim — PRO 8841 · 1 gearbox cracked in transit (PO-77642)"
+    lines={[
+      "Filing a transit-damage claim against PRO 8841: 1 of 2 drive gearboxes (GBX-220K) arrived with a cracked housing. Unit 1 received sound; unit 2 rejected on inspection.",
+      "Apex is shipping a replacement (ETA 2026-06-15). Please process the carrier claim for the damaged unit — GR-77642 discrepancy and photos attached.",
+    ]}
+  />
+);
+
+const gearboxReleaseStep: RunStep = {
+  id: "po",
+  agentName: "PO Management → Invoice Resolution",
+  n: 5,
+  title: "Replacement & release",
+  sub: "Replacement received, match clears, parked balance released",
+  reasoning: [
+    "Filing the carrier damage claim for unit 2",
+    "Expediting the replacement — Apex ships, received 2026-06-15",
+    "Posting the replacement goods receipt GR-77642-2",
+    "Re-running the three-way match — now clears on 2 of 2",
+    "Releasing the parked $36,000 to the verified account ·· 4471",
+  ],
+  docLabel: "GR-77642-2 · replacement received · balance released",
+  document: (
+    <div className="space-y-4">
+      <GoodsReceipt gr={grGearboxReplacement} />
+      <InvoiceMatch invoice={invGearboxRelease} />
+    </div>
+  ),
+  sources: [
+    { id: "gbx-claim", label: "Carrier damage claim", meta: "filed · unit 2", kind: "email", body: gearboxClaimEmail },
+    { id: "gbx-rep-po", label: "PO-77642", meta: "SAP ME23N", kind: "sap", handoff: true, body: <PurchaseOrder po={poGearbox} /> },
+    { id: "gbx-rep-dn", label: "Replacement delivery", meta: "ADS-DN-2261", kind: "edi", body: <DeliveryNoteDoc /> },
+  ],
+  recommendation:
+    "Carrier claim filed and Apex shipped the replacement (received 2026-06-15). GR-77642-2 posted, the three-way match now clears on 2 of 2, and the parked $36,000 releases to the verified account ·· 4471. Approve to release the final payment — full quantity received and paid, $0 lost.",
+  stages: [
+    {
+      sourceId: "gbx-rep-dn",
+      reasoning: "Posting the replacement goods receipt for unit 2",
+      title: "Replacement receipt",
+      fields: [
+        { label: "Movement type", value: "101 · GR goods receipt for PO" },
+        { label: "Material", value: "GBX-220K · unit 2 replacement" },
+        { label: "Received", value: "1 EA · inspected OK" },
+        { label: "Posting date", value: "2026-06-15", type: "date" },
+      ],
+    },
+    {
+      sourceId: "gbx-rep-po",
+      reasoning: "Re-running the three-way match and releasing the parked balance",
+      title: "Re-match & release",
+      fields: [
+        { label: "Quantity now", value: "2 of 2 received · matched" },
+        { label: "Release", value: "$36,000.00 · parked balance" },
+        { label: "Pay to account", value: "IBAN ·· 4471 (verified)" },
+        { label: "Total paid", value: "$72,000.00 · 2 tranches · $0 lost" },
+      ],
+    },
+  ],
+  dossier: {
+    swimlane: "Procurement Operations",
+    rows: [
+      { lane: "Key process steps", points: ["Goods receipt", "Service-entry approval"] },
+      { lane: "AI intervention points", points: ["Predictive GRN creation (services)", "IoT / digital-proof validation", "NLP on emails / documents to confirm completion"] },
+      { lane: "Value delivered", points: ["20–40% fewer missing-GRN issues"] },
+      { lane: "Key controls", points: ["System-enforced — no invoice without GRN", "AI flags delays / inconsistencies"] },
+      { lane: "Systems / tools", points: ["SAP S/4HANA", "Coupa", "Oracle Cloud", "IoT platforms"] },
+    ],
   },
 };
 
@@ -1062,26 +1436,40 @@ export const flowRuns: Record<FlowId, FlowRun> = {
   gearbox: {
     id: "gearbox",
     contextTitle: "Containerboard line · drive gearbox",
-    contextSub: "Order PO-77642 in delivery & payment · back-office review",
-    reviewPill: "Back-office review",
-    completeNote: "Released to AP · partial payment scheduled on the good unit",
-    steps: [gearboxFulfillmentStep, gearboxInvoiceStep],
+    contextSub: "PO-77642 · short receipt + bank-change fraud · back-office resolution",
+    reviewPill: "Back-office resolution · in review",
+    completeNote: "Resolved · paid clean to the verified account, fraud blocked",
+    steps: [gearboxFulfillmentStep, gearboxInvoiceStep, gearboxBankVerifyStep, gearboxShortPayStep, gearboxReleaseStep],
     terminal: (d) =>
       halted(d)
-        ? { label: "Payment blocked · fraud review", kind: "critical" }
-        : { label: "Released to AP", kind: "ready" },
+        ? { label: "Escalated · fraud & buyer review", kind: "critical" }
+        : { label: "Resolved · paid to verified account", kind: "ready" },
     completion: {
-      title: "INV-ADS-4419 · payment blocked",
-      tone: "critical",
-      routedTo: "Fraud desk",
-      routedSub: "payment review",
+      title: "INV-ADS-4419 · resolved — paid clean, fraud blocked",
+      tone: "ready",
+      routedTo: "Orchestrator",
+      routedSub: "audit close",
       stats: [
-        { value: "$72,000", label: "payment held" },
-        { value: "0.86", label: "fraud score" },
-        { value: "3 of 4", label: "gates tripped" },
+        { value: "$72,000", label: "paid to verified account" },
+        { value: "$0", label: "to the fraud account" },
+        { value: "2 of 2", label: "received & paid" },
       ],
       caption:
-        "Bank change unverified and short receipt · nothing paid · routed to the fraud desk · EXC-ADS-4419-PAY logged.",
+        "Bank-change fraud rejected and reported · account of record ·· 4471 preserved · short-paid the received unit, released the rest on the replacement · $0 lost · audit envelope closed.",
+      paymentSchedule: {
+        vendor: "Apex Drive Systems · 201185",
+        amount: "USD 72,000.00",
+        terms: "NT30 · Net 30 · to verified IBAN ·· 4471",
+        method: "F110 payment run · bank ACH",
+        reference: "INV-ADS-4419 · PO-77642 · two tranches",
+        timeline: [
+          { label: "Short-pay 1 of 2", date: "2026-07-10", done: true },
+          { label: "Replacement in", date: "2026-06-15", done: true },
+          { label: "Release 2 of 2", date: "2026-07-15", done: false },
+        ],
+      },
+      nextView: { kind: "cockpit" },
+      nextLabel: "Back to cockpit",
     },
   },
   collect: {
