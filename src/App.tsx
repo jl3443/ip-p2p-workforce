@@ -2,6 +2,7 @@ import { AppProvider, useApp } from "@/state";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Login } from "@/views/Login";
 import { Cockpit } from "@/views/Cockpit";
+import { FeedbackLoopConsole } from "@/views/FeedbackLoopConsole";
 import { Workspace } from "@/views/Workspace";
 import { DocView } from "@/views/DocView";
 import { IntakeConsole } from "@/views/IntakeConsole";
@@ -19,6 +20,8 @@ function Router({ onExit }: { onExit?: () => void }) {
       return <Login onExit={onExit} />;
     case "cockpit":
       return <Cockpit />;
+    case "feedback":
+      return <FeedbackLoopConsole />;
     case "workspace":
       return <Workspace flow={view.flow} />;
     case "agent":

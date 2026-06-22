@@ -12,7 +12,7 @@ type Props = {
  * inline with content rather than in a separate topbar.
  */
 export function TopRow({
-  searchPlaceholder = "Search lanes, shipments, carriers…",
+  searchPlaceholder = "Search requisitions, materials, vendors…",
   breadcrumb,
   className,
 }: Props) {

@@ -1,14 +1,14 @@
 /**
- * Cockpit (hub) data — the router's view of the inbound-haulage freight
- * workforce for Northgate Paper Co. Numbers are seeded for the demo and tie out
- * across the cockpit panels. Dual narrative: the left tiles carry the CFO money
- * story (overcharge recovered · demurrage avoided), the right tiles read the
- * COO operational health (touchless settlement · capacity freed).
+ * Cockpit (hub) data — the orchestrator's view of the MRO procurement workforce
+ * for Northgate Paper Co. Numbers are seeded for the demo and tie out across the
+ * cockpit panels. Dual narrative: the left tiles carry the CFO money story
+ * (off-contract avoided · duplicate spend caught), the right tiles read the
+ * operational health (touchless release · capacity freed).
  *
  * NOTE: flow ids (belt/pump/gearbox/collect) are inherited from the base and
- * never render — here they mean: belt = the hero OCC settlement, pump = a
- * mixed-paper rate review, gearbox = a duplicate-booking payment hold, collect
- * = a carrier overcharge-recovery run.
+ * never render — the two surfaced here are: pump = the conveyor belt PR
+ * (PR-48630), gearbox = the idler roller PR (PR-48655). The belt and collect
+ * flows are no longer surfaced on the cockpit.
  */
 
 import type { View } from "@/mro/state";
@@ -17,53 +17,52 @@ import type { KPI } from "@/mro/components/blocks/KPIStrip";
 
 /**
  * Top KPI strip — outcome-led, money first. The two left tiles carry the value
- * story (freight overcharge recovered · demurrage avoided) and deep-link to the
- * evidence; the two right tiles read operational health.
+ * story (off-contract spend avoided · duplicate spend caught) and deep-link to
+ * the worked requisitions; the two right tiles read operational health.
  */
 export const cockpitKpis: KPI[] = [
   {
-    label: "Overcharge recovered",
-    value: 1.18,
-    prefix: "$",
-    suffix: "M",
-    decimals: 2,
-    trend: { delta: "this quarter", direction: "up" },
-    spark: [0.32, 0.47, 0.61, 0.74, 0.88, 0.99, 1.09, 1.18],
-    target: { kind: "workspace", flow: "belt" },
+    label: "PRs structured",
+    value: 96,
+    suffix: " today",
+    trend: { delta: "+18", direction: "up" },
+    spark: [38, 47, 55, 63, 71, 80, 88, 96],
   },
   {
-    label: "Demurrage avoided",
-    value: 214,
+    label: "Off-contract avoided",
+    value: 312,
     prefix: "$",
     suffix: "K",
     trend: { delta: "this quarter", direction: "up" },
-    spark: [22, 48, 71, 96, 128, 159, 188, 214],
+    spark: [44, 82, 118, 161, 203, 244, 281, 312],
+    target: { kind: "workspace", flow: "pump" },
+  },
+  {
+    label: "Duplicate spend caught",
+    value: 148,
+    prefix: "$",
+    suffix: "K",
+    trend: { delta: "this quarter", direction: "up" },
+    spark: [14, 31, 52, 71, 94, 115, 133, 148],
     target: { kind: "workspace", flow: "gearbox" },
   },
   {
-    label: "Touchless settlement",
-    value: 71,
-    suffix: "%",
-    trend: { delta: "+12 pts", direction: "up" },
-    spark: [48, 52, 56, 59, 63, 66, 69, 71],
-  },
-  {
     label: "Capacity freed",
-    value: 64,
+    value: 58,
     suffix: " FTE",
-    trend: { delta: "+15", direction: "up" },
-    spark: [28, 34, 40, 46, 52, 57, 61, 64],
+    trend: { delta: "+14", direction: "up" },
+    spark: [22, 28, 34, 40, 46, 51, 55, 58],
   },
 ];
 
 export type AgentStatus = "running" | "review" | "idle";
 
-/** One stage of the freight value chain, in flow order intake → payment. */
+/** One stage of the MRO procurement value chain, in flow order intake → release. */
 export type PipelineStage = {
   /** Position in the flow (1–6) — drawn as the rail node. */
   n: number;
   name: string;
-  /** Owning agent for the deep-link — null where work hands off to AP. */
+  /** Owning agent for the deep-link — null where work hands off to the buyer. */
   agent: AgentId | null;
   /** Primary throughput count. */
   volume: string;
@@ -72,17 +71,17 @@ export type PipelineStage = {
   status: AgentStatus;
 };
 
-/** The live pipeline — pickup requirement all the way through to payment-ready. */
+/** The live pipeline — free-text request all the way through to a released PR. */
 export const pipelineStages: PipelineStage[] = [
-  { n: 1, name: "Lane intake", agent: "intake", volume: "128 lanes", detail: "112 auto-classified", status: "running" },
-  { n: 2, name: "Rate & surcharge", agent: "sourcing", volume: "94% on-contract", detail: "9 out of tolerance", status: "review" },
-  { n: 3, name: "Carrier tender", agent: "po", volume: "41 tendered", detail: "6 need release", status: "running" },
-  { n: 4, name: "Load capture", agent: "vendor", volume: "1,180 packets", detail: "31 missing evidence", status: "running" },
-  { n: 5, name: "Settlement match", agent: "invoice", volume: "1,640 lines", detail: "22 exceptions", status: "review" },
-  { n: 6, name: "Payment ready", agent: null, volume: "176 scheduled", detail: "$3.8M to AP", status: "idle" },
+  { n: 1, name: "PR processing", agent: "intake", volume: "96 requisitions", detail: "84 auto-coded", status: "running" },
+  { n: 2, name: "Master data", agent: "vendor", volume: "31 duplicates", detail: "9 stock transfers found", status: "review" },
+  { n: 3, name: "Warranty & coverage", agent: "invoice", volume: "12 claims", detail: "3 need a decision", status: "review" },
+  { n: 4, name: "Sourcing & contract", agent: "sourcing", volume: "94% on-contract", detail: "6 off-contract flagged", status: "running" },
+  { n: 5, name: "Approval & routing", agent: "po", volume: "41 routed", detail: "5 need release", status: "running" },
+  { n: 6, name: "PR released", agent: null, volume: "188 this week", detail: "$1.4M committed", status: "idle" },
 ];
 
-export const pipelineFooter = "Receipt-to-settlement median 2.4 days · 71% touchless · on-time pickup 91%";
+export const pipelineFooter = "Request-to-release median 1.6 days · 68% touchless · on-contract 94%";
 
 export type PendingDecision = {
   id: string;
@@ -97,17 +96,6 @@ export type PendingDecision = {
 };
 
 export const pendingDecisions: PendingDecision[] = [
-  {
-    id: "FRT-48201",
-    type: "Settlement exception · OCC live load",
-    site: "Riverside mill",
-    urgency: "critical",
-    title: "OCC haul invoice — $15,480 · demurrage + surcharge + cube-out variance",
-    sub: "Three-way check flagged 3 lines · $13,664 cleared touchless · $1,816 dispute drafted, ready for you",
-    dueLabel: "Needed",
-    dueWhen: "Today",
-    target: { kind: "workspace", flow: "belt" },
-  },
   {
     id: "PR-48630",
     type: "PR intake & validation · MRO",
@@ -132,116 +120,121 @@ export const pendingDecisions: PendingDecision[] = [
   },
 ];
 
-/** A live expedite / follow-up — the chase stage made concrete. */
+/** A live open requisition the workforce is still working before it can release. */
 export type ChaseRow = {
   id: string;
-  /** What is being chased. */
+  /** What is being worked. */
   subject: string;
   /** What the agent has already done on its own. */
   action: string;
-  /** How overdue, e.g. "4 days late". */
+  /** How long it has been open, e.g. "2 days open". */
   lateLabel: string;
-  /** Value at risk on the line. */
+  /** Value on the line. */
   amount: string;
-  /** Drives the urgency colour on the days-late figure. */
+  /** Drives the urgency colour on the open-days figure. */
   tone: "critical" | "high" | "medium";
-  /** Optional deep-link into the run that owns this line. */
+  /** Optional deep-link into the agent that owns this line. */
   target?: View;
 };
 
 export const expediting = {
   rows: [
-    { id: "SHP-76840", subject: "Missing proof of delivery", action: "Requested POD from the carrier", lateLabel: "4 days open", amount: "$11K", tone: "critical", target: { kind: "agent", id: "po" } },
-    { id: "SHP-76980", subject: "Detention charge disputed", action: "Sent dispute note #2 with gate logs", lateLabel: "2 days open", amount: "$6.2K", tone: "high", target: { kind: "agent", id: "po" } },
-    { id: "SHP-55012", subject: "Late freight invoice", action: "Matched to shipment · awaiting credit", lateLabel: "6 days open", amount: "$8.4K", tone: "high", target: { kind: "agent", id: "po" } },
-    { id: "SHP-75540", subject: "Cube-out weight variance", action: "Requested scaled-weight ticket", lateLabel: "3 days open", amount: "$3.1K", tone: "medium", target: { kind: "agent", id: "po" } },
+    { id: "PR-48672", subject: "Hydraulic oil — spec incomplete", action: "Requested grade from the engineer", lateLabel: "1 day open", amount: "$2.1K", tone: "high", target: { kind: "agent", id: "intake" } },
+    { id: "PR-48668", subject: "Bearing 6204 — duplicate suspected", action: "Matched to open PR-48651", lateLabel: "2 days open", amount: "$640", tone: "medium", target: { kind: "agent", id: "vendor" } },
+    { id: "PR-48659", subject: "Gearbox seal — warranty check", action: "Pulled the OEM commissioning date", lateLabel: "1 day open", amount: "$1.8K", tone: "medium", target: { kind: "agent", id: "invoice" } },
+    { id: "PR-48647", subject: "Drive motor — off-contract vendor", action: "Found a preferred-supplier match", lateLabel: "3 days open", amount: "$5.4K", tone: "high", target: { kind: "agent", id: "sourcing" } },
   ] as ChaseRow[],
-  footer: "$28.7K in dispute being worked · 39 chases auto-sent today · 11 cleared",
+  footer: "$9.9K across 4 open requisitions · 27 chased today · 14 released",
 };
 
-/* ── Carrier overcharge recovery — the router's dispute watchlist ─────────── */
+/* ── Duplicate spend & interplant savings — the orchestrator's watchlist ───── */
 
 export type OverdueRow = {
   id: string;
+  /** The plant / requester the line belongs to. */
   customer: string;
+  /** How long the line has been open, e.g. "2 days open". */
   aging: string;
+  /** Spend avoided or value redirected on the line. */
   amount: string;
-  /** Dispute stage last sent or drafted, e.g. "Stage 3 · firm follow-up". */
+  /** What the agent recommended, e.g. "Transfer · 6 EA in store". */
   tier: string;
-  /** Auto-send status, e.g. "auto-sent 2h ago" or "drafted · needs you". */
+  /** Action status, e.g. "drafted · needs you" or "transfer routed". */
   status: string;
-  /** True when the agent has gone as far as it can on its own. */
+  /** True when the line needs a person to decide. */
   actionable?: boolean;
   tone: "critical" | "high" | "medium";
   target?: View;
 };
 
 export const overduePayments = {
-  alert: { count: 7, amount: "$96K", lead: "Summit Carriers · $24K · demurrage dispute · 23 days" },
+  alert: { count: 5, amount: "$148K", lead: "Sorting Line 1 · $1.4K · idler rollers in stock + warranty · 2 days" },
   rows: [
     {
-      id: "DSP-90357",
-      customer: "Summit Carriers",
-      aging: "23 days open",
-      amount: "$24K",
-      tier: "Stage 4 · escalation",
-      status: "credit chased · auto-sent",
+      id: "PR-48655",
+      customer: "Sorting Line 1 · idler rollers",
+      aging: "2 days open",
+      amount: "$1.4K",
+      tier: "Transfer + warranty claim",
+      status: "drafted · needs you",
+      actionable: true,
       tone: "critical",
+      target: { kind: "workspace", flow: "gearbox" },
     },
     {
-      id: "DSP-90412",
-      customer: "Ironwood Freight Lines",
-      aging: "19 days open",
-      amount: "$18K",
-      tier: "Stage 4 · escalation",
-      status: "auto-sent 2h ago",
-      tone: "critical",
-    },
-    {
-      id: "DSP-90388",
-      customer: "Cedar Haul Logistics",
-      aging: "16 days open",
-      amount: "$14K",
-      tier: "Stage 3 · firm follow-up",
-      status: "auto-sent today",
-      tone: "high",
-    },
-    {
-      id: "DSP-90370",
-      customer: "Harbor Point Carriers",
-      aging: "12 days open",
-      amount: "$11K",
-      tier: "Stage 3 · firm follow-up",
-      status: "auto-sent 1d ago",
-      tone: "high",
-    },
-    {
-      id: "DSP-90401",
-      customer: "Vantage Owner-Operators",
-      aging: "9 days open",
-      amount: "$9.5K",
-      tier: "Stage 2 · reminder",
-      status: "auto-sent today",
-      tone: "medium",
-    },
-    {
-      id: "DSP-90419",
-      customer: "Lakeside Trucking",
+      id: "PR-48641",
+      customer: "Sorting Line 1 · idler rollers",
       aging: "6 days open",
-      amount: "$8.2K",
-      tier: "Stage 2 · reminder",
-      status: "auto-sent today",
+      amount: "$944",
+      tier: "Duplicate of PR-48655",
+      status: "cancellation drafted",
+      tone: "critical",
+    },
+    {
+      id: "PR-48619",
+      customer: "Boiler house · pump seals",
+      aging: "4 days open",
+      amount: "$2.2K",
+      tier: "6 EA at Eastbrook store",
+      status: "transfer suggested",
+      tone: "high",
+    },
+    {
+      id: "PR-48603",
+      customer: "Pulping · gearbox spares",
+      aging: "5 days open",
+      amount: "$3.6K",
+      tier: "Inside OEM warranty",
+      status: "claim drafted",
+      tone: "high",
+    },
+    {
+      id: "PR-48588",
+      customer: "Sorting Line 2 · drive belts",
+      aging: "3 days open",
+      amount: "$1.1K",
+      tier: "On-hand at this plant",
+      status: "stock flagged",
       tone: "medium",
     },
     {
-      id: "DSP-90341",
-      customer: "Northwind Regional",
-      aging: "4 days open",
-      amount: "$6.8K",
-      tier: "Stage 1 · courtesy",
-      status: "auto-sent today",
+      id: "PR-48571",
+      customer: "Baler · hydraulic hoses",
+      aging: "7 days open",
+      amount: "$780",
+      tier: "Duplicate of PR-48560",
+      status: "cancellation drafted",
+      tone: "medium",
+    },
+    {
+      id: "PR-48552",
+      customer: "Conveyor · idler bearings",
+      aging: "8 days open",
+      amount: "$1.3K",
+      tier: "4 EA at Westport store",
+      status: "transfer routed",
       tone: "medium",
     },
   ] as OverdueRow[],
-  footer: "$96K in carrier disputes · 7 carriers · 24 follow-ups auto-sent today · 5 cleared",
+  footer: "$148K duplicate & off-stock spend caught this quarter · 5 plants · 31 lines redirected · 14 cleared",
 };

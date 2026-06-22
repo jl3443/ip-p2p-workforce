@@ -35,6 +35,7 @@ export type DocId =
 export type View =
   | { kind: "login" }
   | { kind: "cockpit" }
+  | { kind: "feedback" }
   | { kind: "workspace"; flow: FlowId }
   | { kind: "agent"; id: AgentId }
   | { kind: "doc"; id: DocId };

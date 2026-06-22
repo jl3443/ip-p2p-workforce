@@ -33,17 +33,14 @@ const sections: Section[] = [
     ],
   },
   {
-    title: "Procurement",
+    title: "Requisition validation",
     items: [
       agentItem("intake"),
+      agentItem("vendor"),
+      agentItem("invoice"),
       agentItem("sourcing"),
       agentItem("po"),
-      agentItem("invoice"),
     ],
-  },
-  {
-    title: "Master data",
-    items: [agentItem("vendor")],
   },
   {
     title: "System",
@@ -73,7 +70,7 @@ export function Sidebar() {
             <span className="text-ink-inverse text-[15px] leading-none font-bold">✦</span>
           </div>
           <div className="leading-tight">
-            <div className="text-[14px] font-bold text-ink">Freight settlement</div>
+            <div className="text-[14px] font-bold text-ink">MRO procurement</div>
             <div className="text-[12px] text-mute">Northgate Paper Co.</div>
           </div>
         </div>
@@ -127,10 +124,10 @@ export function Sidebar() {
       {/* Persona footer */}
       <div className="px-4 py-4 border-t border-divider flex items-center gap-2.5">
         <div className="w-8 h-8 rounded-full bg-surface-deep flex items-center justify-center text-[12px] font-bold text-ink-inverse">
-          FO
+          PB
         </div>
         <div className="leading-tight flex-1 min-w-0">
-          <div className="text-[13px] text-ink truncate">Freight Ops · settlement desk</div>
+          <div className="text-[13px] text-ink truncate">Procurement · MRO buyer desk</div>
           <button type="button" onClick={signOut} className="text-[11px] text-mute hover:text-ink">
             Sign out
           </button>

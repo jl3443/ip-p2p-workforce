@@ -86,7 +86,7 @@ export function PipelinePanel({ className }: { className?: string }) {
             Pipeline
           </span>
         </div>
-        <span className="text-[11px] text-mute">Pickup to settlement</span>
+        <span className="text-[11px] text-mute">Request to release</span>
       </header>
 
       <div className="flex-1">

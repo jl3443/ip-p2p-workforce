@@ -11,26 +11,26 @@ import {
   LogIn,
 } from "lucide-react";
 
-// Tri-panel hero photography — manufacturing & procurement imagery, served
+// Tri-panel hero photography — plant maintenance & procurement imagery, served
 // locally from /public so the page works on corporate networks that block
 // remote image CDNs.
 const HERO_COLUMNS = [
-  { label: "Lanes & Carriers", src: "/hero-factory.jpg" },
-  { label: "Loads & Capture", src: "/hero-boxes.jpg" },
-  { label: "Invoices & Settlement", src: "/hero-paper.jpg" },
+  { label: "Requests & Specs", src: "/hero-factory.jpg" },
+  { label: "Stock & Master Data", src: "/hero-boxes.jpg" },
+  { label: "Vendors & Approval", src: "/hero-paper.jpg" },
 ];
 
 const ACCENT = { hex: "#14b8a6", halo: "rgba(20,184,166,0.45)" };
 
 const PERSONA = {
-  badge: "Freight Ops",
-  name: "Freight settlement workspace",
+  badge: "Procurement",
+  name: "MRO procurement workspace",
   capabilities: [
-    "One cockpit over 5 agents and the router",
-    "Touchless settlement within tolerance · approvals only when it matters",
-    "Every shipment settled with a full audit trail",
+    "One cockpit over 5 agents and the orchestrator",
+    "Touchless release of on-contract requisitions · approvals only when it matters",
+    "Every requisition validated with a full audit trail",
   ],
-  userId: "freightops01",
+  userId: "mrobuyer01",
 };
 
 export function Login() {
@@ -107,10 +107,10 @@ function TopBar({
         </span>
         <span className="flex flex-col leading-tight">
           <span className="text-[15px] font-bold tracking-[-0.01em] text-white">
-            Agentic Freight Settlement
+            Agentic MRO Procurement
           </span>
           <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">
-            Inbound-haulage freight workforce
+            Maintenance, repair &amp; operations workforce
           </span>
         </span>
       </div>
@@ -142,18 +142,19 @@ function Hero({ onAccess }: { onAccess: () => void }) {
   return (
     <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center px-6 text-center">
       <span className="mb-5 text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
-        Inbound haulage intelligence
+        Maintenance procurement intelligence
       </span>
       <h1
         className="font-bold leading-[1.04] tracking-[-0.025em] text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.6)]"
         style={{ fontSize: "clamp(2rem, 5.6vw, 4.4rem)" }}
       >
-        Agentic Freight Settlement
+        Agentic MRO Procurement
       </h1>
       <p className="mt-6 max-w-xl text-[14px] font-normal leading-[1.55] text-white/80 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] sm:text-[15px]">
-        Turn pickup requirements into tendered lanes, validate every rate and
-        surcharge, three-way-match the freight invoice, route the exceptions
-        that need a person, and settle them with a complete audit trail.
+        Turn a plant engineer's free-text request into a coded requisition,
+        check master data, duplicates and stock, confirm warranty cover, validate
+        the vendor and price against contract, and release it with a complete
+        audit trail.
       </p>
       <button
         type="button"
@@ -180,7 +181,7 @@ function SignInPanel({ signIn }: { signIn: () => void }) {
     <div className="relative z-10 mx-auto w-full max-w-[440px]">
       <div className="text-center mb-8">
         <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
-          Freight settlement workspace
+          MRO procurement workspace
         </span>
         <h2
           className="mt-3 font-bold leading-[1.05] tracking-[-0.02em] text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.55)]"

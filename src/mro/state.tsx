@@ -1,5 +1,5 @@
 /**
- * View-state machine for the freight settlement & PR validation demo.
+ * View-state machine for the MRO procurement & PR validation demo.
  * Forked from the HR Concierge engine: no real router, just a typed `view`
  * field that App.tsx switches on. Single buyer persona for v1.
  */

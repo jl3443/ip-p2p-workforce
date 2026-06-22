@@ -9,10 +9,11 @@ import { AIDot } from "@/mro/components/ai/AIDot";
 const INITIAL_ROWS = 5;
 
 /**
- * Overdue receivables — the Payment & Collections agent's watchlist on the
- * cockpit. Each row shows the aged invoice, the dunning tier the agent has
- * auto-sent, and which one needs a person. Actionable rows deep-link into the
- * collections run. Replaces the Expediting panel.
+ * Duplicate spend & interplant savings — the Master Data agent's watchlist on
+ * the cockpit. Each row shows an open requisition where the network already has
+ * the part (duplicate PR, on-hand stock, sister-plant stock or warranty cover),
+ * the action the agent has drafted, and which one needs a person. Actionable
+ * rows deep-link into the worked requisition.
  */
 
 const lateColor: Record<OverdueRow["tone"], string> = {
@@ -91,10 +92,10 @@ export function OverduePaymentsPanel({ className }: { className?: string }) {
         <div className="flex items-center gap-3">
           <AIDot size={6} tone="deep" pulse />
           <span className="text-[12px] tracking-[0.08em] uppercase text-surface-deep font-medium">
-            Carrier overcharge recovery
+            Duplicate spend &amp; interplant savings
           </span>
         </div>
-        <span className="text-[11px] text-mute">auto-chasing credits</span>
+        <span className="text-[11px] text-mute">avoid buying what we have</span>
       </header>
 
       <div className="flex-1 divide-y divide-divider">

@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { useApp, type View } from "@/state";
 import { agentsById, type AgentId } from "@/data/agents";
-import { LayoutDashboard, ClipboardList, Settings } from "lucide-react";
+import { LayoutDashboard, ClipboardList, Settings, Repeat } from "lucide-react";
 
 type NavItem = {
   label: string;
@@ -30,6 +30,12 @@ const sections: Section[] = [
     items: [
       { label: "Cockpit", icon: LayoutDashboard, view: { kind: "cockpit" } },
       agentItem("orchestrator"),
+      {
+        label: "Feedback loop",
+        icon: Repeat,
+        view: { kind: "feedback" },
+        badge: { kind: "count", value: 4 },
+      },
     ],
   },
   {
@@ -57,6 +63,7 @@ const sections: Section[] = [
 function isItemActive(item: NavItem, view: View): boolean {
   if (!item.view) return false;
   if (item.view.kind === "cockpit") return view.kind === "cockpit";
+  if (item.view.kind === "feedback") return view.kind === "feedback";
   if (item.view.kind === "agent") return view.kind === "agent" && view.id === item.view.id;
   return false;
 }

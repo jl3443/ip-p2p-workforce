@@ -1,27 +1,28 @@
 /**
- * Agent catalog — the authoritative spec for the six-agent inbound-haulage
- * freight workforce: Lane Intake · Rate & Surcharge · Carrier Tender · Load
- * Capture · Freight Settlement (the hero three-way check), with the Approval &
- * Exception Router coordinating handoffs and the touchless/exception lanes.
+ * Agent catalog — the authoritative spec for the five-agent MRO procurement
+ * workforce: PR Processing · Master Data · Warranty & Coverage · Sourcing &
+ * Contract · Approval & Routing, with the Procurement Orchestrator coordinating
+ * handoffs and the touchless/exception lanes.
  *
  * Every agent surface (work-menu pages, cockpit fleet, run accountability) reads
  * from here so names and autonomy stay consistent. Operating entity is the
- * fictional "Northgate Paper Co." — a recycled-fibre mill network moving OCC,
- * mixed paper, DLK and ONP/OMG. The AI drafts, recommends and routes; a human
- * approves every real decision.
+ * fictional "Northgate Paper Co." — a recycled-fibre mill network whose plant
+ * engineers raise maintenance, repair and operations (MRO) purchase requisitions.
+ * The AI structures, validates, recommends and routes; a human approves every
+ * real decision.
  *
  * NOTE: internal ids (intake/sourcing/po/invoice/vendor/orchestrator) are
  * inherited from the procure-to-pay base and never render — see menuLabel/name
- * for what each agent actually is in this freight line.
+ * for what each agent actually is in this MRO procurement line.
  */
 
 import type { LucideIcon } from "lucide-react";
 import {
-  Route,
-  Calculator,
-  Truck,
+  Inbox,
+  Database,
+  ShieldCheck,
+  FileText,
   ClipboardCheck,
-  ScanSearch,
   Workflow,
 } from "lucide-react";
 
@@ -72,210 +73,211 @@ export type AgentSpec = {
 export const agents: AgentSpec[] = [
   {
     id: "intake",
-    name: "Lane Intake Orchestrator",
-    menuLabel: "Lane intake",
-    icon: Route,
+    name: "PR Processing Agent",
+    menuLabel: "PR processing",
+    icon: Inbox,
     purpose:
-      "Turns a raw pickup requirement for recovered fibre into a clean, tender-ready lane — classifying the haul type and binding it to the right origin, destination mill and approved movement pattern.",
+      "Turns a plant engineer's free-text maintenance request into a clean, coded purchase requisition — extracting the item specification, mapping it to the right material code and binding it to the correct cost centre and G/L account.",
     inputs: [
-      "Pickup requirement (site, broker, municipality or retail/DC source)",
-      "Material grade (OCC, mixed paper, DLK, ONP/OMG)",
-      "Lane master and approved movement patterns",
-      "Destination mill calendar and receiving windows",
-      "Historical lane volumes and seasonality",
+      "Free-text requisition (email, intake portal or maintenance ticket)",
+      "Equipment and failure description",
+      "Material master and the MRO catalogue",
+      "Cost-centre and G/L account structure",
+      "Plant and line where the part is needed",
     ],
     outputs: [
-      "Structured lane draft — origin, destination, grade, haul type, window",
-      "Haul-type classification (live load · roll-off · backhaul · approved pattern)",
-      "Flags for non-standard movements or new origins",
-      "Tender-ready packet handed to rate validation",
-      "Escalation to a transportation coordinator for novel lanes",
+      "Structured, coded requisition — item, quantity, UoM, plant",
+      "Material-code mapping with a confidence score",
+      "Cost-centre and G/L account assignment",
+      "Flags for incomplete specs, missing part numbers or ambiguous quantities",
+      "Escalation to a buyer for a novel or unmappable item",
     ],
-    tech: ["Document intelligence", "Lane master graph", "Haul-type classifier", "Mill calendar feed"],
+    tech: ["Document intelligence", "Material-master graph", "Spec extraction", "Account-assignment rules"],
     autonomy: 3,
     autonomyRule:
-      "Auto-classifies and releases the lane when it matches an approved movement pattern with a known origin — anything novel is drafted and routed to a coordinator.",
+      "Auto-structures and codes the requisition when the item maps cleanly to a known material code with a complete spec — anything ambiguous is drafted and routed to a buyer.",
     escalation: [
-      "Novel origin or lane",
-      "Unclassified haul type",
-      "Outside the mill receiving window",
-      "Mixed or contaminated grade",
-      "Ambiguous pickup details",
+      "Incomplete specification",
+      "No part number or material code match",
+      "Ambiguous quantity or unit of measure",
+      "Novel or non-catalogue item",
+      "Unclear plant or cost centre",
     ],
-    stat: "128 lanes today",
+    stat: "96 requisitions today",
     status: "running",
-  },
-  {
-    id: "sourcing",
-    name: "Rate & Surcharge Engine",
-    menuLabel: "Rate & surcharge",
-    icon: Calculator,
-    purpose:
-      "Validates every shipment request against the contracted lane rate, fuel-surcharge table and tolerance thresholds — normalising flat-fee-versus-percentage surcharges so quotes are finally apples-to-apples.",
-    inputs: [
-      "Tender-ready lane from intake",
-      "Contracted rate card (lane rates, accessorials, tiers)",
-      "Fuel-surcharge index and effective dates",
-      "Tolerance thresholds by lane and grade",
-      "Prior invoice-defect history on the lane",
-    ],
-    outputs: [
-      "Validated rate basis with the contract clause cited",
-      "Normalised surcharge view (flat fee vs percentage, like-for-like)",
-      "In-tolerance / out-of-tolerance verdict per cost line",
-      "Expected-cost envelope handed to carrier tender and settlement",
-      "Recommendation for human sign-off when out of tolerance",
-    ],
-    tech: ["Rate-card graph", "Fuel-index feed", "Surcharge normaliser", "Tolerance rules engine"],
-    autonomy: 3,
-    autonomyRule:
-      "Auto-confirms the rate basis when every line is on-contract and inside tolerance — out-of-tolerance lines are flagged and routed to sourcing for sign-off.",
-    escalation: [
-      "Out-of-tolerance lane rate",
-      "Surcharge format mismatch",
-      "Expired or missing rate card",
-      "Accessorial not in the contract",
-    ],
-    stat: "94% on-contract",
-    status: "running",
-    note: "Targets the costliest leak today — inconsistent fuel surcharges and hidden accessorials that make lane costs impossible to compare.",
-  },
-  {
-    id: "po",
-    name: "Carrier Tender Advisor",
-    menuLabel: "Carrier tender",
-    icon: Truck,
-    purpose:
-      "Recommends the best-fit approved carrier on lane economics, sourcing-agreement compliance and prior invoice-defect history — then drafts the tender for a human to release.",
-    inputs: [
-      "Validated lane and expected-cost envelope",
-      "Approved carrier pool (capacity, lanes served, equipment)",
-      "Sourcing-agreement commitments and volume tiers",
-      "Carrier scorecard (on-time, defect rate, dispute history)",
-      "Live capacity and backhaul opportunities",
-    ],
-    outputs: [
-      "Ranked carrier recommendation with the rationale",
-      "Drafted tender with rate, equipment and pickup window",
-      "Compliance check against sourcing commitments",
-      "Backhaul / cube-out optimisation suggestion",
-      "Full recommendation for human release of the tender",
-    ],
-    tech: ["Carrier scorecard", "Lane-economics model", "Capacity feed", "Tender drafting"],
-    autonomy: 2,
-    autonomyRule:
-      "Auto-tenders to the best-fit approved carrier for routine in-tolerance lanes within volume commitments — otherwise it drafts and routes for release.",
-    escalation: [
-      "No approved carrier with capacity",
-      "Volume commitment at risk",
-      "Carrier with recent defect history",
-      "Spot-market premium over tolerance",
-    ],
-    stat: "41 tenders",
-    status: "running",
+    note: "Replaces the manual re-keying of messy free-text requests — the root cause of wrong-part orders and mis-coded spend across the plants.",
   },
   {
     id: "vendor",
-    name: "Load Capture Agent",
-    menuLabel: "Load capture",
-    icon: ScanSearch,
+    name: "Master Data Agent",
+    menuLabel: "Master data",
+    icon: Database,
     purpose:
-      "Assembles a standardised digital packet for every load before invoicing — pickup confirmation, shipment reference and receiving evidence — and reconciles estimated versus actual (cube-out) weight so the settlement check starts clean.",
+      "Validates every requisition against the material master, scans for duplicate demand and checks on-hand and interplant stock — so the network never buys what it already has open or in store.",
     inputs: [
-      "Bill of lading and pickup confirmation",
-      "Shipment reference and booking details",
-      "Mill receiving and weigh-bridge ticket",
-      "Estimated versus scaled weight",
-      "Photos and contamination/grade notes",
+      "Structured requisition from PR processing",
+      "Material master and SKU mappings",
+      "Open purchase requisitions and orders",
+      "On-hand inventory by plant and storeroom",
+      "Interplant stock and transfer lead times",
     ],
     outputs: [
-      "One standardised digital load packet per shipment",
-      "Estimated-vs-actual weight reconciliation (cube-out variance)",
-      "Missing-document and data-entry-error flags",
-      "Clean evidence set handed to settlement",
-      "Master-data quality view across origins and mills",
+      "Material-code and SKU confirmation",
+      "Duplicate-requisition match against open demand",
+      "On-hand and interplant stock availability",
+      "Transfer-before-buy recommendation where stock exists",
+      "Master-data quality flags across plants",
     ],
-    tech: ["Document intelligence (BOL)", "Weigh-bridge feed", "Field normalisation", "Evidence packet store"],
-    autonomy: 2,
+    tech: ["Material-master graph", "Duplicate detection", "Inventory feed", "Interplant stock lookup"],
+    autonomy: 3,
     autonomyRule:
-      "Auto-completes the packet when every document is present and the weight variance is inside tolerance — missing evidence or a large variance escalates.",
+      "Auto-confirms the requisition when the SKU is clean, no duplicate is open and no stock is available to draw from — a duplicate or available stock is flagged for the buyer.",
     escalation: [
-      "Missing BOL or receiving ticket",
-      "Weight variance over tolerance",
-      "Suspected manual-entry error",
-      "Contamination or grade dispute",
-      "Duplicate shipment reference",
+      "Duplicate open requisition",
+      "Stock available at this plant",
+      "Stock available at a sister plant",
+      "Unmapped or conflicting SKU",
+      "Inconsistent unit of measure",
     ],
-    stat: "1,180 packets",
+    stat: "31 duplicates caught",
     status: "running",
-    note: "Replaces error-prone manual BOL entry — the root cause of typos and disconnected data across sites and mills.",
+    note: "Targets the costliest leak today — buying parts that are already on order or sitting in a sister-plant storeroom.",
   },
   {
     id: "invoice",
-    name: "Freight Settlement Matcher",
-    menuLabel: "Freight settlement",
-    icon: ClipboardCheck,
+    name: "Warranty & Coverage Desk",
+    menuLabel: "Warranty & coverage",
+    icon: ShieldCheck,
     purpose:
-      "Runs the three-way check line-by-line — Invoice (PDF) × Shipment (SAP) × Contract (Excel) — clears in-tolerance lines, and surfaces only the non-standard lines (demurrage, accessorials, weight variance) as exceptions for a person.",
+      "Checks whether the failed equipment is still under OEM warranty or a service contract — turning a covered defect into a warranty claim rather than a purchase, and confirming a genuine buy where coverage has lapsed.",
     inputs: [
-      "Carrier freight invoice (PDF, EDI or scanned)",
-      "Shipment record and load packet (SAP)",
-      "Contracted rate card and tolerance rules (Excel)",
-      "Fuel-surcharge index and accessorial schedule",
-      "Prior dispute history on the lane and carrier",
+      "Structured requisition and the failure description",
+      "Equipment register and commissioning dates",
+      "OEM warranty terms and service contracts",
+      "Failure type — defect versus wear and tear",
+      "Prior claim history on the asset",
     ],
     outputs: [
-      "Extracted invoice lines with confidence scores",
-      "Three-way match result per line — invoice, shipment, contract",
-      "In-tolerance lines cleared and posted for payment",
-      "Exception root-cause + recommended resolution + draft carrier note",
-      "Recovered-overcharge total with the audit trail",
+      "Warranty and coverage status for the equipment",
+      "Defect-versus-wear classification",
+      "Coverage scope — parts, labour or full replacement",
+      "Claim-versus-buy recommendation with the OEM cited",
+      "Drafted warranty claim where the failure is covered",
     ],
-    tech: ["Document intelligence (invoice)", "Three-way match engine", "Tolerance + fraud rules", "SAP integration"],
+    tech: ["Equipment register", "Warranty-terms graph", "Failure classifier", "Claim drafting"],
     autonomy: 3,
     autonomyRule:
-      "Auto-clears and posts lines when the three-way match is clean, inside tolerance and above the confidence floor — demurrage, accessorial and variance exceptions are drafted for approval.",
+      "Auto-confirms a new-buy when the equipment is out of warranty and the failure is wear and tear — a covered defect inside warranty is drafted as a claim for approval.",
     escalation: [
-      "Demurrage or detention charge",
-      "Surcharge or accessorial mismatch",
-      "Cube-out weight variance",
-      "Missing booking / PO / shipment number",
-      "Duplicate booking or wrong company code",
-      "Price or quantity mismatch",
+      "Equipment inside OEM warranty",
+      "Possible covered defect",
+      "Active service contract on the asset",
+      "Premature or repeat failure",
+      "Ambiguous defect-versus-wear call",
     ],
-    stat: "96% lines matched",
+    stat: "12 claims raised",
     status: "review",
-    note: "The hero — directly recovers the 3–6% of freight spend that leaks through demurrage, hidden accessorials and unmatched lane rates.",
+    note: "Stops the network paying for parts the OEM owes — premature failures inside warranty are claimed, not bought.",
+  },
+  {
+    id: "sourcing",
+    name: "Sourcing & Contract Agent",
+    menuLabel: "Sourcing & contract",
+    icon: FileText,
+    purpose:
+      "Validates the vendor, sourcing agreement and price for every buy — confirming an approved, preferred supplier, the lower-cost compliant route and a price that matches the contract, so nothing leaks off-contract.",
+    inputs: [
+      "Validated requisition and the recommended buy quantity",
+      "Vendor master and approved-supplier list",
+      "Sourcing agreements and price lists",
+      "OEM-versus-distributor pricing",
+      "Payment terms and HSE / insurance requirements",
+    ],
+    outputs: [
+      "Approved, preferred-vendor confirmation",
+      "OEM-versus-distributor cost comparison",
+      "Sourcing-agreement and price match with the clause cited",
+      "Off-contract and price-variance flags",
+      "Recommendation for human sign-off on any spot or off-contract buy",
+    ],
+    tech: ["Vendor-master graph", "Sourcing-agreement engine", "Price-match rules", "Spend-compliance checks"],
+    autonomy: 2,
+    autonomyRule:
+      "Auto-confirms the buy when the vendor is approved and the price matches a sourcing agreement inside tolerance — an off-contract vendor or a price variance is flagged for sign-off.",
+    escalation: [
+      "Off-contract or unapproved vendor",
+      "Price above the sourcing agreement",
+      "Expired or missing agreement",
+      "Spot buy over the threshold",
+      "Missing HSE or insurance on a service line",
+    ],
+    stat: "94% on-contract",
+    status: "running",
+  },
+  {
+    id: "po",
+    name: "Approval & Routing Agent",
+    menuLabel: "Approval & routing",
+    icon: ClipboardCheck,
+    purpose:
+      "Runs the final control checks line-by-line — cost centre, competitive-bidding policy, delegation-of-authority limits and any open spec item — clears the routine requisitions and surfaces only the ones that need a person to approve.",
+    inputs: [
+      "Validated requisition with vendor, price and coverage",
+      "Cost-centre and G/L assignment",
+      "Competitive-bidding and spend policy",
+      "Delegation-of-authority (DOA) approval matrix",
+      "Open spec confirmations and sign-offs",
+    ],
+    outputs: [
+      "Cost-centre and account-assignment check",
+      "Competitive-bidding requirement (quotes if over threshold)",
+      "DOA approval routing to the right limit",
+      "Open-item summary — the one thing left to confirm",
+      "A single, release-ready approval card for the buyer",
+    ],
+    tech: ["Spend-policy engine", "DOA matrix", "Bidding-threshold rules", "Approval routing"],
+    autonomy: 2,
+    autonomyRule:
+      "Auto-routes the requisition to the right approver and releases it when every control passes inside policy — an over-threshold buy or an open spec item is held for approval.",
+    escalation: [
+      "Spend above the competitive-bidding threshold",
+      "Outside the requester's DOA limit",
+      "Open spec or width confirmation",
+      "Wrong cost centre or G/L account",
+      "Policy exception requested",
+    ],
+    stat: "41 routed",
+    status: "running",
   },
   {
     id: "orchestrator",
-    name: "Approval & Exception Router",
+    name: "Procurement Orchestrator",
     menuLabel: "Approvals",
     icon: Workflow,
     purpose:
-      "Coordinates the five specialist agents end-to-end — posting in-tolerance shipments touchless with a full audit trail, and routing every exception to a managed lane with drafted carrier communications and a recommended resolution.",
+      "Coordinates the five specialist agents end-to-end — releasing clean, on-contract requisitions touchless with a full audit trail, and routing every exception to a managed lane with a recommended action and drafted communications.",
     inputs: [
       "Every agent's output and state",
-      "Process-level tolerance policies and SLAs",
+      "Process-level spend and approval policies",
       "Cross-agent context for human resolution",
     ],
     outputs: [
-      "Touchless settlement of in-tolerance shipments with audit trail",
-      "Process dashboards (cycle time, touchless rate, leakage recovered)",
-      "Exception lane with drafted comms and recommended fixes",
+      "Touchless release of clean, on-contract requisitions with audit trail",
+      "Process dashboards (cycle time, touchless rate, duplicate spend caught)",
+      "Exception lane with recommended fixes and drafted comms",
       "One unified human-approval interface",
-      "A full audit log per shipment",
+      "A full audit log per requisition",
     ],
     tech: ["Agent orchestration", "Shared evidence store", "Audit + observability"],
     autonomy: 4,
     autonomyRule:
-      "Coordinates the workforce rather than settling invoices itself — it posts the clean in-tolerance batch, sequences handoffs and routes the exceptions that need a person.",
+      "Coordinates the workforce rather than raising requisitions itself — it releases the clean on-contract batch, sequences handoffs and routes the exceptions that need a person.",
     escalation: [
-      "Cross-agent match failure",
-      "SLA breach risk",
-      "Repeated exception on one carrier or lane",
+      "Cross-agent validation failure",
+      "SLA breach risk on an urgent line",
+      "Repeated exception on one vendor or plant",
     ],
-    stat: "71% touchless",
+    stat: "68% touchless",
     status: "running",
     coordinator: true,
   },
