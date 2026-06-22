@@ -1163,7 +1163,7 @@ const paymentStep: RunStep = {
       reasoning: "Checking dynamic discounting against the cost of capital",
       title: "Dynamic discounting",
       fields: [
-        { label: "Offered discount", value: "None on this invoice" },
+        { label: "Early-pay offer", value: "None on this invoice" },
         { label: "Cost of capital", value: "6.6%" },
         { label: "Decision", value: "Hold cash to the net date" },
         { label: "Working-capital note", value: "No early-pay beats 6.6%" },
@@ -1177,8 +1177,10 @@ const paymentStep: RunStep = {
         "Contract 4600001207 fixes BeltPro at Net 30 and no early-pay discount beats our 6.6% cost of capital, so I'm holding cash to the net date. Baseline is the 2026-06-09 invoice date → due 2026-07-09; the bank ••••4471 is verified against the vendor master and the fraud score is 0.02. F110 scheduled for 2026-07-09 with dual approval. Adjust any term or date before you approve.",
       fields: [
         { label: "Recommended terms", value: "NT30 · Net 30", options: ["NT30 · Net 30", "NT45 · Net 45", "NT60 · Net 60", "NT90 · Net 90"] },
+        { label: "Per contract", value: "4600001207 · not Net 60/90" },
         { label: "Baseline date", value: "2026-06-09", type: "date" },
         { label: "Net due date", value: "2026-07-09", type: "date" },
+        { label: "Cash discount", value: "None · pay on the net date", options: ["None · pay on the net date", "2% 10 · net 30", "1% 15 · net 30"] },
         { label: "Payment method", value: "F110 · bank ACH" },
         { label: "Dual approval", value: "Required · over $25k" },
         { label: "Payment run (F110)", value: "2026-07-09", type: "date" },
