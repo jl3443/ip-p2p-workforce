@@ -15,7 +15,17 @@ import { agentsById } from "@/data/agents";
 import type { AgentOutputStatus } from "@/state";
 import type { RunStep } from "@/data/runSteps";
 
-const LINE_MS = 260;
+// The "AI is working" loaders run for a beat before any content lands.
+const SPIN_MS = 2400; // spinner before the wizard / working content
+const REVEAL_MS = 3000; // the ~3-second loader before the result reveal
+
+/** A step plays as a gated sequence; the panel is keyed by step in the parent
+ *  so this resets every time a step opens:
+ *   loading    — the AI spinner runs alone
+ *   working    — (staged only) the extraction wizard; user validates each stage
+ *   finalizing — the loader runs again before the result lands
+ *   revealed   — reasoning checks · recommendation (typed out) · blueprint · doc */
+type Phase = "loading" | "working" | "finalizing" | "revealed";
 
 type Decision = Exclude<AgentOutputStatus, "none">;
 
@@ -51,64 +61,66 @@ export function AiWorkspacePanel({
   staged?: boolean;
 }) {
   const agent = agentsById[step.id];
-  // A staged step always plays its auto-fill wizard when opened — including the
-  // pre-completed lead-up steps you click back into, so every step shows its
-  // full depth. Non-staged steps reveal instantly once decided.
-  const [revealed, setRevealed] = React.useState(() => (staged ? false : status !== "none"));
-  const [shownLines, setShownLines] = React.useState(0);
-  const [emailOpen, setEmailOpen] = React.useState(false);
-  // Gates the produced artifact + decision so everything below the three summary
-  // cards (reasoning · recommendation · blueprint) lands only after they've
-  // animated in — i.e. once the AI "thinking" run has finished.
+  const hasWizard = staged && Boolean(step.stages);
+
+  const [phase, setPhase] = React.useState<Phase>("loading");
+  // Flips once the recommendation has finished typing — it gates the blueprint
+  // and then the produced artifact, so nothing lands before the AI "writes" it.
+  const [recTyped, setRecTyped] = React.useState(false);
   const [detailsShown, setDetailsShown] = React.useState(false);
+  const [emailOpen, setEmailOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    if (revealed || staged) return;
-    let n = 0;
-    let revealTimer = 0;
-    const iv = window.setInterval(() => {
-      n += 1;
-      setShownLines(Math.min(step.reasoning.length, n));
-      if (n >= step.reasoning.length) {
-        window.clearInterval(iv);
-        revealTimer = window.setTimeout(() => setRevealed(true), 1100);
-      }
-    }, LINE_MS);
-    return () => {
-      window.clearInterval(iv);
-      window.clearTimeout(revealTimer);
-    };
-  }, [revealed, step.reasoning.length]);
-
-  // While the staged wizard is running (on any step, decided or not), ask the
-  // workspace to hide the rail so the form + source pane get the full width.
-  React.useEffect(() => {
-    onWizardActive?.(staged && !revealed);
-    return () => onWizardActive?.(false);
-  }, [revealed, staged, onWizardActive]);
-
-  // Once revealed, stagger the three summary cards in, then drop the produced
-  // artifact + decision controls beneath them.
-  React.useEffect(() => {
-    if (!revealed) {
-      setDetailsShown(false);
-      return;
-    }
-    const t = window.setTimeout(() => setDetailsShown(true), 1200);
-    return () => window.clearTimeout(t);
-  }, [revealed]);
-
+  const revealed = phase === "revealed";
   const decided = status !== "none";
 
-  // For wizard steps the reasoning checklist mirrors the stages (all done once
-  // revealed); a revealed non-staged step shows its full reasoning as completed;
-  // otherwise it streams the step's reasoning lines.
-  const reasoningLines =
-    staged && step.stages
-      ? step.stages.map((s) => s.reasoning)
-      : revealed
-        ? step.reasoning
-        : step.reasoning.slice(0, shownLines);
+  // Run a loader for `ms`, then move to `next`. Hidden tabs don't run timers
+  // reliably (they freeze), so when the tab isn't visible jump straight to the
+  // next phase rather than hang on the spinner forever.
+  const advanceAfter = React.useCallback((ms: number, next: Phase) => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      setPhase(next);
+      return undefined;
+    }
+    const t = window.setTimeout(() => setPhase(next), ms);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  // loading spinner → wizard (staged) or straight to the reveal loader (L4)
+  React.useEffect(() => {
+    if (phase !== "loading") return;
+    return hasWizard ? advanceAfter(SPIN_MS, "working") : advanceAfter(REVEAL_MS, "revealed");
+  }, [phase, hasWizard, advanceAfter]);
+
+  // finalizing loader → reveal
+  React.useEffect(() => {
+    if (phase !== "finalizing") return;
+    return advanceAfter(REVEAL_MS, "revealed");
+  }, [phase, advanceAfter]);
+
+  // Once the recommendation has typed out, drop the artifact + decision beneath.
+  React.useEffect(() => {
+    if (!recTyped) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      setDetailsShown(true);
+      return;
+    }
+    const t = window.setTimeout(() => setDetailsShown(true), 500);
+    return () => window.clearTimeout(t);
+  }, [recTyped]);
+
+  // While the wizard is on screen, hide the rail so the form + source pane get
+  // the full width.
+  React.useEffect(() => {
+    onWizardActive?.(phase === "working");
+    return () => onWizardActive?.(false);
+  }, [phase, onWizardActive]);
+
+  // Stable so the recommendation typewriter doesn't restart on every re-render.
+  const handleRecTyped = React.useCallback(() => setRecTyped(true), []);
+
+  // Reasoning checklist — for wizard steps it mirrors the stages; otherwise the
+  // step's own reasoning. Shown as completed once we reach the reveal.
+  const reasoningLines = hasWizard ? step.stages!.map((s) => s.reasoning) : step.reasoning;
 
   const sendEmail = () => {
     if (!replied) onReplyReceived();
@@ -145,62 +157,47 @@ export function AiWorkspacePanel({
       </header>
 
       <div className="p-5 space-y-4">
-        {staged && step.stages && !revealed ? (
-          <div className="space-y-4">
-            <StepProgress agentName={step.agentName ?? agent.name} docLabel={step.docLabel} />
-            <ExtractionWizard
-              stages={step.stages}
-              sources={step.sources}
-              onComplete={() => setRevealed(true)}
-            />
-          </div>
-        ) : (
-        <>
-        {!revealed && (
+        {phase === "loading" || phase === "finalizing" ? (
+          /* The AI works for a beat before anything for this step appears. */
           <StepProgress agentName={step.agentName ?? agent.name} docLabel={step.docLabel} />
-        )}
-        {/* Reasoning trace — the line in progress spins, finished lines check */}
-        <div className="space-y-1.5">
-          {reasoningLines.map((line, i) => {
-            const streaming = !revealed && i === reasoningLines.length - 1;
-            return (
-              <div key={i} className="flex items-start gap-2 text-[12.5px] text-ink leading-snug">
-                {streaming ? (
-                  <Spinner size={13} className="mt-[2px] shrink-0" />
-                ) : (
-                  <Check size={13} className="text-surface-deep mt-[3px] shrink-0" strokeWidth={3} />
-                )}
-                {revealed ? <span>{line}</span> : <StreamingText text={line} cps={90} />}
-              </div>
-            );
-          })}
-          {!revealed && !staged && shownLines < step.reasoning.length && (
-            <div className="flex items-center gap-2 text-[12px] text-mute pl-[21px]">
-              <AIDot size={6} tone="deep" pulse /> reasoning…
-            </div>
-          )}
-        </div>
-
-        {revealed && (
+        ) : phase === "working" && step.stages ? (
+          /* The extraction wizard appears only after the spinner has finished. */
+          <ExtractionWizard
+            stages={step.stages}
+            sources={step.sources}
+            onComplete={() => setPhase("finalizing")}
+          />
+        ) : (
+          /* The reveal — reasoning checks, the typed recommendation, blueprint. */
           <div className="space-y-4">
-            {/* AI recommendation — directly under the reasoning checklist */}
-            <SpringIn>
-              <div className="rounded-md bg-surface-mint/40 border border-surface-mint px-4 py-3">
-                <div className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
-                  AI recommendation
+            {/* Reasoning checklist — the thinking that ran during the loader */}
+            <div className="space-y-1.5">
+              {reasoningLines.map((line, i) => (
+                <div key={i} className="flex items-start gap-2 text-[12.5px] text-ink leading-snug">
+                  <Check size={13} className="text-surface-deep mt-[3px] shrink-0" strokeWidth={3} />
+                  <span>{line}</span>
                 </div>
-                <p className="text-[13px] text-ink leading-snug mt-1">{step.recommendation}</p>
-              </div>
-            </SpringIn>
+              ))}
+            </div>
 
-            {/* Stage blueprint — the enterprise process-map depth for this stage */}
-            {step.dossier && (
-              <SpringIn delay={350}>
+            {/* AI recommendation — types out character by character (no card pop) */}
+            <div className="rounded-md bg-surface-mint/40 border border-surface-mint px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
+                AI recommendation
+              </div>
+              <p className="text-[13px] text-ink leading-snug mt-1">
+                <StreamingText text={step.recommendation} cps={52} onDone={handleRecTyped} />
+              </p>
+            </div>
+
+            {/* Stage blueprint — lands once the recommendation has finished typing */}
+            {recTyped && step.dossier && (
+              <SpringIn>
                 <StageDossier dossier={step.dossier} />
               </SpringIn>
             )}
 
-            {/* The produced artifact + decision land once the cards have animated in */}
+            {/* The produced artifact + decision land after the recommendation + blueprint */}
             {detailsShown && (
               <SpringIn className="space-y-4">
                 {/* Produced document */}
@@ -274,8 +271,6 @@ export function AiWorkspacePanel({
               </SpringIn>
             )}
           </div>
-        )}
-        </>
         )}
       </div>
 
