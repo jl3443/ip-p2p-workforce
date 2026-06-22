@@ -33,6 +33,13 @@ export function CountUp({
   const [value, setValue] = React.useState(0);
 
   React.useEffect(() => {
+    // Hidden / frozen tabs don't run requestAnimationFrame or timers reliably,
+    // which can leave the count stuck near 0. When the tab isn't visible, skip
+    // the animation and show the final value outright.
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      setValue(to);
+      return;
+    }
     setValue(0);
     let raf = 0;
     let start = 0;
@@ -45,7 +52,14 @@ export function CountUp({
       if (t < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    // Safety net: requestAnimationFrame is throttled in background / just-loaded
+    // tabs, which can leave the count frozen near 0. Guarantee the final value
+    // lands regardless of RAF scheduling.
+    const settle = window.setTimeout(() => setValue(to), delay + duration + 120);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(settle);
+    };
   }, [to, duration, delay]);
 
   const rounded = Number(value.toFixed(decimals));

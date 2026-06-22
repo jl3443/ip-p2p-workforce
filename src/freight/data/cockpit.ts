@@ -19,6 +19,18 @@ import type { KPI } from "@/freight/components/blocks/KPIStrip";
  * Top KPI strip — outcome-led, money first. The two left tiles carry the value
  * story (freight overcharge recovered · demurrage avoided) and deep-link to the
  * evidence; the two right tiles read operational health.
+ *
+ * SOURCING — seeded for a large recovered-fibre inbound-haulage network and
+ * grounded in docs/BLUEPRINT.md §5 (KPI targets) + the brief's "thousands of
+ * loads of baled recovered fibre into our mills every month":
+ *  · Overcharge recovered $1.18M/qtr ← BLUEPRINT "freight-spend leakage 3–6%"
+ *    band, applied to a ~$118M/yr inbound-fibre network (~6,000 loads/mo, ~4%
+ *    realised → ~$4.7M/yr).
+ *  · Demurrage & accessorial avoided $214K/qtr ← BLUEPRINT "$/quarter recovered".
+ *  · Touchless settlement 71% ← BLUEPRINT target band 65–75%.
+ *  · Capacity freed 64 FTE ← BLUEPRINT "AP FTE hours released".
+ * Tie-outs: the hero banner (views/Cockpit.tsx), the OCC settlement run
+ * ($15,480 invoice · $1,816 disputed) and the dispute watchlist ($96K open).
  */
 export const cockpitKpis: KPI[] = [
   {
