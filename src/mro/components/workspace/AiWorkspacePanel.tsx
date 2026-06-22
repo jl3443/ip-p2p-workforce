@@ -14,7 +14,18 @@ import { agentsById } from "@/mro/data/agents";
 import type { AgentOutputStatus } from "@/mro/state";
 import type { RunStep } from "@/mro/data/runSteps";
 
-const LINE_MS = 260;
+// The "AI is working" loaders run for a beat before any content lands.
+const SPIN_MS = 2400; // spinner before the wizard / working content
+const REVEAL_MS = 3000; // the ~3-second loader before the result reveal
+
+/** A step plays as a gated sequence; the panel is keyed by step in the parent
+ *  so this resets every time a step opens:
+ *   loading    — the AI spinner runs (rail hidden for staged, so it sits on the
+ *                working screen, then swaps to the wizard in place)
+ *   working    — (staged only) the extraction wizard; user validates each stage
+ *   finalizing — the loader runs again before the result lands
+ *   revealed   — reasoning checks, then the produced output + typed recommendation */
+type Phase = "loading" | "working" | "finalizing" | "revealed";
 
 type Decision = Exclude<AgentOutputStatus, "none">;
 
@@ -50,49 +61,48 @@ export function AiWorkspacePanel({
   staged?: boolean;
 }) {
   const agent = agentsById[step.id];
-  // A staged step always plays its auto-fill wizard when opened — including the
-  // pre-completed lead-up steps you click back into, so every step shows its
-  // full depth. Non-staged steps reveal instantly once decided.
-  const [revealed, setRevealed] = React.useState(() => (staged ? false : status !== "none"));
-  const [shownLines, setShownLines] = React.useState(0);
+  const hasWizard = staged && Boolean(step.stages);
+
+  const [phase, setPhase] = React.useState<Phase>("loading");
   const [emailOpen, setEmailOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    if (revealed || staged) return;
-    let n = 0;
-    let revealTimer = 0;
-    const iv = window.setInterval(() => {
-      n += 1;
-      setShownLines(Math.min(step.reasoning.length, n));
-      if (n >= step.reasoning.length) {
-        window.clearInterval(iv);
-        revealTimer = window.setTimeout(() => setRevealed(true), 1100);
-      }
-    }, LINE_MS);
-    return () => {
-      window.clearInterval(iv);
-      window.clearTimeout(revealTimer);
-    };
-  }, [revealed, step.reasoning.length]);
-
-  // While the staged wizard is running (on any step, decided or not), ask the
-  // workspace to hide the rail so the form + source pane get the full width.
-  React.useEffect(() => {
-    onWizardActive?.(staged && !revealed);
-    return () => onWizardActive?.(false);
-  }, [revealed, staged, onWizardActive]);
-
+  const revealed = phase === "revealed";
   const decided = status !== "none";
 
-  // For wizard steps the reasoning checklist mirrors the stages (all done once
-  // revealed); a revealed non-staged step shows its full reasoning as completed;
-  // otherwise it streams the step's reasoning lines.
-  const reasoningLines =
-    staged && step.stages
-      ? step.stages.map((s) => s.reasoning)
-      : revealed
-        ? step.reasoning
-        : step.reasoning.slice(0, shownLines);
+  // Run a loader for `ms`, then move to `next`. Hidden tabs freeze timers, so
+  // when the tab isn't visible jump straight to `next` rather than hang.
+  const advanceAfter = React.useCallback((ms: number, next: Phase) => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      setPhase(next);
+      return undefined;
+    }
+    const t = window.setTimeout(() => setPhase(next), ms);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  // loading spinner → wizard (staged) or straight to the reveal loader (L4)
+  React.useEffect(() => {
+    if (phase !== "loading") return;
+    return hasWizard ? advanceAfter(SPIN_MS, "working") : advanceAfter(REVEAL_MS, "revealed");
+  }, [phase, hasWizard, advanceAfter]);
+
+  // finalizing loader → reveal
+  React.useEffect(() => {
+    if (phase !== "finalizing") return;
+    return advanceAfter(REVEAL_MS, "revealed");
+  }, [phase, advanceAfter]);
+
+  // Keep the rail hidden for the whole staged sequence — the lead-in spinner and
+  // the wizard share one wide layout, so the spinner reads as part of the
+  // working screen rather than a separate page that then swaps in content.
+  React.useEffect(() => {
+    onWizardActive?.(hasWizard && (phase === "loading" || phase === "working"));
+    return () => onWizardActive?.(false);
+  }, [phase, hasWizard, onWizardActive]);
+
+  // Reasoning checklist — for wizard steps it mirrors the stages; otherwise the
+  // step's own reasoning. Shown as completed once we reach the reveal.
+  const reasoningLines = hasWizard ? step.stages!.map((s) => s.reasoning) : step.reasoning;
 
   const sendEmail = () => {
     if (!replied) onReplyReceived();
@@ -129,123 +139,110 @@ export function AiWorkspacePanel({
       </header>
 
       <div className="p-5 space-y-4">
-        {staged && step.stages && !revealed ? (
-          <div className="space-y-4">
-            <StepProgress agentName={step.agentName ?? agent.name} docLabel={step.docLabel} />
-            <ExtractionWizard
-              stages={step.stages}
-              sources={step.sources}
-              onComplete={() => setRevealed(true)}
-            />
-          </div>
-        ) : (
-        <>
-        {!revealed && (
+        {phase === "loading" || phase === "finalizing" ? (
+          /* The AI works for a beat before anything for this step appears. */
           <StepProgress agentName={step.agentName ?? agent.name} docLabel={step.docLabel} />
-        )}
-        {/* Reasoning trace — the line in progress spins, finished lines check */}
-        <div className="space-y-1.5">
-          {reasoningLines.map((line, i) => {
-            const streaming = !revealed && i === reasoningLines.length - 1;
-            return (
-              <div key={i} className="flex items-start gap-2 text-[12.5px] text-ink leading-snug">
-                {streaming ? (
-                  <Spinner size={13} className="mt-[2px] shrink-0" />
-                ) : (
+        ) : phase === "working" && step.stages ? (
+          /* The extraction wizard appears only after the spinner has finished. */
+          <ExtractionWizard
+            stages={step.stages}
+            sources={step.sources}
+            onComplete={() => setPhase("finalizing")}
+          />
+        ) : (
+          /* The reveal — reasoning checks, then the produced output + recommendation. */
+          <div className="space-y-4">
+            {/* Reasoning checklist — the thinking that ran during the loader */}
+            <div className="space-y-1.5">
+              {reasoningLines.map((line, i) => (
+                <div key={i} className="flex items-start gap-2 text-[12.5px] text-ink leading-snug">
                   <Check size={13} className="text-surface-deep mt-[3px] shrink-0" strokeWidth={3} />
-                )}
-                {revealed ? <span>{line}</span> : <StreamingText text={line} cps={90} />}
-              </div>
-            );
-          })}
-          {!revealed && !staged && shownLines < step.reasoning.length && (
-            <div className="flex items-center gap-2 text-[12px] text-mute pl-[21px]">
-              <AIDot size={6} tone="deep" pulse /> reasoning…
-            </div>
-          )}
-        </div>
-
-        {revealed && (
-          <SpringIn className="space-y-4">
-            {/* Produced document */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles size={13} className="text-surface-deep" />
-                <span className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
-                  Produced · {step.docLabel}
-                </span>
-              </div>
-              {step.document}
+                  <span>{line}</span>
+                </div>
+              ))}
             </div>
 
-            {/* Email round-trip — the agent drafts it, the buyer reviews and sends */}
-            {step.email && (
-              <AiDraftEmailCard
-                email={step.email}
-                sent={replied}
-                onSend={sendEmail}
-                onViewThread={viewThread}
-                sendLabel={step.email.cta}
-              />
-            )}
-
-            {/* Recommendation + decision */}
-            <div className="rounded-md bg-surface-mint/40 border border-surface-mint px-4 py-3">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
-                AI recommendation
+            <SpringIn className="space-y-4">
+              {/* Produced document */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles size={13} className="text-surface-deep" />
+                  <span className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
+                    Produced · {step.docLabel}
+                  </span>
+                </div>
+                {step.document}
               </div>
-              <p className="text-[13px] text-ink leading-snug mt-1">{step.recommendation}</p>
-            </div>
 
-            {decided && (
-              <div className={cn("flex items-center gap-2 text-[12.5px] font-medium", noteFor[status as Decision].cls)}>
-                <AIDot size={7} tone={status === "approved" ? "green" : status === "pending" ? "mute" : "red"} />
-                {isLast && status === "approved"
-                  ? completeNote
-                  : noteFor[status as Decision].label}
+              {/* Email round-trip — the agent drafts it, the buyer reviews and sends */}
+              {step.email && (
+                <AiDraftEmailCard
+                  email={step.email}
+                  sent={replied}
+                  onSend={sendEmail}
+                  onViewThread={viewThread}
+                  sendLabel={step.email.cta}
+                />
+              )}
+
+              {/* Recommendation — typed out character by character (no card pop) */}
+              <div className="rounded-md bg-surface-mint/40 border border-surface-mint px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
+                  AI recommendation
+                </div>
+                <p className="text-[13px] text-ink leading-snug mt-1">
+                  <StreamingText text={step.recommendation} cps={48} />
+                </p>
               </div>
-            )}
 
-            {/* Exception payoff — the halt resolves into an audit-grade envelope */}
-            {decided && (status === "escalated" || status === "rejected") && step.exception && (
-              <ExceptionResolutionCard ex={step.exception} />
-            )}
+              {decided && (
+                <div className={cn("flex items-center gap-2 text-[12.5px] font-medium", noteFor[status as Decision].cls)}>
+                  <AIDot size={7} tone={status === "approved" ? "green" : status === "pending" ? "mute" : "red"} />
+                  {isLast && status === "approved"
+                    ? completeNote
+                    : noteFor[status as Decision].label}
+                </div>
+              )}
 
-            {!(decided && status === "approved") && (
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => onDecision("approved")}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-surface-deep text-ink-inverse hover:bg-accent-green"
-                >
-                  <ThumbsUp size={14} /> {decided ? "Approve anyway" : "Approve & hand off"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDecision("pending")}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
-                >
-                  <PauseCircle size={14} /> Pending
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDecision("escalated")}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
-                >
-                  <ArrowUpRight size={14} /> Escalate
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDecision("rejected")}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-mark-red border border-mark-red/40 hover:bg-surface-rose"
-                >
-                  <X size={14} /> Reject
-                </button>
-              </div>
-            )}
-          </SpringIn>
-        )}
-        </>
+              {/* Exception payoff — the halt resolves into an audit-grade envelope */}
+              {decided && (status === "escalated" || status === "rejected") && step.exception && (
+                <ExceptionResolutionCard ex={step.exception} />
+              )}
+
+              {!(decided && status === "approved") && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => onDecision("approved")}
+                    className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-surface-deep text-ink-inverse hover:bg-accent-green"
+                  >
+                    <ThumbsUp size={14} /> {decided ? "Approve anyway" : "Approve & hand off"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDecision("pending")}
+                    className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
+                  >
+                    <PauseCircle size={14} /> Pending
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDecision("escalated")}
+                    className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
+                  >
+                    <ArrowUpRight size={14} /> Escalate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDecision("rejected")}
+                    className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-mark-red border border-mark-red/40 hover:bg-surface-rose"
+                  >
+                    <X size={14} /> Reject
+                  </button>
+                </div>
+              )}
+            </SpringIn>
+          </div>
         )}
       </div>
 

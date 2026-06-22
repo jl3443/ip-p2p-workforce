@@ -108,12 +108,14 @@ export function AiWorkspacePanel({
     return () => window.clearTimeout(t);
   }, [recTyped]);
 
-  // While the wizard is on screen, hide the rail so the form + source pane get
-  // the full width.
+  // Keep the rail hidden for the whole staged sequence — the lead-in spinner and
+  // the wizard share one wide layout, so the spinner reads as part of the
+  // working screen (图2) rather than a separate page that then swaps in content.
+  // The pre-reveal (finalizing) spinner keeps the rail, on the reveal layout.
   React.useEffect(() => {
-    onWizardActive?.(phase === "working");
+    onWizardActive?.(hasWizard && (phase === "loading" || phase === "working"));
     return () => onWizardActive?.(false);
-  }, [phase, onWizardActive]);
+  }, [phase, hasWizard, onWizardActive]);
 
   // Stable so the recommendation typewriter doesn't restart on every re-render.
   const handleRecTyped = React.useCallback(() => setRecTyped(true), []);
