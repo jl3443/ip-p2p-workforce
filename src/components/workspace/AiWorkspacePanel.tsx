@@ -57,6 +57,10 @@ export function AiWorkspacePanel({
   const [revealed, setRevealed] = React.useState(() => (staged ? false : status !== "none"));
   const [shownLines, setShownLines] = React.useState(0);
   const [emailOpen, setEmailOpen] = React.useState(false);
+  // Gates the produced artifact + decision so everything below the three summary
+  // cards (reasoning · recommendation · blueprint) lands only after they've
+  // animated in — i.e. once the AI "thinking" run has finished.
+  const [detailsShown, setDetailsShown] = React.useState(false);
 
   React.useEffect(() => {
     if (revealed || staged) return;
@@ -82,6 +86,17 @@ export function AiWorkspacePanel({
     onWizardActive?.(staged && !revealed);
     return () => onWizardActive?.(false);
   }, [revealed, staged, onWizardActive]);
+
+  // Once revealed, stagger the three summary cards in, then drop the produced
+  // artifact + decision controls beneath them.
+  React.useEffect(() => {
+    if (!revealed) {
+      setDetailsShown(false);
+      return;
+    }
+    const t = window.setTimeout(() => setDetailsShown(true), 1200);
+    return () => window.clearTimeout(t);
+  }, [revealed]);
 
   const decided = status !== "none";
 
@@ -167,87 +182,98 @@ export function AiWorkspacePanel({
         </div>
 
         {revealed && (
-          <SpringIn className="space-y-4">
+          <div className="space-y-4">
+            {/* AI recommendation — directly under the reasoning checklist */}
+            <SpringIn>
+              <div className="rounded-md bg-surface-mint/40 border border-surface-mint px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
+                  AI recommendation
+                </div>
+                <p className="text-[13px] text-ink leading-snug mt-1">{step.recommendation}</p>
+              </div>
+            </SpringIn>
+
             {/* Stage blueprint — the enterprise process-map depth for this stage */}
-            {step.dossier && <StageDossier dossier={step.dossier} />}
-
-            {/* Produced document */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles size={13} className="text-surface-deep" />
-                <span className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
-                  Produced · {step.docLabel}
-                </span>
-              </div>
-              {step.document}
-            </div>
-
-            {/* Email round-trip — the agent drafts it, the buyer reviews and sends */}
-            {step.email && (
-              <AiDraftEmailCard
-                email={step.email}
-                sent={replied}
-                onSend={sendEmail}
-                onViewThread={viewThread}
-                sendLabel={step.email.cta}
-              />
+            {step.dossier && (
+              <SpringIn delay={350}>
+                <StageDossier dossier={step.dossier} />
+              </SpringIn>
             )}
 
-            {/* Recommendation + decision */}
-            <div className="rounded-md bg-surface-mint/40 border border-surface-mint px-4 py-3">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
-                AI recommendation
-              </div>
-              <p className="text-[13px] text-ink leading-snug mt-1">{step.recommendation}</p>
-            </div>
+            {/* The produced artifact + decision land once the cards have animated in */}
+            {detailsShown && (
+              <SpringIn className="space-y-4">
+                {/* Produced document */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles size={13} className="text-surface-deep" />
+                    <span className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
+                      Produced · {step.docLabel}
+                    </span>
+                  </div>
+                  {step.document}
+                </div>
 
-            {decided && (
-              <div className={cn("flex items-center gap-2 text-[12.5px] font-medium", noteFor[status as Decision].cls)}>
-                <AIDot size={7} tone={status === "approved" ? "green" : status === "pending" ? "mute" : "red"} />
-                {isLast && status === "approved"
-                  ? completeNote
-                  : noteFor[status as Decision].label}
-              </div>
-            )}
+                {/* Email round-trip — the agent drafts it, the buyer reviews and sends */}
+                {step.email && (
+                  <AiDraftEmailCard
+                    email={step.email}
+                    sent={replied}
+                    onSend={sendEmail}
+                    onViewThread={viewThread}
+                    sendLabel={step.email.cta}
+                  />
+                )}
 
-            {/* Exception payoff — the halt resolves into an audit-grade envelope */}
-            {decided && (status === "escalated" || status === "rejected") && step.exception && (
-              <ExceptionResolutionCard ex={step.exception} />
-            )}
+                {decided && (
+                  <div className={cn("flex items-center gap-2 text-[12.5px] font-medium", noteFor[status as Decision].cls)}>
+                    <AIDot size={7} tone={status === "approved" ? "green" : status === "pending" ? "mute" : "red"} />
+                    {isLast && status === "approved"
+                      ? completeNote
+                      : noteFor[status as Decision].label}
+                  </div>
+                )}
 
-            {!(decided && status === "approved") && (
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => onDecision("approved")}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-surface-deep text-ink-inverse hover:bg-accent-green"
-                >
-                  <ThumbsUp size={14} /> {decided ? "Approve anyway" : "Approve & hand off"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDecision("pending")}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
-                >
-                  <PauseCircle size={14} /> Pending
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDecision("escalated")}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
-                >
-                  <ArrowUpRight size={14} /> Escalate
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDecision("rejected")}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-mark-red border border-mark-red/40 hover:bg-surface-rose"
-                >
-                  <X size={14} /> Reject
-                </button>
-              </div>
+                {/* Exception payoff — the halt resolves into an audit-grade envelope */}
+                {decided && (status === "escalated" || status === "rejected") && step.exception && (
+                  <ExceptionResolutionCard ex={step.exception} />
+                )}
+
+                {!(decided && status === "approved") && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => onDecision("approved")}
+                      className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-surface-deep text-ink-inverse hover:bg-accent-green"
+                    >
+                      <ThumbsUp size={14} /> {decided ? "Approve anyway" : "Approve & hand off"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDecision("pending")}
+                      className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
+                    >
+                      <PauseCircle size={14} /> Pending
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDecision("escalated")}
+                      className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-ink border border-ink/30 hover:bg-surface-fog"
+                    >
+                      <ArrowUpRight size={14} /> Escalate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDecision("rejected")}
+                      className="ui-pill inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium bg-white text-mark-red border border-mark-red/40 hover:bg-surface-rose"
+                    >
+                      <X size={14} /> Reject
+                    </button>
+                  </div>
+                )}
+              </SpringIn>
             )}
-          </SpringIn>
+          </div>
         )}
         </>
         )}
