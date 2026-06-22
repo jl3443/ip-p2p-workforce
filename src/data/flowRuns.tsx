@@ -11,8 +11,8 @@
  * A non-approve decision halts the run; the terminal pill is flow-specific.
  */
 
-import type { FlowId, Decision } from "@/state";
-import { runSteps as beltSteps, type RunStep } from "@/data/runSteps";
+import type { FlowId, Decision, View } from "@/state";
+import { beltUpstreamSteps, beltDownstreamSteps, type RunStep } from "@/data/runSteps";
 
 import { PurchaseRequisition, type SapPR } from "@/components/docs/sap/PurchaseRequisition";
 import { RfqComparison, type RfqTender } from "@/components/docs/sap/RfqComparison";
@@ -50,6 +50,14 @@ export type FlowRun = {
     routedSub: string;
     stats: { value: string; label: string }[];
     caption: string;
+    /**
+     * Where "back to cockpit" lands when this run closes. Upstream returns to
+     * the cockpit; the downstream AP run lands on the feedback-loop console.
+     * Defaults to the cockpit when omitted.
+     */
+    nextView?: View;
+    /** Label for the close-ceremony's primary button (defaults to "Back to cockpit"). */
+    nextLabel?: string;
     /**
      * When present, the happy-path close shows the payment-scheduled success
      * card (animated) instead of the generic flow-complete modal — the F110
@@ -967,23 +975,49 @@ export const flowRuns: Record<FlowId, FlowRun> = {
   belt: {
     id: "belt",
     contextTitle: "Corrugator No.2 · double-backer belt",
-    contextSub: "Maintenance flagged a worn belt at 9:01 AM · production-critical",
-    reviewPill: "Process run · in review",
-    completeNote: "Run complete · invoice released to AP, audit envelope closed",
-    steps: beltSteps,
-    terminal: () => ({ label: "Paid · audit closed", kind: "ready" }),
+    contextSub: "Procurement operations (upstream) · maintenance flagged a worn belt at 9:01 AM",
+    reviewPill: "Procurement operations · in review",
+    completeNote: "Upstream complete · goods received, ready for invoicing",
+    steps: beltUpstreamSteps,
+    terminal: (d) =>
+      halted(d)
+        ? { label: "Held · buyer review", kind: "critical" }
+        : { label: "Received · ready for AP", kind: "ready" },
     completion: {
-      title: "PO-77310 · paid and audit-closed",
+      title: "GR-77310 · received · ready for invoicing",
       tone: "ready",
-      routedTo: "Orchestrator",
-      routedSub: "audit close",
+      routedTo: "Accounts Payable",
+      routedSub: "invoice & pay",
       stats: [
         { value: "4", label: "agents handed off" },
-        { value: "$48,200", label: "paid to AP" },
-        { value: "4/4", label: "controls clear" },
+        { value: "$48,200", label: "PO on contract" },
+        { value: "1/1", label: "goods received" },
       ],
       caption:
-        "Posted to SAP · payment released to AP on net 30 · audit envelope closed with every artifact attached · 0 exceptions.",
+        "Supplier onboarded and de-duplicated · requisition raised · contract-bound PO-77310 issued and transmitted · goods received and GR posted. Back to the dashboard — the invoice run is ready when BeltPro bills.",
+      nextView: { kind: "cockpit" },
+    },
+  },
+  "belt-ap": {
+    id: "belt-ap",
+    contextTitle: "INV-BPI-5567 · accounts payable",
+    contextSub: "Accounts payable (downstream) · match, post & pay · finance → procurement loop",
+    reviewPill: "Accounts payable · in review",
+    completeNote: "Run complete · invoice paid, loop closed back to procurement",
+    steps: beltDownstreamSteps,
+    terminal: () => ({ label: "Paid · audit closed", kind: "ready" }),
+    completion: {
+      title: "INV-BPI-5567 · paid and audit-closed",
+      tone: "ready",
+      routedTo: "Procurement",
+      routedSub: "loop closed",
+      stats: [
+        { value: "5", label: "agents handed off" },
+        { value: "$48,200", label: "paid to AP" },
+        { value: "186/204", label: "batch clean" },
+      ],
+      caption:
+        "Captured · four-way matched · the batch exception routed back to procurement · posted in MIRO · payment scheduled on net 30. The finance → procurement loop is ready to review.",
       paymentSchedule: {
         vendor: "BeltPro Industrial · 100482",
         amount: "USD 48,200.00",
@@ -996,6 +1030,8 @@ export const flowRuns: Record<FlowId, FlowRun> = {
           { label: "F110 payment run", date: "2026-07-09", done: false },
         ],
       },
+      nextView: { kind: "feedback" },
+      nextLabel: "See the feedback loop",
     },
   },
   pump: {

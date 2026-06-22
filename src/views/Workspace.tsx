@@ -194,15 +194,17 @@ export function Workspace({ flow }: { flow: FlowId }) {
         (run.completion.paymentSchedule && decisions[LAST] === "approved" ? (
           <PaymentScheduledModal
             schedule={run.completion.paymentSchedule}
-            onBackToCockpit={() => go({ kind: "cockpit" })}
+            onBackToCockpit={() => go(run.completion?.nextView ?? { kind: "cockpit" })}
             onClose={() => setShowComplete(false)}
+            backLabel={run.completion.nextLabel}
           />
         ) : (
           <FlowCompleteModal
             run={run}
             onOpenArtifact={setOpenSource}
-            onBackToCockpit={() => go({ kind: "cockpit" })}
+            onBackToCockpit={() => go(run.completion?.nextView ?? { kind: "cockpit" })}
             onClose={() => setShowComplete(false)}
+            backLabel={run.completion.nextLabel}
           />
         ))}
 

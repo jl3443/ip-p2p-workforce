@@ -202,38 +202,48 @@ export function InvoiceMatch({ invoice = invoiceBelt }: { invoice?: SapInvoice }
         </span>
       </div>
 
-      {invoice.postingJournal && invoice.paymentJournal ? (
+      {invoice.postingJournal || invoice.paymentJournal ? (
         <>
-          {/* GL posting — how the books change */}
-          <SectionBand>General ledger — invoice posting (MIRO)</SectionBand>
-          <JournalTable lines={invoice.postingJournal} currency={invoice.currency} />
-          <div className="px-4 py-2 flex items-center gap-2 text-[11.5px] text-ink">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#107e3e]" />
-            Debits = Credits · the goods receipt's GR/IR clears, the AP liability is booked
-          </div>
+          {/* GL posting — how the books change (shown once the invoice is posted) */}
+          {invoice.postingJournal && (
+            <>
+              <SectionBand>General ledger — invoice posting (MIRO)</SectionBand>
+              <JournalTable lines={invoice.postingJournal} currency={invoice.currency} />
+              <div className="px-4 py-2 flex items-center gap-2 text-[11.5px] text-ink">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#107e3e]" />
+                Debits = Credits · the goods receipt's GR/IR clears, the AP liability is booked
+              </div>
 
-          {/* Payment terms from the contract */}
-          <SectionBand>Payment terms — per contract</SectionBand>
-          <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
-            <Field label="Terms" value={invoice.paymentTerms} mono />
-            <Field label="Baseline date" value={invoice.baselineDate} mono />
-            <Field label="Net due date" value={invoice.dueDate} mono />
-            <Field label="Cash discount" value={invoice.cashDiscount ?? "—"} />
-            <Field label="Source" value={invoice.termsSource ?? "—"} />
-            <Field label="Payment run (F110)" value={invoice.paymentRunDate ?? "—"} mono />
-          </div>
+              {/* Payment terms from the contract */}
+              <SectionBand>Payment terms — per contract</SectionBand>
+              <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
+                <Field label="Terms" value={invoice.paymentTerms} mono />
+                <Field label="Baseline date" value={invoice.baselineDate} mono />
+                <Field label="Net due date" value={invoice.dueDate} mono />
+                <Field label="Cash discount" value={invoice.cashDiscount ?? "—"} />
+                <Field label="Source" value={invoice.termsSource ?? "—"} />
+                <Field label="Payment run (F110)" value={invoice.paymentRunDate ?? "—"} mono />
+              </div>
+            </>
+          )}
 
-          {/* Scheduled payment — cash out */}
-          <SectionBand>Scheduled payment (F110) · {invoice.paymentRunDate}</SectionBand>
-          <JournalTable lines={invoice.paymentJournal} currency={invoice.currency} />
+          {/* Scheduled payment — cash out (shown once the payment run is scheduled) */}
+          {invoice.paymentJournal && (
+            <>
+              <SectionBand>Scheduled payment (F110) · {invoice.paymentRunDate}</SectionBand>
+              <JournalTable lines={invoice.paymentJournal} currency={invoice.currency} />
+            </>
+          )}
 
-          {/* Books impact summary */}
-          <div className="px-4 py-3 border-t border-divider text-[11.5px] text-mute leading-relaxed">
-            How the books move: the goods receipt booked <span className="text-ink">Dr R&amp;M / Cr GR/IR</span>; this
-            invoice clears <span className="text-ink">GR/IR → AP</span>; the payment run settles{" "}
-            <span className="text-ink">AP → Bank</span> on the net date. GR/IR nets to zero, AP is created then
-            cleared, cash drops {invoice.currency} {invoice.grossAmount} — a balance-sheet settlement, no P&amp;L at payment.
-          </div>
+          {/* Books impact summary — the full settlement, once posted and scheduled */}
+          {invoice.postingJournal && invoice.paymentJournal && (
+            <div className="px-4 py-3 border-t border-divider text-[11.5px] text-mute leading-relaxed">
+              How the books move: the goods receipt booked <span className="text-ink">Dr R&amp;M / Cr GR/IR</span>; this
+              invoice clears <span className="text-ink">GR/IR → AP</span>; the payment run settles{" "}
+              <span className="text-ink">AP → Bank</span> on the net date. GR/IR nets to zero, AP is created then
+              cleared, cash drops {invoice.currency} {invoice.grossAmount} — a balance-sheet settlement, no P&amp;L at payment.
+            </div>
+          )}
         </>
       ) : (
         <div className="px-4 py-3 border-t border-divider text-[12px] text-mute">

@@ -50,9 +50,9 @@ export const cockpitKpis: KPI[] = [
 
 export type AgentStatus = "running" | "review" | "idle";
 
-/** One stage of the procure-to-pay value chain, in flow order PR → payment. */
+/** One stage of the procure-to-pay value chain, in flow order onboarding → payment. */
 export type PipelineStage = {
-  /** Position in the flow (1–6) — drawn as the rail node. */
+  /** Position in the 9-stage end-to-end flow — drawn as the rail node. */
   n: number;
   name: string;
   /** Owning agent for the deep-link — null where work hands off to Treasury. */
@@ -64,17 +64,24 @@ export type PipelineStage = {
   status: AgentStatus;
 };
 
-/** The live pipeline — requisition all the way through to payment-ready. */
+/**
+ * The live pipeline — the full nine-stage value chain across both swimlanes:
+ * Procurement Operations (1–4 · onboarding → goods receipt) and Accounts
+ * Payable (5–9 · capture → payment).
+ */
 export const pipelineStages: PipelineStage[] = [
-  { n: 1, name: "Requisitions", agent: "intake", volume: "142 today", detail: "118 auto-submitted", status: "running" },
-  { n: 2, name: "Sourcing & RFQ", agent: "sourcing", volume: "38 tenders", detail: "6 need sign-off", status: "review" },
-  { n: 3, name: "Purchase orders", agent: "po", volume: "210 issued", detail: "94% on-contract", status: "running" },
-  { n: 4, name: "Expediting", agent: "po", volume: "1,940 open", detail: "47 chased today", status: "running" },
-  { n: 5, name: "Invoice match", agent: "invoice", volume: "1,610 matched", detail: "22 on hold", status: "review" },
-  { n: 6, name: "Payment ready", agent: null, volume: "188 scheduled", detail: "$4.6M to Treasury", status: "idle" },
+  { n: 1, name: "Supplier onboarding", agent: "vendor", volume: "1,204 vendors", detail: "9 duplicates merged", status: "running" },
+  { n: 2, name: "Requisition → PO", agent: "intake", volume: "142 today", detail: "118 auto-submitted", status: "running" },
+  { n: 3, name: "Contract & pricing", agent: "sourcing", volume: "38 tenders", detail: "94% on-contract", status: "review" },
+  { n: 4, name: "Goods receipt", agent: "po", volume: "1,940 receipts", detail: "47 chased today", status: "running" },
+  { n: 5, name: "Invoice capture", agent: "invoice", volume: "2,180 captured", detail: "88% touchless", status: "running" },
+  { n: 6, name: "Invoice match", agent: "invoice", volume: "1,610 matched", detail: "22 on hold", status: "review" },
+  { n: 7, name: "Exception handling", agent: "invoice", volume: "186 routed", detail: "30% faster", status: "review" },
+  { n: 8, name: "Posting & accounting", agent: "invoice", volume: "1,588 posted", detail: "GL clean", status: "running" },
+  { n: 9, name: "Payment processing", agent: null, volume: "188 scheduled", detail: "$4.6M to Treasury", status: "idle" },
 ];
 
-export const pipelineFooter = "Requisition-to-order median 4.2 h · 82% touchless end-to-end";
+export const pipelineFooter = "9 stages · requisition-to-order median 4.2 h · 82% touchless end-to-end";
 
 export type PendingDecision = {
   id: string;
@@ -91,14 +98,25 @@ export type PendingDecision = {
 export const pendingDecisions: PendingDecision[] = [
   {
     id: "PR-48201",
-    type: "Spot-buy · maintenance",
+    type: "Procurement ops · upstream",
     site: "Containerboard mill",
     urgency: "critical",
     title: "Corrugator No.2 double-backer belt — $48,200",
-    sub: "Production-critical · on-contract supplier recommended · above your touchless limit",
+    sub: "Onboard → requisition → contract & PO → goods receipt · the 4 upstream stages · above your touchless limit",
     dueLabel: "Needed",
     dueWhen: "Today",
     target: { kind: "workspace", flow: "belt" },
+  },
+  {
+    id: "INV-BPI-5567",
+    type: "Accounts payable · downstream",
+    site: "Containerboard mill",
+    urgency: "high",
+    title: "Invoice INV-BPI-5567 · PO-77310 — match, post & pay",
+    sub: "Goods received · capture → match → exception → post → pay · the 5 downstream stages · closes the finance↔procurement loop",
+    dueLabel: "Due",
+    dueWhen: "Today",
+    target: { kind: "workspace", flow: "belt-ap" },
   },
   {
     id: "PR-48630",

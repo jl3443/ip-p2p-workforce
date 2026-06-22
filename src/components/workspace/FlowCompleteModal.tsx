@@ -18,11 +18,13 @@ export function FlowCompleteModal({
   onOpenArtifact,
   onBackToCockpit,
   onClose,
+  backLabel = "Back to cockpit",
 }: {
   run: FlowRun;
   onOpenArtifact: (s: SourceArtifact) => void;
   onBackToCockpit: () => void;
   onClose: () => void;
+  backLabel?: string;
 }) {
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -147,9 +149,9 @@ export function FlowCompleteModal({
             <button
               type="button"
               onClick={onBackToCockpit}
-              className="ui-pill flex-1 rounded-full bg-surface-deep px-4 py-2.5 text-[13px] font-bold text-ink-inverse hover:bg-accent-green"
+              className="ui-pill flex-1 rounded-full bg-surface-deep px-4 py-2.5 text-[13px] font-bold text-ink-inverse hover:bg-accent-green whitespace-nowrap"
             >
-              Back to cockpit
+              {backLabel}
             </button>
           </div>
         </div>

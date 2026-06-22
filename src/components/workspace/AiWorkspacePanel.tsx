@@ -9,6 +9,7 @@ import { EmailReplyModal } from "@/components/workspace/EmailReplyModal";
 import { AiDraftEmailCard } from "@/components/workspace/AiDraftEmailCard";
 import { ExceptionResolutionCard } from "@/components/workspace/ExceptionResolutionCard";
 import { ExtractionWizard } from "@/components/workspace/ExtractionWizard";
+import { StageDossier } from "@/components/workspace/StageDossier";
 import { agentsById } from "@/data/agents";
 import type { AgentOutputStatus } from "@/state";
 import type { RunStep } from "@/data/runSteps";
@@ -160,6 +161,9 @@ export function AiWorkspacePanel({
 
         {revealed && (
           <SpringIn className="space-y-4">
+            {/* Stage blueprint — the enterprise process-map depth for this stage */}
+            {step.dossier && <StageDossier dossier={step.dossier} />}
+
             {/* Produced document */}
             <div>
               <div className="flex items-center gap-2 mb-2">
