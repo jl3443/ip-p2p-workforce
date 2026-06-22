@@ -6,6 +6,8 @@ import {
   Sparkles,
   ShoppingCart,
   Banknote,
+  Truck,
+  Wrench,
   LogIn,
   Lock,
   User as UserIcon,
@@ -61,6 +63,30 @@ const PERSONAS: Persona[] = [
       "Every deduction resolved with a full audit trail",
     ],
     userId: "controller01",
+  },
+  {
+    id: "freight",
+    icon: Truck,
+    badge: "Freight Settlement",
+    name: "Freight workspace",
+    capabilities: [
+      "One cockpit over 6 agents and the orchestrator",
+      "Three-way check · in-tolerance lines settle touchless",
+      "Every overcharge recovered with a full audit trail",
+    ],
+    userId: "freightops01",
+  },
+  {
+    id: "mro",
+    icon: Wrench,
+    badge: "MRO Procurement",
+    name: "MRO workspace",
+    capabilities: [
+      "Free-text purchase requests structured & validated",
+      "Master data, warranty, vendor & duplicate checks",
+      "Every requisition released with a full audit trail",
+    ],
+    userId: "planner01",
   },
 ];
 
@@ -176,8 +202,8 @@ function Hero({ onAccess }: { onAccess: () => void }) {
         Agentic Operations
       </h1>
       <p className="mt-6 max-w-xl text-[14px] font-normal leading-[1.55] text-white/80 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] sm:text-[15px]">
-        Two specialist agent workforces — procurement and receivables. The agents do the
-        work, a human approves every decision, and every action is audited.
+        Four specialist agent workforces — procurement, receivables, freight and MRO. The
+        agents do the work, a human approves every decision, and every action is audited.
       </p>
       <button
         type="button"
