@@ -6,7 +6,7 @@ import { PillButton } from "@/mro/components/blocks/PillButton";
 import { PendingDecisionsPanel } from "@/mro/components/blocks/PendingDecisionsPanel";
 import { PipelinePanel } from "@/mro/components/blocks/PipelinePanel";
 import { OverduePaymentsPanel } from "@/mro/components/blocks/OverduePaymentsPanel";
-import { cockpitKpis, overduePayments } from "@/mro/data/cockpit";
+import { cockpitKpis, overduePayments, pendingDecisions } from "@/mro/data/cockpit";
 import { useApp } from "@/mro/state";
 
 /**
@@ -46,7 +46,7 @@ export function Cockpit() {
 
       <HeroBanner
         eyebrow="Autonomous MRO procurement"
-        summary="$312K off-contract spend avoided and $148K duplicate spend caught this quarter · 68% of requisitions released touchless · 2 decisions need you today."
+        summary={`$312K off-contract spend avoided and $148K duplicate spend caught this quarter · 68% of requisitions released touchless · ${pendingDecisions.length} decisions need you today.`}
         cta={<PillButton variant="deep" size="sm">+ New requisition</PillButton>}
         meta="Updated 1 min ago"
       />

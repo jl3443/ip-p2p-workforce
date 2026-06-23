@@ -12,7 +12,7 @@
 
 import type { FlowId, Decision } from "@/mro/state";
 import { runSteps as beltSteps, type RunStep } from "@/mro/data/runSteps";
-import { beltPrSteps, rollerPrSteps } from "@/mro/data/prCases";
+import { beltPrSteps, rollerPrSteps, riskPrSteps, compliancePrSteps } from "@/mro/data/prCases";
 
 import { EmailDoc, SpendingPolicyDoc } from "@/mro/components/docs/sources";
 import { LedgerDoc } from "@/mro/components/docs/finance/LedgerDoc";
@@ -417,6 +417,56 @@ export const flowRuns: Record<FlowId, FlowRun> = {
       ],
       caption:
         "8-unit buy re-scoped to a 6-unit interplant transfer + a warranty claim + a 2-unit on-contract buy · duplicate PR-48641 cancelled · avoided buying inventory the network already had.",
+    },
+  },
+  risk: {
+    id: "risk",
+    contextTitle: "Northgate · Recovery line · drive-gearbox seal kit · stock-out risk",
+    contextSub: "No PR raised · agent predicted a stock-out from SNOP + consumption + lead-time signals · pre-buy recommended",
+    reviewPill: "Risk pre-buy · in review",
+    completeNote: "Pre-buy approved · proactive PR routed on-contract ahead of the stock-out",
+    steps: riskPrSteps,
+    terminal: (d) =>
+      halted(d)
+        ? { label: "Risk accepted · no pre-buy", kind: "critical" }
+        : { label: "Pre-buy approved · PR routed", kind: "ready" },
+    completion: {
+      title: "RISK-49001 · stock-out prevented, pre-buy routed",
+      tone: "ready",
+      routedTo: "Buyer · plant maintenance",
+      routedSub: "proactive pre-buy",
+      stats: [
+        { value: "9 days", label: "stock-out averted" },
+        { value: "$18.4K", label: "pre-buy on-contract" },
+        { value: "~$1.4M/day", label: "downtime exposure avoided" },
+      ],
+      caption:
+        "Stock-out predicted from SNOP, criticality, consumption, lead time and market · deterministic reorder overridden · 2-unit GearTech pre-buy approved by the reliability lead and routed on-contract ahead of the 9-week lead.",
+    },
+  },
+  compliance: {
+    id: "compliance",
+    contextTitle: "Pulping · Drive line · gearbox rebuild kit · PR → PO",
+    contextSub: "PR-48690 validated · ready for PO conversion · the orchestrator runs the compliance & commercial gate",
+    reviewPill: "Compliance gate · in review",
+    completeNote: "PO released · compliant PO-77412 issued to GearTech on-contract",
+    steps: compliancePrSteps,
+    terminal: (d) =>
+      halted(d)
+        ? { label: "Halted · compliance exception", kind: "critical" }
+        : { label: "PO released · compliant", kind: "ready" },
+    completion: {
+      title: "PR-48690 → PO-77412 · issued compliant",
+      tone: "ready",
+      routedTo: "Buyer · purchasing",
+      routedSub: "PO release",
+      stats: [
+        { value: "$42,000", label: "compliant PO issued" },
+        { value: "5/5", label: "compliance gates cleared" },
+        { value: "L2", label: "DOA sign-off routed" },
+      ],
+      caption:
+        "PR-48690 cleared contract compliance, HSE & insurance, GL/cost-center and delivery feasibility · converted to PO-77412 on SA-MRO-09 · the Procurement Manager approved the over-DOA L2 sign-off and the PO released to GearTech.",
     },
   },
   collect: {

@@ -13,7 +13,7 @@
  * Operating entity is the fictional Northgate Paper Co.; vendors anonymised.
  */
 
-import { DocShell, DocTitleBand, SectionBand, Field } from "@/mro/components/docs/sap/parts";
+import { DocShell, DocTitleBand, DocTabs, SectionBand, Field } from "@/mro/components/docs/sap/parts";
 import { cn } from "@/mro/lib/utils";
 
 export type PrField = { label: string; value: string };
@@ -35,20 +35,47 @@ export type StructuredPr = {
   confidence: string;
   /** Open flags the intake agent could not resolve on its own. */
   flags?: string[];
+  /* ── Optional faithful-ME51N fields (rendered only when present) ───────── */
+  /** PR document type, e.g. "NB · Standard requisition". */
+  prType?: string;
+  requestor?: string;
+  /** Purchasing org, e.g. "1000 · Northgate Procurement". */
+  purchOrg?: string;
+  /** Purchasing group, e.g. "200 · MRO / Maintenance". */
+  purchGroup?: string;
+  /** Valuation block — unit price, total value, currency. */
+  valuation?: PrField[];
+  /** Source of supply — vendor, outline agreement, info record. */
+  sourceOfSupply?: PrField[];
+  /** Delivery & terms — incoterms, payment terms, delivery date. */
+  deliveryTerms?: PrField[];
 };
 
 export function StructuredPrDoc({ pr }: { pr: StructuredPr }) {
+  const hasHeader = pr.prType || pr.requestor || pr.purchOrg || pr.purchGroup;
   return (
-    <DocShell>
+    <DocShell tcode="ME53N" tname="Display Purchase Requisition" status={`Purchase requisition ${pr.number} displayed`}>
       <DocTitleBand
         number={pr.number}
         status={pr.status}
-        docType="Purchase requisition · structured · vendor-ready"
+        docType="Purchase requisition · ME51N · structured"
         system="PR intake · material master"
         createdOn={pr.createdOn}
         createdBy={pr.createdBy}
       />
-      <SectionBand>Item · {pr.materialCode}</SectionBand>
+      <DocTabs tabs={["Item overview", "Account assignment", "Source of supply", "Statuses", "Texts"]} />
+      {hasHeader && (
+        <>
+          <SectionBand>Requisition header</SectionBand>
+          <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
+            {pr.prType && <Field label="PR type" value={pr.prType} />}
+            {pr.requestor && <Field label="Requestor" value={pr.requestor} />}
+            {pr.purchOrg && <Field label="Purch. org" value={pr.purchOrg} mono />}
+            {pr.purchGroup && <Field label="Purch. group" value={pr.purchGroup} mono />}
+          </div>
+        </>
+      )}
+      <SectionBand>Item 10 · {pr.materialCode}</SectionBand>
       <div className="px-4 py-3">
         <div className="text-[13px] font-medium text-ink mb-3">{pr.description}</div>
         <div className="grid grid-cols-3 gap-x-4 gap-y-3">
@@ -66,6 +93,30 @@ export function StructuredPrDoc({ pr }: { pr: StructuredPr }) {
           <Field key={f.label} label={f.label} value={f.value} mono />
         ))}
       </div>
+      {pr.valuation && pr.valuation.length > 0 && (
+        <>
+          <SectionBand>Valuation</SectionBand>
+          <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
+            {pr.valuation.map((f) => <Field key={f.label} label={f.label} value={f.value} mono />)}
+          </div>
+        </>
+      )}
+      {pr.sourceOfSupply && pr.sourceOfSupply.length > 0 && (
+        <>
+          <SectionBand>Source of supply</SectionBand>
+          <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
+            {pr.sourceOfSupply.map((f) => <Field key={f.label} label={f.label} value={f.value} mono />)}
+          </div>
+        </>
+      )}
+      {pr.deliveryTerms && pr.deliveryTerms.length > 0 && (
+        <>
+          <SectionBand>Delivery & terms</SectionBand>
+          <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
+            {pr.deliveryTerms.map((f) => <Field key={f.label} label={f.label} value={f.value} mono />)}
+          </div>
+        </>
+      )}
       <SectionBand>Intake confidence</SectionBand>
       <div className="px-4 py-3 space-y-2">
         <div className="text-[12.5px] text-ink">

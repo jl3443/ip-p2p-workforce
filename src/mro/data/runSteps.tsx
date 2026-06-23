@@ -69,6 +69,8 @@ export type EmailAction = {
   reply: EmailReply;
   toastTitle: string;
   toastBody: string;
+  /** The produced doc, re-rendered (with a spring) once the reply resolves the open item. */
+  resolvedDocument?: React.ReactNode;
 };
 
 /** One evaluated control in the settlement envelope. */

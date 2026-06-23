@@ -8,9 +8,11 @@ import { EntryLogin } from "@/views/EntryLogin";
 export type Product = "p2p" | "o2c" | "freight" | "mro";
 
 /**
- * Four agentic workforces behind one sign-in. The entry shows persona cards
- * (Procurement · Receivables · Freight · MRO); picking one signs straight into
- * that workforce. Signing out returns here.
+ * Agentic workforces behind one sign-in. The entry shows three persona cards by
+ * job title (Tactical Buyer · Freight Operations Analyst · MRO Buyer); picking
+ * one signs straight into that workforce. Signing out returns here. The O2C
+ * (Receivables) workforce is kept wired below for reuse but is not shown as a
+ * card.
  */
 export function Root() {
   const [launched, setLaunched] = React.useState<Product | null>(null);

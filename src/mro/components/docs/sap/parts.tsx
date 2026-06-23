@@ -9,7 +9,7 @@
  */
 
 import * as React from "react";
-import { Download } from "lucide-react";
+import { Download, Check, Save, ArrowLeft, LogOut, X, Printer, Search } from "lucide-react";
 import { cn } from "@/mro/lib/utils";
 import { exportElementAsHtml, fileStem } from "@/mro/lib/exportDoc";
 
@@ -91,11 +91,86 @@ export function DocTitleBand({
   );
 }
 
-/** Wrapper that gives a document the white card + rounded border shell. */
-export function DocShell({ children }: { children: React.ReactNode }) {
+/** The grey SAP system toolbar — command field (tcode) + GUI function icons. */
+function SapToolbar({ tcode, tname }: { tcode: string; tname?: string }) {
+  const Glyph = ({ icon: Icon }: { icon: typeof Check }) => (
+    <span className="grid place-items-center w-[18px] h-[18px] rounded-[2px] text-[#1c3a5e] hover:bg-white/70">
+      <Icon size={12} strokeWidth={2} />
+    </span>
+  );
+  return (
+    <div className="flex items-center gap-1.5 bg-[#dfe4ea] border-b border-[#c4ccd6] px-2 py-1">
+      <span className="inline-flex items-center gap-1 rounded-[2px] bg-white border border-[#aab4c0] pl-1.5 pr-2 py-0.5 text-[11px] text-[#1c3a5e] font-medium tabular-nums">
+        <Check size={11} strokeWidth={2.5} className="text-[#107e3e]" />
+        {tcode}
+      </span>
+      <span className="flex items-center gap-0.5">
+        <Glyph icon={Save} />
+        <Glyph icon={ArrowLeft} />
+        <Glyph icon={LogOut} />
+        <Glyph icon={X} />
+        <span className="w-px h-3.5 bg-[#c4ccd6] mx-0.5" />
+        <Glyph icon={Printer} />
+        <Glyph icon={Search} />
+      </span>
+      {tname && <span className="ml-auto text-[11px] font-semibold text-[#354a5f] truncate">{tname}</span>}
+    </div>
+  );
+}
+
+/** SAP view-selection tab strip (Basic Data · Purchasing · Accounting …). */
+export function DocTabs({ tabs }: { tabs: string[] }) {
+  return (
+    <div className="flex items-end gap-0 bg-[#f4f6f9] border-b border-[#dfe4ea] px-2 pt-1.5">
+      {tabs.map((t, i) => (
+        <span
+          key={t}
+          className={cn(
+            "text-[11px] px-3 py-1.5 border border-b-0 rounded-t-[3px] -mb-px whitespace-nowrap",
+            i === 0
+              ? "bg-white border-[#dfe4ea] text-[#1c3a5e] font-semibold"
+              : "bg-[#eaeef3] border-transparent text-[#5b6b7b]",
+          )}
+        >
+          {t}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** The green SAP status bar pinned to the foot of a transaction screen. */
+function SapStatus({ status }: { status: string }) {
+  return (
+    <div className="flex items-center gap-1.5 bg-[#eef1f5] border-t border-[#dfe4ea] px-3 py-1.5">
+      <span className="grid place-items-center w-3.5 h-3.5 rounded-full bg-[#107e3e] text-white text-[8px] font-bold">i</span>
+      <span className="text-[11px] text-[#107e3e] truncate">{status}</span>
+    </div>
+  );
+}
+
+/**
+ * Wrapper that gives a document the white card + rounded border shell. When a
+ * `tcode` is supplied the doc reads as a real SAP transaction screen — grey
+ * command toolbar on top, green status bar at the foot. (Agent-generated
+ * outputs omit `tcode`, so they stay visually distinct from system screens.)
+ */
+export function DocShell({
+  children,
+  tcode,
+  tname,
+  status,
+}: {
+  children: React.ReactNode;
+  tcode?: string;
+  tname?: string;
+  status?: string;
+}) {
   return (
     <div data-doc-shell className="bg-white border border-divider rounded-md overflow-hidden">
+      {tcode && <SapToolbar tcode={tcode} tname={tname} />}
       {children}
+      {status && <SapStatus status={status} />}
     </div>
   );
 }

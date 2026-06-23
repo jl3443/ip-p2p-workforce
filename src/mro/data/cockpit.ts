@@ -5,10 +5,14 @@
  * (off-contract avoided · duplicate spend caught), the right tiles read the
  * operational health (touchless release · capacity freed).
  *
- * NOTE: flow ids (belt/pump/gearbox/collect) are inherited from the base and
- * never render — the two surfaced here are: pump = the conveyor belt PR
- * (PR-48630), gearbox = the idler roller PR (PR-48655). The belt and collect
- * flows are no longer surfaced on the cockpit.
+ * NOTE: flow ids belt/pump/gearbox/collect are inherited from the base; `risk`
+ * is the new UC2 predictive flow (steps in prCases.tsx `riskPrSteps`). MRO
+ * content: pump = conveyor-belt PR (PR-48630), gearbox = idler-roller PR
+ * (PR-48655), risk = drive-gearbox stock-out pre-buy (RISK-49001), compliance =
+ * PR→PO commercial gate (PR-48690 → PO-77412); belt/collect hold leftover base
+ * content and are NOT surfaced. The cockpit surfaces eight decisions: RISK-49001
+ * drives `risk`, PR-48690 drives `compliance`; the four cross-functional cards
+ * (PR-48201, INV-ADS-4419, INV-BPI-5567, PR-48634) reuse pump/gearbox.
  */
 
 import type { View } from "@/mro/state";
@@ -96,6 +100,72 @@ export type PendingDecision = {
 };
 
 export const pendingDecisions: PendingDecision[] = [
+  {
+    id: "RISK-49001",
+    type: "Predictive risk · auto-procurement",
+    site: "Northgate · Recovery line",
+    urgency: "critical",
+    title: "Drive-gearbox seal kit — stock-out predicted in 9 days · pre-buy recommended",
+    sub: "No PR raised · agent fused SNOP + criticality + consumption + 9-wk lead + market · overrode the reorder point · proactive 2-unit pre-buy ($18,400) for your approval",
+    dueLabel: "Pre-empt",
+    dueWhen: "Now",
+    target: { kind: "workspace", flow: "risk" },
+  },
+  {
+    id: "PR-48690",
+    type: "PR → PO · compliance & commercial",
+    site: "Pulping · Drive line",
+    urgency: "high",
+    title: "Gearbox rebuild kit — $42,000 · ready for PO, compliance run",
+    sub: "Validated PR ready for PO conversion · contract expiring · on-site HSE work · over the plant DOA · the orchestrator runs the compliance & commercial gate, then issues a compliant PO",
+    dueLabel: "Convert",
+    dueWhen: "Today",
+    target: { kind: "workspace", flow: "compliance" },
+  },
+  {
+    id: "PR-48201",
+    type: "Procurement ops · upstream",
+    site: "Containerboard mill",
+    urgency: "critical",
+    title: "Corrugator No.2 double-backer belt — $48,200",
+    sub: "Onboard → requisition → contract & PO → goods receipt · the 4 upstream stages · above your touchless limit",
+    dueLabel: "Needed",
+    dueWhen: "Today",
+    target: { kind: "workspace", flow: "pump" },
+  },
+  {
+    id: "INV-ADS-4419",
+    type: "Payment exception · resolve",
+    site: "Containerboard mill",
+    urgency: "critical",
+    title: "Drive gearbox invoice — short receipt + bank-change fraud",
+    sub: "See the exception, then resolve via the existing agents · verify bank → short-pay → release on replacement · back-office",
+    dueLabel: "Resolve",
+    dueWhen: "Now",
+    target: { kind: "workspace", flow: "gearbox" },
+  },
+  {
+    id: "INV-BPI-5567",
+    type: "Accounts payable · downstream",
+    site: "Containerboard mill",
+    urgency: "high",
+    title: "Invoice INV-BPI-5567 · PO-77310 — match, post & pay",
+    sub: "Goods received · capture → match → exception → post → pay · the 5 downstream stages · closes the finance↔procurement loop",
+    dueLabel: "Due",
+    dueWhen: "Today",
+    target: { kind: "workspace", flow: "gearbox" },
+  },
+  {
+    id: "PR-48634",
+    type: "Off-contract spot-buy",
+    site: "Power House",
+    urgency: "high",
+    title: "Boiler feed pump — $96,400",
+    sub: "Off-contract · single compliant bid · 24% over benchmark · front-office review",
+    dueLabel: "Due",
+    dueWhen: "Today",
+    target: { kind: "workspace", flow: "pump" },
+  },
   {
     id: "PR-48630",
     type: "PR intake & validation · MRO",

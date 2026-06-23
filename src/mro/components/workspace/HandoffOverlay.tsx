@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, FileText } from "lucide-react";
 import { SpringIn } from "@/mro/components/ai/SpringIn";
 import { AIDot } from "@/mro/components/ai/AIDot";
 import { agentsById, type AgentId } from "@/mro/data/agents";
@@ -18,11 +18,14 @@ export function HandoffOverlay({
   to,
   toName,
   toLabel,
+  docLabel,
 }: {
   from: AgentId;
   to?: AgentId;
   toName?: string;
   toLabel?: string;
+  /** The produced artifact label — rendered riding the conveyor to the receiver. */
+  docLabel?: string;
 }) {
   const A = agentsById[from];
   const B = to ? agentsById[to] : null;
@@ -46,20 +49,27 @@ export function HandoffOverlay({
               </span>
             </div>
 
-            {/* animated conveyor */}
-            <svg width="96" height="24" viewBox="0 0 96 24" className="shrink-0 text-surface-deep">
-              <line x1="2" y1="12" x2="82" y2="12" stroke="#d6ded6" strokeWidth="2" />
-              <line
-                x1="2"
-                y1="12"
-                x2="82"
-                y2="12"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="hr-flow"
-              />
-              <path d="M82 6 L94 12 L82 18 Z" fill="currentColor" />
-            </svg>
+            {/* animated conveyor — the produced doc rides it to the receiver */}
+            <div className="relative shrink-0" style={{ width: 96, height: 24 }}>
+              <svg width="96" height="24" viewBox="0 0 96 24" className="text-surface-deep">
+                <line x1="2" y1="12" x2="82" y2="12" stroke="#d6ded6" strokeWidth="2" />
+                <line
+                  x1="2"
+                  y1="12"
+                  x2="82"
+                  y2="12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="hr-flow"
+                />
+                <path d="M82 6 L94 12 L82 18 Z" fill="currentColor" />
+              </svg>
+              {docLabel && (
+                <span className="hr-handoff-doc absolute top-0 left-0 w-6 h-6 rounded-md bg-white border border-surface-deep/40 shadow-sm flex items-center justify-center text-surface-deep">
+                  <FileText size={13} strokeWidth={2} />
+                </span>
+              )}
+            </div>
 
             {/* receiver — next agent, or the run's final owner — waking up */}
             <div className="flex flex-col items-center gap-1.5">
@@ -75,7 +85,16 @@ export function HandoffOverlay({
             </div>
           </div>
           <div className="text-[12.5px] text-ink text-center">
-            Output handed off · <span className="font-bold">{receiverName}</span> is taking over
+            {docLabel ? (
+              <>
+                Passing <span className="font-bold">{docLabel}</span> ·{" "}
+                <span className="font-bold">{receiverName}</span> takes over
+              </>
+            ) : (
+              <>
+                Output handed off · <span className="font-bold">{receiverName}</span> is taking over
+              </>
+            )}
           </div>
         </div>
       </SpringIn>

@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   Sparkles,
   ShoppingCart,
-  Banknote,
   Truck,
   Wrench,
   LogIn,
@@ -15,11 +14,12 @@ import {
 import type { Product } from "@/Root";
 
 /**
- * Single entry sign-in for both agentic workforces. Same two-phase design as the
- * product logins (hero splash → sign-in), but the sign-in step shows TWO persona
- * cards — Procurement (Procure-to-Pay) and Receivables (Order-to-Cash) — each
- * with its own User ID / Password and a Sign-in button that launches that
- * workforce.
+ * Single entry sign-in for the agentic workforces. Same two-phase design as the
+ * product logins (hero splash → sign-in), but the sign-in step shows three
+ * persona cards by job title — MRO Buyer, Tactical Buyer and Freight Operations
+ * Analyst — each with its own User ID / Password and a Sign-in button that
+ * launches that workforce. (Receivables / O2C is kept in the codebase but is no
+ * longer surfaced as a card.)
  */
 
 const HERO_COLUMNS = [
@@ -41,10 +41,22 @@ type Persona = {
 
 const PERSONAS: Persona[] = [
   {
+    id: "mro",
+    icon: Wrench,
+    badge: "MRO procurement",
+    name: "MRO Buyer",
+    capabilities: [
+      "Free-text purchase requests structured & validated",
+      "Master data, warranty, vendor & duplicate checks",
+      "Every requisition released with a full audit trail",
+    ],
+    userId: "mrobuyer01",
+  },
+  {
     id: "p2p",
     icon: ShoppingCart,
-    badge: "Procurement Ops",
-    name: "Procurement workspace",
+    badge: "Buying & sourcing",
+    name: "Tactical Buyer",
     capabilities: [
       "One cockpit over 6 agents and the orchestrator",
       "Touchless orders within policy · approvals only when it matters",
@@ -53,40 +65,16 @@ const PERSONAS: Persona[] = [
     userId: "buyer01",
   },
   {
-    id: "o2c",
-    icon: Banknote,
-    badge: "Order-to-Cash",
-    name: "Receivables workspace",
-    capabilities: [
-      "One cockpit over 5 agents and the orchestrator",
-      "Cash applied touchless · approvals only when it matters",
-      "Every deduction resolved with a full audit trail",
-    ],
-    userId: "controller01",
-  },
-  {
     id: "freight",
     icon: Truck,
-    badge: "Freight Settlement",
-    name: "Freight workspace",
+    badge: "Freight settlement",
+    name: "Freight Operations Analyst",
     capabilities: [
       "One cockpit over 6 agents and the orchestrator",
       "Three-way check · in-tolerance lines settle touchless",
       "Every overcharge recovered with a full audit trail",
     ],
     userId: "freightops01",
-  },
-  {
-    id: "mro",
-    icon: Wrench,
-    badge: "MRO Procurement",
-    name: "MRO workspace",
-    capabilities: [
-      "Free-text purchase requests structured & validated",
-      "Master data, warranty, vendor & duplicate checks",
-      "Every requisition released with a full audit trail",
-    ],
-    userId: "planner01",
   },
 ];
 
@@ -202,8 +190,9 @@ function Hero({ onAccess }: { onAccess: () => void }) {
         Agentic Operations
       </h1>
       <p className="mt-6 max-w-xl text-[14px] font-normal leading-[1.55] text-white/80 drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] sm:text-[15px]">
-        Four specialist agent workforces — procurement, receivables, freight and MRO. The
-        agents do the work, a human approves every decision, and every action is audited.
+        Three specialist agent workforces — for the MRO buyer, tactical buyer and freight
+        operations analyst. The agents do the work, a human approves every decision, and
+        every action is audited.
       </p>
       <button
         type="button"
@@ -219,7 +208,7 @@ function Hero({ onAccess }: { onAccess: () => void }) {
 
 function SignInPanel({ onPick }: { onPick: (p: Product) => void }) {
   return (
-    <div className="relative z-10 mx-auto w-full max-w-[860px]">
+    <div className="relative z-10 mx-auto w-full max-w-[1080px]">
       <div className="text-center mb-8">
         <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-teal-300 drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">
           Choose your workspace
@@ -232,7 +221,7 @@ function SignInPanel({ onPick }: { onPick: (p: Product) => void }) {
         </h2>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         {PERSONAS.map((p) => (
           <PersonaCard key={p.id} persona={p} onPick={onPick} />
         ))}

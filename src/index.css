@@ -183,6 +183,17 @@
   animation: hr-flow 2.4s linear infinite;
 }
 
+/* Handoff — the produced doc rides the conveyor to the next agent */
+@keyframes hr-handoff-doc {
+  0%   { transform: translateX(0) scale(0.9); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateX(82px) scale(0.9); opacity: 0; }
+}
+.hr-handoff-doc {
+  animation: hr-handoff-doc 1.25s ease-in-out infinite;
+}
+
 /* Typewriter caret */
 @keyframes hr-caret {
   50% { opacity: 0; }
@@ -202,7 +213,8 @@
   .ai-spring,
   .ai-caret::after,
   .hr-flow,
-  .hr-flow-soft {
+  .hr-flow-soft,
+  .hr-handoff-doc {
     opacity: 1;
     animation: none;
     transform: none;

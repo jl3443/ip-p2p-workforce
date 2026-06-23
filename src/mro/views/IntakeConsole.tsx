@@ -12,20 +12,71 @@ import { TopRow } from "@/mro/components/blocks/TopRow";
 import { DataTable, CellTag, DocPreviewModal } from "@/mro/components/blocks/DataTable";
 import { AutonomyControl } from "@/mro/components/agents/AutonomyControl";
 import { AgentChat, type ChatTurn } from "@/mro/components/agents/AgentChat";
-import { LaneIntakePacket } from "@/mro/components/docs/freight/FreightDocs";
+import { StructuredPrDoc, type StructuredPr } from "@/mro/components/docs/pr/PrDocs";
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Lane Intake Orchestrator console — the reference build.
+ * PR Processing agent console — the reference build.
  *
  * Left column: slim hero · autonomy dial+gear · output/handoff status ·
- * pickup-requirement queue · lane master + movement-pattern panels. Right rail:
- * the scripted AgentChat. Clicking the flagged requirement opens the centre
- * modal whose ceremony reads → "Run AI classification" → stepped animation →
- * lane-packet reveal → Approve / Pending / Escalate / Reject. Approving hands
- * lane FRT-48201 to Rate & Surcharge and jumps into the live run.
+ * free-text intake queue · material-catalog + coding-rule panels. Right rail:
+ * the scripted AgentChat. Clicking the flagged request opens the centre modal
+ * whose ceremony reads → "Run AI structuring" → stepped animation → structured
+ * ME51N PR reveal → Approve / Pending / Escalate / Reject. Approving hands
+ * PR-48630 to Master Data and jumps into the live run (pump flow).
  * ────────────────────────────────────────────────────────────────────────── */
 
-/* ── Pickup-requirement queue — the inbox this console reads ───────────────── */
+/** The structured ME51N PR the agent produces from the free-text request. */
+const conveyorBeltPr: StructuredPr = {
+  number: "PR-48630",
+  status: "Structured · spec confirmation needed",
+  createdBy: "PR Processing agent",
+  createdOn: "2026-06-20 · 10:46",
+  materialCode: "MRO-CONV-BELT-36IN-HD",
+  description: "Conveyor Belt 36\" Heavy Duty Rubber — Sorting Line",
+  plant: "Recycling facility · Sorting Line 2",
+  costCenter: "10034 · Recycling Plant Maintenance",
+  glAccount: "600450 · Repairs & Maintenance",
+  item: [
+    { label: "Face width", value: "36 in (from \"35–36 in\")" },
+    { label: "Material", value: "Rubber · heavy duty" },
+    { label: "Quantity", value: "1 EA · 18 m roll" },
+    { label: "UoM", value: "EA (roll)" },
+    { label: "Delivery", value: "ASAP · production at risk" },
+    { label: "Requisitioner", value: "Plant engineer · Sorting Line 2" },
+  ],
+  assignment: [
+    { label: "Material group", value: "MRO · Conveyor & belting" },
+    { label: "Suggested vendor", value: "Apex Industrial Supply (preferred)" },
+  ],
+  confidence: "86% · spec confirmation needed",
+  flags: [
+    "Free text gave a width range (35–36 in) and no part number — coded to 36 in face width; confirm against Sorting Line 2 before release to avoid a wrong-fit belt.",
+    "Requester said \"previously Apex but not sure\" — vendor and part unconfirmed.",
+  ],
+  prType: "NB · Standard requisition",
+  requestor: "Plant engineer · Sorting Line 2",
+  purchOrg: "1000 · Northgate Procurement",
+  purchGroup: "200 · MRO / Maintenance",
+  valuation: [
+    { label: "Unit price", value: "$4,180.00 / EA" },
+    { label: "Total value", value: "$4,180.00" },
+    { label: "Currency", value: "USD" },
+  ],
+  sourceOfSupply: [
+    { label: "Vendor", value: "Apex Industrial Supply" },
+    { label: "Outline agreement", value: "SA-MRO-07 · item 40" },
+    { label: "Info record", value: "5300004180" },
+  ],
+  deliveryTerms: [
+    { label: "Incoterms", value: "FCA · Apex DC" },
+    { label: "Payment terms", value: "Net 30" },
+    { label: "Deliv. date", value: "ASAP · 2026-06-23" },
+  ],
+};
+
+const StructuredPrPreview = () => <StructuredPrDoc pr={conveyorBeltPr} />;
+
+/* ── Free-text intake queue — the inbox this console reads ─────────────────── */
 
 type IntakeRequest = {
   id: string;
@@ -38,75 +89,75 @@ type IntakeRequest = {
   unread: boolean;
   flagged?: boolean;
   priority?: "high" | "normal";
-  /** Tag shown on already-classified requirements (released, routed, etc.). */
+  /** Tag shown on already-structured requests (released, routed, etc.). */
   handledTag?: string;
-  /** Only the live requirement runs the classification → lane-packet ceremony. */
+  /** Only the live request runs the structuring → PR ceremony. */
   actionable?: boolean;
 };
 
 const intakeQueue: IntakeRequest[] = [
   {
-    id: "req-occ-chi",
-    from: "Chicago DC",
-    fromRole: "Dispatch · retail/DC source",
-    subject: "Pickup — ~20t baled OCC for Riverside mill, live load",
+    id: "pr-conv-belt",
+    from: "Plant engineer · Sorting Line 2",
+    fromRole: "Recycling · maintenance",
+    subject: "New conveyor belt — recycling line 2 (free text)",
     preview:
-      "About 20 tonnes of baled OCC ready on our dock for the Riverside mill — needs a live load with a receiving slot tomorrow AM…",
+      "The existing belt is damaged and causing jams — needs ~35–36 in wide rubber heavy duty, previously Apex but not sure of the part number…",
     body: [
-      "We have roughly 20 tonnes of baled OCC staged on the dock for the Riverside mill. It's clean grade, banded and ready to load.",
-      "Please set this up as a live load on lane CHI→RIV with a receiving slot tomorrow morning. We've run this movement before, so it should match a standard pattern.",
-      "Thanks — Chicago DC dispatch",
+      "Requesting a new conveyor belt for recycling line 2. The existing belt is damaged and causing material jams.",
+      "Specs: around 35–36 inch wide, rubber, heavy duty. Previously sourced from Apex but not sure of the part number.",
+      "Need ASAP to avoid production impact. — Plant engineer, Sorting Line 2",
     ],
-    time: "09:01",
+    time: "10:40",
     unread: true,
     flagged: true,
     priority: "high",
     actionable: true,
   },
   {
-    id: "req-mrf-roll",
-    from: "Northgate MRF",
-    fromRole: "Municipal recycling site",
-    subject: "Re: Mixed paper roll-off — Eastbrook mill — scheduled",
+    id: "pr-idler-roller",
+    from: "Plant engineer · Sorting Line 1",
+    fromRole: "Recycling · maintenance",
+    subject: "Re: Replacement idler rollers — re-scoped",
     preview:
-      "Your mixed-paper roll-off for the Eastbrook mill was matched to an approved municipal pattern and scheduled. No action needed…",
+      "Your 8-unit idler-roller request was structured, then re-scoped — 6 in stock at a sister plant + warranty cover most. 2-unit buy only…",
     body: [
-      "The mixed-paper roll-off from our municipal site to the Eastbrook mill was matched to an approved movement pattern and scheduled.",
-      "Released to Rate & Surcharge automatically against the cited municipal lane. No action needed.",
+      "The 8-unit idler-roller request from Sorting Line 1 was structured to MRO-CONV-ROLLER-IDLER-STD.",
+      "Master Data found a duplicate PR + 6 EA at the Eastbrook mill store + warranty cover — re-scoped to a 2-unit buy. No action needed.",
     ],
-    time: "08:42",
+    time: "09:55",
     unread: false,
-    handledTag: "Auto-classified · roll-off",
+    handledTag: "Structured · re-scoped",
   },
   {
-    id: "req-retail-backhaul",
-    from: "Apex Industrial Supply",
-    fromRole: "Broker · retail DC network",
-    subject: "OCC backhaul opportunity — lane CHI→RIV",
+    id: "pr-hyd-oil",
+    from: "Maintenance · Boiler house",
+    fromRole: "Utilities",
+    subject: "Hydraulic oil — grade incomplete",
     preview:
-      "An OCC backhaul is open on a retail DC return leg into Riverside — routed to the lane planning queue for review…",
+      "Free-text hydraulic-oil request with no ISO grade — routed back to the requester for the grade before coding…",
     body: [
-      "We have an OCC backhaul opening on a retail DC return leg that lines up with the Riverside mill.",
-      "Standard recovered-fibre movement on lane CHI→RIV. Routed to the lane planning queue for a coordinator to confirm the return-leg window.",
+      "Free-text request for hydraulic oil with no ISO viscosity grade specified.",
+      "Structured to a partial PR and routed back to the requester for the grade before it can be coded and released.",
     ],
     time: "Yesterday",
     unread: true,
-    handledTag: "Routed · lane planning",
+    handledTag: "Routed · spec query",
   },
   {
-    id: "req-broker-rates",
-    from: "Ironwood Freight Lines",
-    fromRole: "Carrier portal",
-    subject: "2026 lane availability — recovered fibre",
+    id: "pr-bearing",
+    from: "Reliability · CMMS",
+    fromRole: "Condition monitoring",
+    subject: "Bearing 6204 — duplicate suspected",
     preview:
-      "Updated capacity and lead times for the OCC and DLK lanes into the mill network, effective Q3. Approved-pattern coverage maintained…",
+      "A 6204 bearing request matched an open PR for the same SKU — filed to Master Data for the duplicate check…",
     body: [
-      "Updated capacity and lead times for our recovered-fibre lanes into the mill network, effective Q3.",
-      "Approved-pattern coverage on the CHI→RIV and Northgate lanes is maintained. Filed against the lane master record.",
+      "A bearing 6204-2RS request came in from condition monitoring.",
+      "Matched an open PR for the same SKU — filed to Master Data for the duplicate check before any buy.",
     ],
     time: "Mon",
     unread: false,
-    handledTag: "Filed to lane master",
+    handledTag: "Filed · duplicate check",
   },
 ];
 
@@ -141,7 +192,7 @@ function SlimHero() {
           </div>
           <div className="text-right shrink-0 pl-3">
             <div className="text-[18px] font-bold text-surface-deep leading-none">{agent.stat}</div>
-            <div className="text-[10px] tracking-[0.06em] uppercase text-mute mt-1">Lanes today</div>
+            <div className="text-[10px] tracking-[0.06em] uppercase text-mute mt-1">PR intake</div>
           </div>
         </div>
       </section>
@@ -156,27 +207,27 @@ const OUTPUT_META: Record<
   none: {
     label: "No output yet",
     kind: "neutral",
-    note: "Open the flagged pickup requirement to draft a lane packet.",
+    note: "Open the flagged free-text request to structure a coded PR.",
   },
   pending: {
     label: "On pending",
     kind: "neutral",
-    note: "Lane FRT-48201 is parked — resume it from the queue when ready.",
+    note: "PR-48630 is parked — resume it from the queue when ready.",
   },
   approved: {
     label: "Approved · handed off",
     kind: "active",
-    note: "Lane FRT-48201 handed to Rate & Surcharge. It's queued for rate validation.",
+    note: "PR-48630 handed to Master Data — queued for the master-data, duplicate and inventory checks.",
   },
   rejected: {
     label: "Rejected",
     kind: "critical",
-    note: "Lane FRT-48201 was rejected — nothing handed downstream.",
+    note: "PR-48630 was rejected — nothing handed downstream.",
   },
   escalated: {
     label: "Escalated",
     kind: "critical",
-    note: "Routed to a transportation coordinator with the lane draft attached.",
+    note: "Routed to a buyer with the structured PR attached.",
   },
 };
 
@@ -184,14 +235,14 @@ function OutputStatusCard() {
   const { agentOutputs, go } = useApp();
   const status = agentOutputs.intake;
   const meta = OUTPUT_META[status];
-  // The lane number is only assigned once the agent has drafted the packet.
-  // Before that the handoff slot is empty — naming FRT-48201 would be wrong.
+  // The PR number is only assigned once the agent has structured the request.
+  // Before that the handoff slot is empty — naming PR-48630 would be wrong.
   const hasDraft = status !== "none";
   const [docOpen, setDocOpen] = React.useState(false);
 
   return (
     <article className="bg-white border border-divider rounded-md p-5 space-y-3">
-      <CardHeader label="Current output · handoff to Rate & Surcharge" right={<StatusPill label={meta.label} kind={meta.kind} pulse={status === "approved"} />} />
+      <CardHeader label="Current output · handoff to Master Data" right={<StatusPill label={meta.label} kind={meta.kind} pulse={status === "approved"} />} />
       <div
         className={cn(
           "flex items-center gap-3 rounded-md bg-surface-fog px-3 py-3",
@@ -209,7 +260,7 @@ function OutputStatusCard() {
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-bold text-ink inline-flex items-center gap-1.5">
-            {hasDraft ? "Lane packet · FRT-48201" : "Lane packet · not drafted yet"}
+            {hasDraft ? "Structured PR · PR-48630" : "Structured PR · not drafted yet"}
             {hasDraft && <ChevronRight size={13} className="text-surface-deep/60 shrink-0" />}
           </div>
           <div className="text-[12px] text-mute leading-snug mt-0.5">{meta.note}</div>
@@ -221,7 +272,7 @@ function OutputStatusCard() {
             arrow
             onClick={(e) => {
               e.stopPropagation();
-              go({ kind: "workspace", flow: "belt" });
+              go({ kind: "workspace", flow: "pump" });
             }}
           >
             Open the run
@@ -230,8 +281,8 @@ function OutputStatusCard() {
       </div>
 
       {docOpen && (
-        <DocPreviewModal title="Lane packet · FRT-48201" onClose={() => setDocOpen(false)}>
-          <LaneIntakePacket />
+        <DocPreviewModal title="Structured PR · PR-48630" onClose={() => setDocOpen(false)}>
+          <StructuredPrPreview />
         </DocPreviewModal>
       )}
     </article>
@@ -285,14 +336,14 @@ function QueueRow({ request, onOpen }: { request: IntakeRequest; onOpen: (r: Int
   );
 }
 
-function PickupQueue({ onOpen }: { onOpen: (r: IntakeRequest) => void }) {
+function IntakeQueuePanel({ onOpen }: { onOpen: (r: IntakeRequest) => void }) {
   const unread = intakeQueue.filter((r) => r.unread).length;
   return (
     <article className="bg-white border border-divider rounded-md overflow-hidden">
       <div className="px-4 py-3 border-b border-divider flex items-center gap-2">
         <AIDot size={6} tone="deep" pulse />
         <span className="text-[11px] tracking-[0.08em] uppercase text-surface-deep font-medium">
-          Pickup queue · awaiting classification
+          Intake queue · awaiting structuring
         </span>
         <span className="ml-auto text-[11px] font-bold text-surface-deep bg-surface-mint px-2 py-0.5 rounded-full">
           {unread} new
@@ -307,121 +358,115 @@ function PickupQueue({ onOpen }: { onOpen: (r: IntakeRequest) => void }) {
   );
 }
 
-/* ── Lane master + movement patterns — what the agent classifies against ──── */
+/* ── Material catalog + coding rules — what the agent codes against ────────── */
 
-type LaneRow = {
-  lane: string;
-  origin: string;
-  haul: "Live load" | "Roll-off" | "Backhaul";
-  grade: string;
-  pattern: "Approved" | "Standard" | "Review";
-  /** Highlight the match for the live OCC pickup. */
+type CatalogRow = {
+  code: string;
+  description: string;
+  group: string;
+  status: "On catalog" | "Catalog" | "Off-catalog";
+  /** Highlight the SKU the live request maps to. */
   match?: boolean;
 };
 
-const laneMaster: LaneRow[] = [
+const materialCatalog: CatalogRow[] = [
   {
-    lane: "CHI → RIV",
-    origin: "Chicago DC · retail/DC source",
-    haul: "Live load",
-    grade: "OCC",
-    pattern: "Approved",
+    code: "MRO-CONV-BELT-36IN-HD",
+    description: "Conveyor belt 36\" HD rubber",
+    group: "Conveyor & belting",
+    status: "On catalog",
     match: true,
   },
   {
-    lane: "MRF → NGT",
-    origin: "Northgate MRF · municipal",
-    haul: "Roll-off",
-    grade: "Mixed paper",
-    pattern: "Approved",
+    code: "MRO-CONV-ROLLER-IDLER-STD",
+    description: "Idler roller 600 mm steel",
+    group: "Conveyor & rollers",
+    status: "On catalog",
   },
   {
-    lane: "RDC → RIV",
-    origin: "Retail DC return leg",
-    haul: "Backhaul",
-    grade: "OCC",
-    pattern: "Standard",
+    code: "MRO-HYDOIL-ISO46",
+    description: "Hydraulic oil ISO VG 46",
+    group: "Lubricants",
+    status: "Catalog",
   },
   {
-    lane: "DLK → NGT",
-    origin: "Converter site · broker",
-    haul: "Live load",
-    grade: "DLK",
-    pattern: "Standard",
+    code: "MRO-BRG-6204-2RS",
+    description: "Bearing 6204-2RS",
+    group: "Bearings",
+    status: "On catalog",
   },
   {
-    lane: "MUN → RIV",
-    origin: "Municipal contract · new origin",
-    haul: "Roll-off",
-    grade: "Mixed paper",
-    pattern: "Review",
+    code: "MRO-PUMP-SEAL-KIT-OEM",
+    description: "Pump mechanical seal kit",
+    group: "Pumps & drives",
+    status: "Off-catalog",
   },
 ];
 
-type MovementPattern = {
+type CodingRule = {
   title: string;
   ref: string;
   rule: string;
-  /** Highlight the pattern that governs the live requirement. */
+  /** Highlight the rule that governs the live request. */
   match?: boolean;
 };
 
-const movementPatterns: MovementPattern[] = [
+const codingRules: CodingRule[] = [
   {
-    title: "OCC live load · approved lanes",
-    ref: "MP-OCC-04",
-    rule: "Baled OCC on an approved lane with a known origin auto-classifies and releases to Rate & Surcharge.",
+    title: "Free text → material code",
+    ref: "PR-MAP-04",
+    rule: "Banded specs (size · material · duty) auto-map to a catalog SKU when the description and dimensions match a known item.",
     match: true,
   },
   {
-    title: "Municipal roll-off",
-    ref: "MP-MRF-11",
-    rule: "Mixed-paper roll-off from a contracted municipal site releases against the cited municipal lane.",
+    title: "Account assignment",
+    ref: "PR-ACC-02",
+    rule: "Maintenance spares code to the plant cost center and the Repairs & Maintenance G/L by functional location.",
   },
   {
-    title: "Backhaul on return legs",
-    ref: "MP-BCK-02",
-    rule: "Backhaul movements on a return leg need a coordinator to confirm the return-leg receiving window.",
+    title: "Spec incomplete → hold",
+    ref: "PR-SPC-07",
+    rule: "A missing critical spec (grade, width, part no.) holds the PR and routes a query back to the requester.",
   },
   {
-    title: "New origin first check",
-    ref: "MP-ORG-07",
-    rule: "Route to an existing approved lane where one covers the grade before opening a new origin.",
+    title: "Duplicate demand check",
+    ref: "PR-DUP-03",
+    rule: "A new request for an SKU with an open PR is filed to Master Data for a duplicate check before any buy.",
   },
   {
-    title: "Contaminated or mixed grade",
-    ref: "MP-GRD-09",
-    rule: "Loads flagged for mixed or contaminated grade are held and drafted to a coordinator for review.",
+    title: "Off-catalog → new material",
+    ref: "PR-NEW-09",
+    rule: "An item with no catalog match opens a new-material request before it can be coded and sourced.",
   },
 ];
 
-function LaneMasterPanel() {
+function MaterialCatalogPanel() {
   return (
     <article className="bg-white border border-divider rounded-md p-5">
-      <CardHeader label="Lane master & approved patterns" right={<MatchNote />} />
+      <CardHeader label="Material catalog · approved codes" right={<MatchNote />} />
       <div className="mt-3">
         <DataTable
-          rows={laneMaster}
-          rowKey={(l) => l.lane}
-          highlight={(l) => !!l.match}
+          rows={materialCatalog}
+          rowKey={(c) => c.code}
+          highlight={(c) => !!c.match}
           columns={[
             {
-              header: "Lane",
-              cell: (l) => (
-                <span className={cn("font-bold", l.match ? "text-surface-deep" : "text-ink")}>{l.lane}</span>
+              header: "Material code",
+              cell: (c) => (
+                <span className={cn("font-bold tabular-nums", c.match ? "text-surface-deep" : "text-ink")}>{c.code}</span>
               ),
             },
             {
-              header: "Pattern",
+              header: "Status",
               className: "w-[112px]",
-              cell: (l) => (
-                <CellTag tone={l.pattern === "Approved" ? "deep" : l.pattern === "Standard" ? "sage" : "neutral"}>
-                  {l.pattern}
+              cell: (c) => (
+                <CellTag tone={c.status === "On catalog" ? "deep" : c.status === "Catalog" ? "sage" : "neutral"}>
+                  {c.status}
                 </CellTag>
               ),
             },
-            { header: "Origin", cell: (l) => l.origin },
-            { header: "Haul · grade", cell: (l) => `${l.haul} · ${l.grade}` },
+            { header: "Description", cell: (c) => c.description },
+            { header: "Material group", cell: (c) => c.group },
           ]}
         />
       </div>
@@ -429,22 +474,22 @@ function LaneMasterPanel() {
   );
 }
 
-function MovementPatternPanel() {
+function CodingRulesPanel() {
   return (
     <article className="bg-white border border-divider rounded-md p-5">
-      <CardHeader label="Movement patterns" right={<MatchNote />} />
+      <CardHeader label="Coding rules" right={<MatchNote />} />
       <div className="mt-3">
         <DataTable
-          rows={movementPatterns}
+          rows={codingRules}
           rowKey={(p) => p.ref}
           highlight={(p) => !!p.match}
           columns={[
             {
-              header: "Pattern",
+              header: "Rule",
               cell: (p) => <span className="font-bold text-ink">{p.title}</span>,
             },
             { header: "Reference", className: "w-[110px]", cell: (p) => <span className="tabular-nums">{p.ref}</span> },
-            { header: "Rule", cell: (p) => p.rule },
+            { header: "Detail", cell: (p) => p.rule },
           ]}
         />
       </div>
@@ -457,19 +502,19 @@ function MatchNote() {
   return (
     <span className="inline-flex items-center gap-1.5 text-[11px] text-mute">
       <span className="w-3 h-3 rounded-sm bg-surface-mint border border-surface-deep/30" />
-      Governs this requirement
+      Matches this request
     </span>
   );
 }
 
-/* ── Classification ceremony ───────────────────────────────────────────────── */
+/* ── Structuring ceremony ──────────────────────────────────────────────────── */
 
 const ANALYSIS_STEPS = [
-  "Reading the requirement from Chicago DC",
-  "Classifying — OCC · live load · lane CHI→RIV",
-  "Matching to movement pattern — MP-OCC-04 (approved)",
-  "Checking the Riverside mill receiving window — slot available",
-  "Drafting lane packet FRT-48201",
+  "Reading the free-text request from Sorting Line 2",
+  "Extracting specs — ~35–36 in, rubber, heavy duty",
+  "Mapping to material code — MRO-CONV-BELT-36IN-HD",
+  "Coding cost center 10034 · G/L 600450",
+  "Flagging the width range for sign-off · drafting PR-48630",
 ];
 
 function AnalysisSteps({ onComplete }: { onComplete: () => void }) {
@@ -558,8 +603,8 @@ function RequestModal({ request, onClose }: { request: IntakeRequest; onClose: (
   const decide = (status: "approved" | "pending" | "escalated" | "rejected") => {
     setAgentOutput("intake", status);
     if (status === "approved") {
-      setFlowProgress("belt", { activeStep: 1, approved: false });
-      go({ kind: "workspace", flow: "belt" });
+      setFlowProgress("pump", { activeStep: 1, approved: false });
+      go({ kind: "workspace", flow: "pump" });
     } else {
       onClose();
     }
@@ -571,7 +616,7 @@ function RequestModal({ request, onClose }: { request: IntakeRequest; onClose: (
         className="ai-spring w-full max-w-2xl bg-white rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Requirement header */}
+        {/* Request header */}
         <header className="px-5 py-4 border-b border-divider flex items-start justify-between gap-4 shrink-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -593,7 +638,7 @@ function RequestModal({ request, onClose }: { request: IntakeRequest; onClose: (
         </header>
 
         <div className="overflow-y-auto px-5 py-5 space-y-4">
-          {/* Requirement body */}
+          {/* Request body */}
           <div className="space-y-2.5">
             {request.body.map((p, i) => (
               <p key={i} className="text-[13.5px] text-ink leading-relaxed">
@@ -616,7 +661,7 @@ function RequestModal({ request, onClose }: { request: IntakeRequest; onClose: (
                 <div className="flex items-center gap-2">
                   <AIDot size={6} tone="deep" pulse />
                   <span className="text-[11px] tracking-[0.08em] uppercase text-[#0a6ed1] font-bold">
-                    Lane Intake · classifying the requirement
+                    PR Processing · structuring the request
                   </span>
                 </div>
                 <AnalysisSteps onComplete={() => setPhase("done")} />
@@ -624,7 +669,7 @@ function RequestModal({ request, onClose }: { request: IntakeRequest; onClose: (
             </SpringIn>
           )}
 
-          {/* Done — reveal the lane packet */}
+          {/* Done — reveal the structured PR */}
           {phase === "done" && (
             <SpringIn>
               <div className="space-y-3">
@@ -633,11 +678,11 @@ function RequestModal({ request, onClose }: { request: IntakeRequest; onClose: (
                     <Check size={12} strokeWidth={3} />
                   </span>
                   <p className="text-[12.5px] text-ink leading-snug">
-                    Approved pattern · <span className="font-bold">OCC live load on CHI→RIV</span> · known origin
-                    and an open receiving slot. Matched the auto-classify rule — lane packet drafted.
+                    Structured · <span className="font-bold">conveyor belt → MRO-CONV-BELT-36IN-HD</span> on contract via
+                    Apex ($4,180). One open item — the 35–36 in width needs the engineer to confirm 36 in before release.
                   </p>
                 </div>
-                <LaneIntakePacket />
+                <StructuredPrPreview />
               </div>
             </SpringIn>
           )}
@@ -648,10 +693,10 @@ function RequestModal({ request, onClose }: { request: IntakeRequest; onClose: (
           {phase === "read" && request.actionable && (
             <div className="flex items-center justify-between gap-3">
               <span className="text-[12px] text-mute">
-                The agent will classify the haul, pattern-match the lane, check the receiving window and draft the packet.
+                The agent will extract the specs, map the material code, code the account assignment and draft the PR.
               </span>
               <PillButton variant="deep" arrow onClick={() => setPhase("analyzing")}>
-                Run AI classification
+                Run AI structuring
               </PillButton>
             </div>
           )}
@@ -708,68 +753,68 @@ function RequestModal({ request, onClose }: { request: IntakeRequest; onClose: (
   );
 }
 
-/* ── Lane volume — shown inline in the chat ────────────────────────────────── */
+/* ── Intake status — shown inline in the chat ──────────────────────────────── */
 
-type LaneState = "ready" | "watch" | "review";
+type IntakeState = "ready" | "watch" | "review";
 
-const laneLines: {
-  lane: string;
+const intakeLines: {
+  item: string;
   ready: number;
   target: number;
   unit: string;
-  state: LaneState;
+  state: IntakeState;
   note: string;
 }[] = [
   {
-    lane: "CHI → RIV · OCC live load",
-    ready: 20,
-    target: 20,
-    unit: "t",
-    state: "ready",
-    note: "Approved pattern · receiving slot open",
-  },
-  {
-    lane: "MRF → NGT · mixed paper roll-off",
-    ready: 6,
-    target: 8,
-    unit: "loads",
-    state: "watch",
-    note: "Municipal lane · within window",
-  },
-  {
-    lane: "RDC → RIV · OCC backhaul",
+    item: "Conveyor belt · Sorting Line 2",
     ready: 1,
-    target: 2,
-    unit: "loads",
-    state: "watch",
-    note: "Return leg · confirm window",
+    target: 1,
+    unit: "PR",
+    state: "ready",
+    note: "Structured · on contract · width to confirm",
   },
   {
-    lane: "MUN → RIV · mixed paper",
+    item: "Idler roller · Sorting Line 1",
+    ready: 2,
+    target: 8,
+    unit: "EA",
+    state: "watch",
+    note: "Re-scoped · stock + warranty cover",
+  },
+  {
+    item: "Hydraulic oil · Boiler house",
     ready: 0,
     target: 1,
-    unit: "loads",
+    unit: "PR",
+    state: "watch",
+    note: "Spec query · ISO grade missing",
+  },
+  {
+    item: "Bearing 6204 · duplicate",
+    ready: 0,
+    target: 1,
+    unit: "PR",
     state: "review",
-    note: "New origin · needs a coordinator",
+    note: "Duplicate check · needs Master Data",
   },
 ];
 
-const laneTone: Record<LaneState, { bar: string; chip: string; label: string }> = {
+const intakeTone: Record<IntakeState, { bar: string; chip: string; label: string }> = {
   review: { bar: "bg-mark-red", chip: "bg-surface-rose text-mark-red", label: "Needs review" },
-  watch: { bar: "bg-mute", chip: "bg-surface-fog text-mute", label: "On watch" },
-  ready: { bar: "bg-surface-deep", chip: "bg-surface-mint text-surface-deep", label: "Tender-ready" },
+  watch: { bar: "bg-mute", chip: "bg-surface-fog text-mute", label: "In progress" },
+  ready: { bar: "bg-surface-deep", chip: "bg-surface-mint text-surface-deep", label: "Structured" },
 };
 
-function LaneVolumeBars() {
+function IntakeStatusBars() {
   return (
     <div className="space-y-2.5 pt-1">
-      {laneLines.map((l) => {
+      {intakeLines.map((l) => {
         const pct = Math.max(4, Math.min(100, Math.round((l.ready / l.target) * 100)));
-        const tone = laneTone[l.state];
+        const tone = intakeTone[l.state];
         return (
-          <div key={l.lane}>
+          <div key={l.item}>
             <div className="flex items-center gap-2">
-              <span className="text-[12px] font-medium text-ink truncate flex-1">{l.lane}</span>
+              <span className="text-[12px] font-medium text-ink truncate flex-1">{l.item}</span>
               <span className={cn("text-[9.5px] tracking-[0.04em] uppercase font-bold px-1.5 py-0.5 rounded shrink-0", tone.chip)}>
                 {tone.label}
               </span>
@@ -790,7 +835,7 @@ function LaneVolumeBars() {
   );
 }
 
-/* ── Chat script — queue scan → lane offer → release ───────────────────────── */
+/* ── Chat script — queue scan → structure offer → draft ────────────────────── */
 
 const intakeChatScript: ChatTurn[] = [
   {
@@ -798,55 +843,55 @@ const intakeChatScript: ChatTurn[] = [
       {
         kind: "agent",
         tone: "mint",
-        text: "I'm the Lane Intake Orchestrator. I take raw pickup requirements for recovered fibre and turn them into clean, tender-ready lanes. Want me to check what's waiting in the queue?",
+        text: "I'm the PR Processing agent. I turn free-text maintenance requests into clean, coded purchase requisitions — material code, specs, cost center and G/L. Want me to check the intake queue?",
       },
     ],
-    chips: ["Which pickups are waiting?"],
+    chips: ["What's in the intake queue?"],
   },
   {
     reply: [
       {
         kind: "agent",
         tone: "mint",
-        text: "Here are the pickup requirements against their lanes. One is ready to release now — Chicago DC has ~20t of baled OCC for the Riverside mill on an approved lane.",
-        children: <LaneVolumeBars />,
+        text: "Here are the requests against their status. One's ready to structure now — Sorting Line 2 raised a free-text conveyor belt request, no part number and the width as a range.",
+        children: <IntakeStatusBars />,
       },
     ],
-    chips: ["Which one should we tender first?"],
+    chips: ["Which one should we structure first?"],
   },
   {
     reply: [
       {
         kind: "agent",
         tone: "mint",
-        text: "The Chicago DC OCC pickup is the one to act on now — clean grade, a live load on the approved CHI→RIV lane, with a receiving slot open at the Riverside mill tomorrow morning. The roll-off and backhaul are within window but the new municipal origin needs a coordinator. Shall I draft the lane packet for the OCC pickup?",
+        text: "The conveyor belt request is the one to act on — I can map it to MRO-CONV-BELT-36IN-HD on contract via Apex at $4,180, but the 35–36 in width needs the engineer to confirm 36 in. The idler roller is already re-scoped, the hydraulic oil is waiting on a grade, and the bearing is a duplicate check. Shall I structure it into PR-48630?",
       },
     ],
-    chips: ["Yes — draft the lane packet"],
+    chips: ["Yes — structure the PR"],
   },
   {
     reply: [
       {
         kind: "agent",
         tone: "fog",
-        text: "Drafting lane FRT-48201 now — classifying as OCC live load, pattern-matching to MP-OCC-04 on lane CHI→RIV and checking the Riverside receiving window. Opening it for you.",
+        text: "Structuring PR-48630 now — extracting the specs, mapping to MRO-CONV-BELT-36IN-HD, coding cost center 10034 / G/L 600450 and flagging the width. Opening it for you.",
       },
     ],
   },
 ];
 
-/** Turn index whose reply confirms the draft — fires the lane-packet modal. */
+/** Turn index whose reply confirms the draft — fires the structured-PR modal. */
 const PACKET_TRIGGER_TURN = 3;
 
-/* ── Lane-packet modal — the chat's hand-off into the run ───────────────────── */
+/* ── Structured-PR modal — the chat's hand-off into the run ─────────────────── */
 
-function LanePacketModal({ onClose }: { onClose: () => void }) {
+function StructuredPrModal({ onClose }: { onClose: () => void }) {
   const { go, setAgentOutput, setFlowProgress } = useApp();
 
   const enterWorkspace = () => {
     setAgentOutput("intake", "approved");
-    setFlowProgress("belt", { activeStep: 1, approved: false });
-    go({ kind: "workspace", flow: "belt" });
+    setFlowProgress("pump", { activeStep: 1, approved: false });
+    go({ kind: "workspace", flow: "pump" });
   };
 
   return (
@@ -857,9 +902,9 @@ function LanePacketModal({ onClose }: { onClose: () => void }) {
       >
         <header className="px-5 py-4 border-b border-divider flex items-start justify-between gap-4 shrink-0">
           <div className="min-w-0">
-            <h2 className="text-[15px] font-bold text-ink leading-tight">Lane packet ready · FRT-48201</h2>
+            <h2 className="text-[15px] font-bold text-ink leading-tight">Structured PR ready · PR-48630</h2>
             <div className="text-[12px] text-mute mt-1">
-              Drafted by the Lane Intake Orchestrator from the Chicago DC OCC pickup
+              Structured by the PR Processing agent from the Sorting Line 2 free-text request
             </div>
           </div>
           <button
@@ -878,16 +923,16 @@ function LanePacketModal({ onClose }: { onClose: () => void }) {
               <Check size={12} strokeWidth={3} />
             </span>
             <p className="text-[12.5px] text-ink leading-snug">
-              Approved pattern · <span className="font-bold">OCC live load on CHI→RIV</span> · known origin and an
-              open receiving slot. Matched the auto-classify rule — lane packet drafted.
+              Structured · <span className="font-bold">conveyor belt → MRO-CONV-BELT-36IN-HD</span> on contract via Apex
+              ($4,180). One open item — confirm the 36 in face width with the engineer before release.
             </p>
           </div>
-          <LaneIntakePacket />
+          <StructuredPrPreview />
         </div>
 
         <footer className="px-5 py-4 border-t border-divider bg-surface-fog/50 shrink-0 flex items-center justify-between gap-4">
           <span className="text-[12px] text-mute min-w-0">
-            Entering hands lane FRT-48201 to Rate & Surcharge and opens the seven-agent run.
+            Entering hands PR-48630 to Master Data and opens the five-agent run.
           </span>
           <PillButton variant="deep" onClick={enterWorkspace}>
             <span className="inline-flex items-center gap-1.5">
@@ -927,19 +972,19 @@ export function IntakeConsole() {
           <SlimHero />
           <AutonomyControl agent={agent} />
           <OutputStatusCard />
-          <PickupQueue onOpen={setOpenRequest} />
-          <LaneMasterPanel />
-          <MovementPatternPanel />
+          <IntakeQueuePanel onOpen={setOpenRequest} />
+          <MaterialCatalogPanel />
+          <CodingRulesPanel />
           <div className="flex items-center justify-between gap-4 rounded-md bg-white border border-divider px-5 py-4">
             <div className="min-w-0">
-              <div className="text-[13px] font-bold text-ink">See the Lane Intake agent in the live run</div>
+              <div className="text-[13px] font-bold text-ink">See the PR Processing agent in the live run</div>
               <p className="text-[12px] text-mute leading-snug mt-0.5">
-                Classifies the Chicago DC OCC pickup into tender-ready lane FRT-48201.
+                Structures the Sorting Line 2 free-text request into coded PR-48630.
               </p>
             </div>
             <PillButton variant="deep" size="sm" arrow onClick={() => setOpenRequest(intakeQueue[0])}>
               <span className="inline-flex items-center gap-1">
-                Open the flagged requirement <ChevronRight size={14} />
+                Open the flagged request <ChevronRight size={14} />
               </span>
             </PillButton>
           </div>
@@ -950,7 +995,7 @@ export function IntakeConsole() {
           <aside className="lg:sticky lg:top-4">
             <div className="rounded-md border border-divider overflow-hidden h-[calc(100vh-2rem)]">
               <AgentChat
-                agentName="Lane Intake"
+                agentName="PR Processing"
                 script={intakeChatScript}
                 onHide={() => setChatHidden(true)}
                 onReachTurn={handleReachTurn}
@@ -966,12 +1011,12 @@ export function IntakeConsole() {
           onClick={() => setChatHidden(false)}
           className="ui-pill fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-surface-deep text-ink-inverse px-4 py-2.5 text-[13px] font-bold shadow-lg hover:bg-accent-green"
         >
-          <Bot size={16} strokeWidth={1.9} /> Chat with Lane Intake
+          <Bot size={16} strokeWidth={1.9} /> Chat with PR Processing
         </button>
       )}
 
       {openRequest && <RequestModal request={openRequest} onClose={() => setOpenRequest(null)} />}
-      {packetOpen && <LanePacketModal onClose={() => setPacketOpen(false)} />}
+      {packetOpen && <StructuredPrModal onClose={() => setPacketOpen(false)} />}
     </div>
   );
 }

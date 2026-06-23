@@ -40,6 +40,7 @@ export function AiWorkspacePanel({
   step,
   status,
   replied,
+  resolved = false,
   isLast,
   completeNote = "Run complete · invoice released to AP, audit envelope closed",
   onReplyReceived,
@@ -50,6 +51,8 @@ export function AiWorkspacePanel({
   step: RunStep;
   status: AgentOutputStatus;
   replied: boolean;
+  /** True once the reply email has been read & closed — swaps the produced doc to its resolved version. */
+  resolved?: boolean;
   isLast: boolean;
   /** Note shown when the final step is approved (happy-path close). */
   completeNote?: string;
@@ -62,6 +65,8 @@ export function AiWorkspacePanel({
 }) {
   const agent = agentsById[step.id];
   const hasWizard = staged && Boolean(step.stages);
+  const resolvedDoc = step.email?.resolvedDocument;
+  const showResolved = resolved && !!resolvedDoc;
 
   const [phase, setPhase] = React.useState<Phase>(hasWizard ? "loading" : "revealed");
   const [recTyped, setRecTyped] = React.useState(false);
@@ -226,15 +231,19 @@ export function AiWorkspacePanel({
             {/* The produced artifact + decision land after the recommendation */}
             {detailsShown && (
               <SpringIn className="space-y-4">
-                {/* Produced document */}
+                {/* Produced document — swaps to the resolved version once the reply lands */}
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Sparkles size={13} className="text-surface-deep" />
                     <span className="text-[11px] uppercase tracking-[0.08em] text-surface-deep font-bold">
-                      Produced · {step.docLabel}
+                      {showResolved ? "Updated" : "Produced"} · {step.docLabel}
                     </span>
                   </div>
-                  {step.document}
+                  {showResolved ? (
+                    <SpringIn key="resolved-doc">{resolvedDoc}</SpringIn>
+                  ) : (
+                    step.document
+                  )}
                 </div>
 
                 {/* Email round-trip — the agent drafts it, the buyer reviews and sends */}

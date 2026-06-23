@@ -25,6 +25,7 @@ import { HandoffOverlay } from "@/mro/components/workspace/HandoffOverlay";
 import { FlowCompleteModal } from "@/mro/components/workspace/FlowCompleteModal";
 import { SourceArtifactModal } from "@/mro/components/workspace/SourceArtifactModal";
 import { Toast } from "@/mro/components/workspace/Toast";
+import { EmailReceivedModal } from "@/mro/components/workspace/EmailReceivedModal";
 
 type ToastState = { id: number; title: string; body: string } | null;
 
@@ -34,15 +35,19 @@ export function Workspace({ flow }: { flow: FlowId }) {
   const steps = run.steps;
   const LAST = steps.length - 1;
 
-  const prog = flowProgress[flow];
+  // Fallback guards a newly-added FlowId whose progress entry isn't in an
+  // already-initialised state yet (e.g. across an HMR reload before remount).
+  const prog = flowProgress[flow] ?? { activeStep: 0, approved: false, decisions: {}, settled: false };
   const { activeStep, decisions, settled } = prog;
 
   const [selectedStep, setSelectedStep] = React.useState(Math.min(activeStep, LAST));
   const [openSource, setOpenSource] = React.useState<SourceArtifact | null>(null);
   const [replies, setReplies] = React.useState<Record<number, boolean>>({});
   const [toast, setToast] = React.useState<ToastState>(null);
+  const [receiptOpen, setReceiptOpen] = React.useState(false);
+  const [resolved, setResolved] = React.useState<Record<number, boolean>>({});
   const [handoff, setHandoff] = React.useState<
-    { from: AgentId; to?: AgentId; toName?: string; toLabel?: string } | null
+    { from: AgentId; to?: AgentId; toName?: string; toLabel?: string; docLabel?: string } | null
   >(null);
   const [showComplete, setShowComplete] = React.useState(false);
   // True while the active step plays its staged wizard — the rail hides so the
@@ -68,7 +73,7 @@ export function Workspace({ flow }: { flow: FlowId }) {
     // Approve an intermediate step → visible baton-pass to the next agent.
     if (status === "approved" && !isLast) {
       const next = selectedStep + 1;
-      setHandoff({ from: step.id, to: steps[next].id });
+      setHandoff({ from: step.id, to: steps[next].id, docLabel: step.docLabel });
       window.setTimeout(() => {
         setFlowProgress(flow, { decisions: nextDecisions, activeStep: Math.max(activeStep, next) });
         setSelectedStep(next);
@@ -109,6 +114,7 @@ export function Workspace({ flow }: { flow: FlowId }) {
         from: step.id,
         toName: run.completion.routedTo,
         toLabel: run.completion.routedSub,
+        docLabel: step.docLabel,
       });
       window.setTimeout(() => {
         settle();
@@ -120,10 +126,28 @@ export function Workspace({ flow }: { flow: FlowId }) {
     }
   };
 
+  // Sending the agent's email opens an "email received" card first — the reply
+  // lands as a real inbound event before its content is revealed in the sources.
   const onReplyReceived = () => {
+    if (!step.email) return;
+    setReceiptOpen(true);
+  };
+
+  // "View reply" lands the reply in the sources AND opens it as a real email.
+  const onViewReply = () => {
     if (!step.email) return;
     setReplies((r) => ({ ...r, [selectedStep]: true }));
     fireToast(step.email.toastTitle, step.email.toastBody);
+    setReceiptOpen(false);
+    setOpenSource(step.email.reply.source);
+  };
+
+  // Closing the reply email resolves the step's open item — the produced doc updates.
+  const closeSource = () => {
+    if (step.email && openSource && openSource.id === step.email.reply.source.id) {
+      setResolved((r) => ({ ...r, [selectedStep]: true }));
+    }
+    setOpenSource(null);
   };
 
   const pill = settled
@@ -169,6 +193,7 @@ export function Workspace({ flow }: { flow: FlowId }) {
               step={step}
               status={decisions[selectedStep] ?? "none"}
               replied={replied}
+              resolved={!!resolved[selectedStep]}
               isLast={selectedStep === LAST}
               completeNote={run.completeNote}
               onReplyReceived={onReplyReceived}
@@ -182,6 +207,7 @@ export function Workspace({ flow }: { flow: FlowId }) {
                 to={handoff.to}
                 toName={handoff.toName}
                 toLabel={handoff.toLabel}
+                docLabel={handoff.docLabel}
               />
             )}
           </div>
@@ -197,7 +223,15 @@ export function Workspace({ flow }: { flow: FlowId }) {
         />
       )}
 
-      <SourceArtifactModal source={openSource} onClose={() => setOpenSource(null)} />
+      <SourceArtifactModal source={openSource} onClose={closeSource} />
+
+      {receiptOpen && step.email && (
+        <EmailReceivedModal
+          from={step.email.reply.from}
+          subject={step.email.reply.subject}
+          onView={onViewReply}
+        />
+      )}
 
       {toast && (
         <Toast
