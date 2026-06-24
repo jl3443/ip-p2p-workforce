@@ -4,7 +4,14 @@
  * Reads the active flow's run definition from `flowRuns` and plays the same
  * gated, two-column interaction for any of them: the agent-step rail + source
  * files (left), and the AI workspace (right, wide: streamed reasoning · the
- * produced SAP artifact · the inline supplier email round-trip · the decision).
+ * produced SAP artifact · the supplier email round-trip · the decision).
+ *
+ * Email choreography (the "automation" feel): a step's outbound email fires the
+ * moment the human clicks Approve — the draft auto-pops, they send, and the run
+ * continues. A ONE-WAY email (no `reply`) just sends and hands off immediately;
+ * only an email that carries a `reply` (a signed approval) waits for the round-
+ * trip. An inbound email (the vendor's invoice) pops on the step it arrives at,
+ * previewable, before that step's work runs.
  *
  * Approving hands the output to the next agent and advances the run; on the
  * final step it closes the run on its happy path. A non-approve decision
@@ -26,13 +33,23 @@ import { FlowCompleteModal } from "@/mro/components/workspace/FlowCompleteModal"
 import { SourceArtifactModal } from "@/mro/components/workspace/SourceArtifactModal";
 import { Toast } from "@/mro/components/workspace/Toast";
 import { EmailReceivedModal } from "@/mro/components/workspace/EmailReceivedModal";
+import { BudgetApprovalSignableModal } from "@/mro/components/workspace/BudgetApprovalSignable";
+import { EmailDraftModal } from "@/mro/components/workspace/EmailDraftModal";
+import { InboundEmailModal } from "@/mro/components/workspace/InboundEmailModal";
 
 type ToastState = { id: number; title: string; body: string } | null;
 
 export function Workspace({ flow }: { flow: FlowId }) {
   const { flowProgress, setFlowProgress, go, agentConfig } = useApp();
   const run = flowRuns[flow];
-  const steps = run.steps;
+  // A sourcing decision in the PR step reshapes the run: choosing the on-contract
+  // vendor skips the competitive RFQ step, so the run drops from 7 steps to 6.
+  // Default keeps the RFQ in; the PR-step choice cards set this.
+  const [dropRfq, setDropRfq] = React.useState(false);
+  const steps = React.useMemo(() => {
+    if (!dropRfq) return run.steps;
+    return run.steps.filter((s) => !s.rfq).map((s, i) => ({ ...s, n: i + 1 }));
+  }, [run.steps, dropRfq]);
   const LAST = steps.length - 1;
 
   // Fallback guards a newly-added FlowId whose progress entry isn't in an
@@ -43,9 +60,23 @@ export function Workspace({ flow }: { flow: FlowId }) {
   const [selectedStep, setSelectedStep] = React.useState(Math.min(activeStep, LAST));
   const [openSource, setOpenSource] = React.useState<SourceArtifact | null>(null);
   const [replies, setReplies] = React.useState<Record<number, boolean>>({});
+  // Per-step "the outbound email has been sent" (one-way: done; reply: round-trip in flight).
+  const [sent, setSent] = React.useState<Record<number, boolean>>({});
   const [toast, setToast] = React.useState<ToastState>(null);
   const [receiptOpen, setReceiptOpen] = React.useState(false);
   const [resolved, setResolved] = React.useState<Record<number, boolean>>({});
+  // Per-step "sent, reply in flight" — set on send, cleared when the receipt lands.
+  const [awaiting, setAwaiting] = React.useState<Record<number, boolean>>({});
+  // Open state for the signable budget-approval modal (signable emails only).
+  const [signOpen, setSignOpen] = React.useState(false);
+  // Open state for the pop-up email draft (normal emails — review then send).
+  const [draftOpen, setDraftOpen] = React.useState(false);
+  // Open state for an inbound email (the vendor's invoice) with a previewable PDF.
+  const [inboundEmailOpen, setInboundEmailOpen] = React.useState(false);
+  // Which steps have already popped their inbound email/source (so it fires once on open).
+  const [inboundShown, setInboundShown] = React.useState<Record<number, boolean>>({});
+  // A decision deferred until the step's email completes (fire-on-approve).
+  const pendingCommitRef = React.useRef<null | (() => void)>(null);
   const [handoff, setHandoff] = React.useState<
     { from: AgentId; to?: AgentId; toName?: string; toLabel?: string; docLabel?: string } | null
   >(null);
@@ -56,17 +87,20 @@ export function Workspace({ flow }: { flow: FlowId }) {
 
   const step = steps[selectedStep];
   const replied = !!replies[selectedStep];
+  const emailSent = !!sent[selectedStep];
   // Autonomy level drives the run experience: L2/L3 supervise via the staged
   // wizard; L4 (Autonomous) skips it and reveals the finished document directly.
-  const staged = Boolean(step.stages) && agentConfig[step.id].level !== 4;
+  const staged = (Boolean(step.stages) || Boolean(step.rfq)) && agentConfig[step.id].level !== 4;
 
   const sources =
-    step.email && replied ? [...step.sources, step.email.reply.source] : step.sources;
+    step.email?.reply && replied ? [...step.sources, step.email.reply.source] : step.sources;
 
   const fireToast = (title: string, body: string) =>
     setToast((t) => ({ id: (t?.id ?? 0) + 1, title, body }));
 
-  const onDecision = (status: Decision) => {
+  // The actual handoff/settle for a decision (called directly, or deferred until
+  // a fire-on-approve email completes).
+  const commitDecision = (status: Decision) => {
     const nextDecisions = { ...decisions, [selectedStep]: status };
     const isLast = selectedStep === LAST;
 
@@ -126,29 +160,139 @@ export function Workspace({ flow }: { flow: FlowId }) {
     }
   };
 
-  // Sending the agent's email opens an "email received" card first — the reply
-  // lands as a real inbound event before its content is revealed in the sources.
-  const onReplyReceived = () => {
+  // Opens the step's outbound email (signable → the approval pad; otherwise the
+  // draft pop-up). The reviewer sends it; the deferred decision commits after.
+  const fireEmail = () => {
     if (!step.email) return;
-    setReceiptOpen(true);
+    if (step.email.signable) setSignOpen(true);
+    else setDraftOpen(true);
+  };
+
+  // Decision entry point. Approving a step whose email hasn't been sent yet pops
+  // the email FIRST (auto, on the Approve click) and defers the handoff until it
+  // is sent — no separate "send" button to hunt for.
+  const onDecision = (status: Decision) => {
+    // A reply is still in flight (email sent, receipt not yet landed) — ignore any
+    // further decision so a stray click can't skip the reply and close early.
+    if (awaiting[selectedStep]) return;
+    if (status === "approved" && step.email && !emailSent) {
+      pendingCommitRef.current = () => commitDecision("approved");
+      fireEmail();
+      return;
+    }
+    commitDecision(status);
+  };
+
+  const runPendingCommit = () => {
+    const commit = pendingCommitRef.current;
+    pendingCommitRef.current = null;
+    commit?.();
+  };
+
+  // A choice-stage pick in the PR step reshapes the run: the on-contract vendor
+  // skips the RFQ, sourcing off-contract keeps it. Frozen once the run has
+  // advanced past the PR step, so downstream step indices stay stable.
+  const onSourcingChoice = (optionId: string) => {
+    if (activeStep > 0) return;
+    if (optionId === "on-contract") setDropRfq(true);
+    else if (optionId === "off-contract") setDropRfq(false);
+  };
+
+  // "Continue the run" on a flagged step — advance past it but keep it parked
+  // (the step stays on hold / flagged in the rail), and surface the flow's note.
+  const commitHoldContinue = () => {
+    if (!run.holdContinue) return commitDecision("approved");
+    const { toastTitle, toastBody } = run.holdContinue;
+    if (selectedStep === LAST) {
+      commitDecision("approved");
+      fireToast(toastTitle, toastBody);
+      return;
+    }
+    const next = selectedStep + 1;
+    const nextDecisions = { ...decisions, [selectedStep]: "pending" as Decision };
+    setHandoff({ from: step.id, to: steps[next].id, docLabel: step.docLabel });
+    window.setTimeout(() => {
+      setFlowProgress(flow, { decisions: nextDecisions, activeStep: Math.max(activeStep, next) });
+      setSelectedStep(next);
+      setHandoff(null);
+      fireToast(toastTitle, toastBody);
+    }, 1300);
+  };
+
+  // A flagged step's amber "continue" also fires its email first (the renewal /
+  // notification the agent drafted) before parking and advancing.
+  const onHoldContinue = () => {
+    if (step.email && !emailSent) {
+      pendingCommitRef.current = commitHoldContinue;
+      fireEmail();
+      return;
+    }
+    commitHoldContinue();
+  };
+
+  // Both pop-ups run the same reply round-trip on send/sign: wait a beat, then the receipt lands.
+  const runReplyRoundtrip = () => {
+    const at = selectedStep;
+    setAwaiting((a) => ({ ...a, [at]: true }));
+    window.setTimeout(() => setReceiptOpen(true), 3000);
+  };
+
+  const onSigned = () => {
+    setSignOpen(false);
+    setSent((s) => ({ ...s, [selectedStep]: true }));
+    runReplyRoundtrip();
+  };
+
+  const onEmailSent = () => {
+    setDraftOpen(false);
+    setSent((s) => ({ ...s, [selectedStep]: true }));
+    if (step.email?.reply) {
+      // A reply-gated email (a signed approval) waits for the round-trip.
+      runReplyRoundtrip();
+    } else {
+      // One-way email: it just sent — resolve the open item, toast, and let the
+      // deferred Approve hand off immediately. No 3s wait, no receipt.
+      if (step.email?.resolvedDocument) setResolved((r) => ({ ...r, [selectedStep]: true }));
+      if (step.email?.toastTitle) fireToast(step.email.toastTitle, step.email.toastBody ?? "");
+      runPendingCommit();
+    }
   };
 
   // "View reply" lands the reply in the sources AND opens it as a real email.
   const onViewReply = () => {
-    if (!step.email) return;
+    if (!step.email?.reply) return;
     setReplies((r) => ({ ...r, [selectedStep]: true }));
-    fireToast(step.email.toastTitle, step.email.toastBody);
+    setAwaiting((a) => ({ ...a, [selectedStep]: false }));
+    if (step.email.toastTitle) fireToast(step.email.toastTitle, step.email.toastBody ?? "");
     setReceiptOpen(false);
     setOpenSource(step.email.reply.source);
   };
 
-  // Closing the reply email resolves the step's open item — the produced doc updates.
+  // Closing the reply email resolves the step's open item — the produced doc
+  // updates — and lets the deferred Approve hand off.
   const closeSource = () => {
-    if (step.email && openSource && openSource.id === step.email.reply.source.id) {
+    if (step.email?.reply && openSource && openSource.id === step.email.reply.source.id) {
       setResolved((r) => ({ ...r, [selectedStep]: true }));
+      setOpenSource(null);
+      runPendingCommit();
+      return;
     }
     setOpenSource(null);
   };
+
+  // An inbound event attached to a step pops the moment the step opens (once):
+  // a plain source modal, or — when it carries a previewable attachment — the
+  // received-email pop-up (the vendor's invoice arriving before the match).
+  React.useEffect(() => {
+    if (inboundShown[selectedStep]) return;
+    if (!step.inbound && !step.inboundEmail) return;
+    const t = window.setTimeout(() => {
+      if (step.inboundEmail) setInboundEmailOpen(true);
+      else if (step.inbound) setOpenSource(step.inbound.source);
+      setInboundShown((m) => ({ ...m, [selectedStep]: true }));
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [selectedStep, step, inboundShown]);
 
   const pill = settled
     ? run.terminal(decisions)
@@ -182,7 +326,7 @@ export function Workspace({ flow }: { flow: FlowId }) {
               <SourceFilesPanel
                 sources={sources}
                 onOpen={setOpenSource}
-                newSourceId={step.email && replied ? step.email.reply.source.id : undefined}
+                newSourceId={step.email?.reply && replied ? step.email.reply.source.id : undefined}
               />
             </div>
           )}
@@ -193,12 +337,17 @@ export function Workspace({ flow }: { flow: FlowId }) {
               step={step}
               status={decisions[selectedStep] ?? "none"}
               replied={replied}
+              sent={emailSent}
+              awaiting={!!awaiting[selectedStep]}
               resolved={!!resolved[selectedStep]}
               isLast={selectedStep === LAST}
               completeNote={run.completeNote}
-              onReplyReceived={onReplyReceived}
+              holdContinue={run.holdContinue}
               onDecision={onDecision}
+              onHoldContinue={onHoldContinue}
               onWizardActive={setWizardActive}
+              onChoice={onSourcingChoice}
+              useAltDoc={!dropRfq}
               staged={staged}
             />
             {handoff && (
@@ -225,11 +374,38 @@ export function Workspace({ flow }: { flow: FlowId }) {
 
       <SourceArtifactModal source={openSource} onClose={closeSource} />
 
-      {receiptOpen && step.email && (
+      {inboundEmailOpen && step.inboundEmail && (
+        <InboundEmailModal email={step.inboundEmail} onClose={() => setInboundEmailOpen(false)} />
+      )}
+
+      {receiptOpen && step.email?.reply && (
         <EmailReceivedModal
           from={step.email.reply.from}
           subject={step.email.reply.subject}
           onView={onViewReply}
+        />
+      )}
+
+      {step.email?.signable && (
+        <BudgetApprovalSignableModal
+          open={signOpen}
+          onClose={() => setSignOpen(false)}
+          onSigned={onSigned}
+          approval={step.email.signable.approval}
+        />
+      )}
+
+      {draftOpen && step.email && !step.email.signable && (
+        <EmailDraftModal
+          draft={{
+            to: step.email.to,
+            subject: step.email.subject,
+            body: step.email.lines,
+            attachment: step.email.attachment,
+            attachmentLabel: step.email.attachmentLabel,
+          }}
+          onClose={() => setDraftOpen(false)}
+          onSent={onEmailSent}
         />
       )}
 

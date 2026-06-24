@@ -14,6 +14,7 @@
  * (Apex Industrial Supply = preferred distributor; ConveyorCore = OEM).
  */
 
+import type { ReactNode } from "react";
 import type { RunStep } from "@/mro/data/runSteps";
 import { StructuredPrDoc, ValidationDoc } from "@/mro/components/docs/pr/PrDocs";
 import {
@@ -25,11 +26,112 @@ import {
   ApprovalRoutingDoc,
   StockTransportOrderDoc,
   PurchaseOrderDoc,
+  OpenPrListDoc,
+  RecordDoc,
 } from "@/mro/components/docs/pr/SapDocs";
 import { EmailDoc } from "@/mro/components/docs/sources";
+import { DocShell, DocTitleBand, SectionBand, Field } from "@/mro/components/docs/sap/parts";
+import { LookupSheetDoc } from "@/mro/components/docs/pr/LookupSheet";
+import { BudgetApprovalDoc, type BudgetApproval } from "@/mro/components/workspace/BudgetApprovalSignable";
 
 const COST_CENTER = "10034 · Recycling Plant Maintenance";
 const GL = "600450 · Repairs & Maintenance";
+/** SAP payment-term codes — the editable dropdown options on the terms field. */
+const PAYMENT_TERMS = ["NT30 · Net 30", "NT45 · Net 45", "NT60 · Net 60", "NT90 · Net 90"];
+
+/* ── Master-data reference workbooks the intake agent codes against ──────────
+ * The "Account assignment" extraction stage reads these Excel lookups (not the
+ * free-text email) — the green row is the one the agent pulled each code from. */
+
+const codingMaterialSheet = (matched: string) => ({
+  file: "material-master.xlsx",
+  tab: "Conveyor & belting",
+  columns: ["Material", "Description", "Group", "UoM"],
+  usedNote: `→ matched ${matched}`,
+  rows: [
+    { cells: ["MRO-CONV-BELT-30IN-HD", 'Conveyor belt 30" HD rubber', "Conveyor & belting", "EA"], matched: matched === "MRO-CONV-BELT-30IN-HD" },
+    { cells: ["MRO-CONV-BELT-36IN-HD", 'Conveyor belt 36" HD rubber', "Conveyor & belting", "EA"], matched: matched === "MRO-CONV-BELT-36IN-HD" },
+    { cells: ["MRO-CONV-BELT-42IN-HD", 'Conveyor belt 42" HD rubber', "Conveyor & belting", "EA"], matched: matched === "MRO-CONV-BELT-42IN-HD" },
+    { cells: ["MRO-CONV-ROLLER-IDLER-STD", "Idler roller 600 mm steel", "Conveyor & belting", "EA"], matched: matched === "MRO-CONV-ROLLER-IDLER-STD" },
+    { cells: ["MRO-CONV-LACING-HD", "Belt lacing kit · heavy duty", "Conveyor & belting", "SET"], matched: false },
+  ],
+});
+
+const buildCodingRef = (material: string, line: string, confidence: string, openNote: ReactNode) => (
+  <LookupSheetDoc
+    sheets={[
+      codingMaterialSheet(material),
+      {
+        file: "cost-centers.xlsx",
+        tab: "Plant maintenance",
+        columns: ["Cost center", "Description", "Plant"],
+        usedNote: `→ ${line} rolls up to Recycling`,
+        rows: [
+          { cells: ["10031", "Containerboard Mill Maintenance", "Northgate"], matched: false },
+          { cells: ["10034", "Recycling Plant Maintenance", "Northgate"], matched: true },
+          { cells: ["10052", "Pulping Maintenance", "Northgate"], matched: false },
+          { cells: ["10061", "Power House Maintenance", "Northgate"], matched: false },
+        ],
+      },
+      {
+        file: "gl-accounts.xlsx",
+        tab: "Opex · P&L",
+        columns: ["G/L", "Description", "Type"],
+        usedNote: "→ maintenance spare = Repairs & Maintenance",
+        rows: [
+          { cells: ["600420", "Spare parts consumed", "P&L"], matched: false },
+          { cells: ["600450", "Repairs & Maintenance", "P&L"], matched: true },
+          { cells: ["600470", "Outside services", "P&L"], matched: false },
+          { cells: ["140010", "MRO inventory", "Balance"], matched: false },
+        ],
+      },
+    ]}
+    footer={
+      <>
+        Confidence {confidence} — material, cost center and G/L matched exactly against master data. {openNote}
+      </>
+    }
+  />
+);
+
+const beltCodingRef = buildCodingRef(
+  "MRO-CONV-BELT-36IN-HD",
+  "Sorting Line 2",
+  "86%",
+  <>The only gap is the belt face width (the request said “35–36 in” with no part number), which the agent flags for the engineer to confirm.</>,
+);
+
+const rollerCodingRef = buildCodingRef(
+  "MRO-CONV-ROLLER-IDLER-STD",
+  "Sorting Line 1",
+  "94%",
+  <>The 600 mm idler roller maps cleanly to the standard SKU.</>,
+);
+
+/* Requisitioner & org directory — the header (PR type · requestor · purch org /
+ * group) is set from the requester's plant-directory row, not the free text. */
+const buildRequestorRef = (match: string) => (
+  <LookupSheetDoc
+    sheets={[
+      {
+        file: "requisitioners.xlsx",
+        tab: "Plant directory",
+        columns: ["Requestor", "Plant", "Purch org", "Purch grp", "PR type"],
+        usedNote: `→ ${match}`,
+        rows: [
+          { cells: ["Plant engineer · Sorting Line 1", "Recycling · SL1", "1000", "200 · MRO", "NB"], matched: match === "SL1" },
+          { cells: ["Plant engineer · Sorting Line 2", "Recycling · SL2", "1000", "200 · MRO", "NB"], matched: match === "SL2" },
+          { cells: ["Reliability eng · Pulping", "Pulping · Drive line", "1000", "200 · MRO", "NB"], matched: match === "Pulping" },
+          { cells: ["Reliability eng · Recovery line", "Recovery line", "1000", "200 · MRO", "NB"], matched: match === "Recovery" },
+        ],
+      },
+    ]}
+    footer={<>Purchasing org 1000 (Northgate) and group 200 (MRO / Maintenance) are the plant defaults; PR type NB is the standard requisition.</>}
+  />
+);
+
+const beltRequestorRef = buildRequestorRef("SL2");
+const rollerRequestorRef = buildRequestorRef("SL1");
 
 /* ════════════════════════════════════════════════════════════════════════
  * Example 1 — Conveyor belt · incomplete PR · spec ambiguity
@@ -80,6 +182,52 @@ const beltStructuredDoc = (
       ],
       deliveryTerms: [
         { label: "Incoterms", value: "FCA · Apex DC" },
+        { label: "Payment terms", value: "Net 30" },
+        { label: "Deliv. date", value: "ASAP · 2026-06-23" },
+      ],
+    }}
+  />
+);
+
+/* Off-contract variant of the structured PR — used when the buyer chose to source
+ * off-contract: vendor, price and source of supply are pending the competitive RFQ,
+ * so those sections are hidden (the on-contract Apex figures don't apply yet). */
+const beltStructuredDocOffContract = (
+  <StructuredPrDoc
+    pr={{
+      number: "PR-48630",
+      status: "Structured · sourcing off-contract",
+      createdBy: "PR Processing agent",
+      createdOn: "2026-06-20 · 10:46",
+      materialCode: "MRO-CONV-BELT-36IN-HD",
+      description: "Conveyor Belt 36\" Heavy Duty Rubber — Sorting Line",
+      plant: "Recycling facility · Sorting Line 2",
+      costCenter: COST_CENTER,
+      glAccount: GL,
+      item: [
+        { label: "Face width", value: "36 in (from \"35–36 in\")" },
+        { label: "Material", value: "Rubber · heavy duty" },
+        { label: "Quantity", value: "1 EA · 18 m roll" },
+        { label: "UoM", value: "EA (roll)" },
+        { label: "Delivery", value: "ASAP · production at risk" },
+        { label: "Requisitioner", value: "Plant engineer · Sorting Line 2" },
+      ],
+      assignment: [
+        { label: "Material group", value: "MRO · Conveyor & belting" },
+        { label: "Suggested vendor", value: "To be sourced · competitive RFQ" },
+      ],
+      confidence: "86% · spec confirmation needed",
+      flags: [
+        "Free text gave a width range (35–36 in) and no part number — coded to 36 in face width; confirm against Sorting Line 2 before release to avoid a wrong-fit belt.",
+        "Sourcing off-contract — vendor, price and source of supply are pending the competitive RFQ in the sourcing step.",
+      ],
+      prType: "NB · Standard requisition",
+      requestor: "Plant engineer · Sorting Line 2",
+      purchOrg: "1000 · Northgate Procurement",
+      purchGroup: "200 · MRO / Maintenance",
+      // valuation + sourceOfSupply intentionally omitted → those sections stay hidden.
+      deliveryTerms: [
+        { label: "Incoterms", value: "Per quote · TBD" },
         { label: "Payment terms", value: "Net 30" },
         { label: "Deliv. date", value: "ASAP · 2026-06-23" },
       ],
@@ -288,6 +436,23 @@ const beltStockOverview = (
         { plant: "Westport", storageLoc: "MRO-01", onHand: "0", safety: "0", uom: "EA" },
       ],
       note: "Belt is line-specific (36 in face width) — no on-hand and no interplant stock to transfer; a new buy is justified.",
+    }}
+  />
+);
+
+const beltOpenPrList = (
+  <OpenPrListDoc
+    l={{
+      createdOn: "2026-06-20 · 10:46",
+      createdBy: "Master Data agent",
+      scope: "Open PRs · plant 1000 · material group MRO · not yet released",
+      rows: [
+        { pr: "PR-48628", item: "10", material: "MRO-CONV-LACING-HD", qty: "4 SET", plant: "Recycling · SL2", created: "2026-06-19" },
+        { pr: "PR-48631", item: "10", material: "MRO-PUMP-SEAL-STD", qty: "2 EA", plant: "Power House", created: "2026-06-20" },
+        { pr: "PR-48633", item: "10", material: "MRO-CONV-ROLLER-IDLER-STD", qty: "4 EA", plant: "Recycling · SL1", created: "2026-06-20" },
+        { pr: "PR-48641", item: "10", material: "MRO-CONV-ROLLER-IDLER-STD", qty: "6 EA", plant: "Recycling · SL1", created: "2026-06-18" },
+      ],
+      note: "No open PR carries MRO-CONV-BELT-36IN-HD — no duplicate for the conveyor belt. PR-48630 is the only demand for this material.",
     }}
   />
 );
@@ -677,6 +842,22 @@ const rollerStockTransfer = (
   />
 );
 
+const rollerOpenPrList = (
+  <OpenPrListDoc
+    l={{
+      createdOn: "2026-06-20 · 11:08",
+      createdBy: "Master Data agent",
+      scope: "Open PRs · plant 1000 · material group MRO · not yet released",
+      rows: [
+        { pr: "PR-48628", item: "10", material: "MRO-CONV-LACING-HD", qty: "4 SET", plant: "Recycling · SL2", created: "2026-06-19" },
+        { pr: "PR-48641", item: "10", material: "MRO-CONV-ROLLER-IDLER-STD", qty: "6 EA", plant: "Recycling · SL1", created: "2026-06-18", tone: "dup" },
+        { pr: "PR-48650", item: "10", material: "MRO-BRG-6204-2RS", qty: "10 EA", plant: "Baler", created: "2026-06-19" },
+      ],
+      note: "PR-48641 already requests 6 EA of MRO-CONV-ROLLER-IDLER-STD for the same line — a duplicate of this requisition. Consolidate and cancel it.",
+    }}
+  />
+);
+
 const rollerWarrantyRecord = (
   <WarrantyRecordDoc
     w={{
@@ -789,18 +970,336 @@ type StepSpec = {
   n: number;
   title: string;
   sub: string;
+  aiThought?: string;
   reasoning: string[];
   docLabel: string;
   document: React.ReactNode;
+  altDocument?: RunStep["altDocument"];
   sources: RunStep["sources"];
   recommendation: string;
   stages?: RunStep["stages"];
   email?: RunStep["email"];
+  flagged?: boolean;
+  hasExceptions?: boolean;
+  inbound?: RunStep["inbound"];
+  inboundEmail?: RunStep["inboundEmail"];
+  rfq?: RunStep["rfq"];
 };
 
 const step = (s: StepSpec): RunStep => s;
 
-/* ── Example 1 · conveyor belt — 5 steps ───────────────────────────────────── */
+/* ── Belt invoice four-way match (step 6) — settlement docs + cumulative grid ──
+ * The captured Apex invoice BPI-5567 is matched against PO-77310, goods receipt
+ * GR-77310 and the SA-MRO-07 contract. The grid fills column by column as the
+ * agent reads each file; "—" marks a dimension the document doesn't carry. */
+const beltMatchColumns = [
+  { key: "invoice", label: "Invoice" },
+  { key: "po", label: "PO" },
+  { key: "gr", label: "GR" },
+  { key: "contract", label: "Contract" },
+];
+const beltMatchRows = [
+  { dimension: "Unit price (USD)", cells: { invoice: { value: "4,180.00", ok: true }, po: { value: "4,180.00", ok: true }, gr: { value: "—", ok: false }, contract: { value: "4,180.00", ok: true } } },
+  { dimension: "Quantity (EA)", cells: { invoice: { value: "1", ok: true }, po: { value: "1", ok: true }, gr: { value: "1", ok: true }, contract: { value: "1", ok: true } } },
+  { dimension: "Net value (USD)", cells: { invoice: { value: "4,180.00", ok: true }, po: { value: "4,180.00", ok: true }, gr: { value: "4,180.00", ok: true }, contract: { value: "4,180.00", ok: true } } },
+  { dimension: "Tax code", cells: { invoice: { value: "U1", ok: true }, po: { value: "U1", ok: true }, gr: { value: "—", ok: false }, contract: { value: "U1", ok: true } } },
+  { dimension: "Payment terms", cells: { invoice: { value: "Net 30", ok: true }, po: { value: "Net 30", ok: true }, gr: { value: "—", ok: false }, contract: { value: "Net 30", ok: true } } },
+];
+
+const beltInvoiceDoc = (
+  <RecordDoc
+    d={{
+      tcode: "MIR4",
+      tname: "Display Invoice Document",
+      number: "BPI-5567",
+      status: "Parked · awaiting match",
+      docType: "Vendor invoice · Apex Industrial Supply",
+      system: "Invoice verification · LIV",
+      createdOn: "2026-06-24 · 06:40",
+      createdBy: "AP capture",
+      sections: [
+        {
+          band: "Invoice header",
+          rows: [
+            { label: "Vendor", value: "Apex Industrial Supply" },
+            { label: "Invoice no.", value: "BPI-5567" },
+            { label: "PO reference", value: "PO-77310" },
+            { label: "Payment terms", value: "Net 30" },
+            { label: "Currency", value: "USD" },
+          ],
+        },
+        {
+          band: "Amounts",
+          rows: [
+            { label: "Unit price", value: "$4,180.00 / EA" },
+            { label: "Quantity", value: "1 EA" },
+            { label: "Net value", value: "$4,180.00" },
+            { label: "Tax code", value: "U1 · reverse charge" },
+            { label: "Gross", value: "$4,180.00" },
+          ],
+        },
+      ],
+    }}
+  />
+);
+
+const beltPoDoc = (
+  <PurchaseOrderDoc
+    p={{
+      number: "PO-77310",
+      status: "Released · goods received",
+      createdOn: "2026-06-20 · 11:30",
+      createdBy: "Approval & routing",
+      header: [
+        { label: "Vendor", value: "Apex Industrial Supply" },
+        { label: "Material", value: "MRO-CONV-BELT-36IN-HD" },
+        { label: "Payment terms", value: "Net 30" },
+        { label: "Incoterms", value: "FCA · Apex DC" },
+        { label: "Currency", value: "USD" },
+      ],
+      items: [
+        { item: "10", material: "MRO-CONV-BELT-36IN-HD", description: 'Conveyor belt 36" HD rubber', qty: "1 EA", netPrice: "4,180.00", value: "4,180.00", delivDate: "2026-07-03" },
+      ],
+      conditions: [
+        { label: "Net value", value: "$4,180.00" },
+        { label: "Tax (U1)", value: "$0.00 · reverse charge" },
+        { label: "Total", value: "$4,180.00" },
+      ],
+      release: [
+        { label: "L1 · Plant Maintenance", value: "Approved · within DOA" },
+      ],
+    }}
+  />
+);
+
+const beltGrDoc = (
+  <RecordDoc
+    d={{
+      tcode: "MB03",
+      tname: "Display Material Document",
+      number: "GR-77310",
+      status: "Posted · 101 receipt",
+      docType: "Goods receipt · PO-77310",
+      system: "Inventory management · MIGO",
+      createdOn: "2026-06-23 · 09:15",
+      createdBy: "Goods receiving · Sorting Line 2",
+      sections: [
+        {
+          band: "Receipt",
+          rows: [
+            { label: "PO reference", value: "PO-77310" },
+            { label: "Material", value: "MRO-CONV-BELT-36IN-HD" },
+            { label: "Movement type", value: "101 · GR goods receipt" },
+            { label: "Quantity received", value: "1 EA" },
+            { label: "Plant / SLoc", value: "Recycling · Sorting Line 2" },
+          ],
+        },
+      ],
+      determination: { ok: true, text: "Goods receipt posted in full — 1 EA received against PO-77310; GR/IR clearing open until the invoice posts." },
+    }}
+  />
+);
+
+const beltMatchResultDoc = (
+  <RecordDoc
+    d={{
+      tcode: "MIRO",
+      tname: "Enter Invoice — Four-Way Match",
+      number: "INV-BPI-5567",
+      status: "Matched · clean · ready to post",
+      docType: "Four-way match · invoice ↔ PO ↔ GR ↔ contract",
+      system: "Invoice verification · LIV",
+      createdOn: "2026-06-24 · 06:42",
+      createdBy: "Invoice Matching agent",
+      sections: [
+        {
+          band: "Four-way match result",
+          rows: [
+            { label: "Invoice", value: "BPI-5567 · $4,180.00" },
+            { label: "Purchase order", value: "PO-77310 · $4,180.00" },
+            { label: "Goods receipt", value: "GR-77310 · 1 EA" },
+            { label: "Contract", value: "SA-MRO-07 · $4,180.00" },
+            { label: "Price variance", value: "$0.00 · within tolerance" },
+            { label: "Quantity variance", value: "0 · full receipt" },
+          ],
+        },
+      ],
+      determination: { ok: true, text: "Four-way clean — contract, PO, goods receipt and invoice agree at $4,180.00 with $0 variance. Cleared for today's AP batch; no exception." },
+    }}
+  />
+);
+
+/* ── RFQ (step 4) — solicit competitive quotes before the vendor decision ───── */
+const beltRfqDoc = (
+  <RecordDoc
+    d={{
+      tcode: "ME41N",
+      tname: "Create RFQ",
+      number: "RFQ-48630",
+      status: "Sent · awaiting quotes",
+      docType: "Request for quotation · 36in HD conveyor belt",
+      system: "Purchasing · RFQ",
+      createdOn: "2026-06-24 · 10:55",
+      createdBy: "Sourcing & contract agent",
+      sections: [
+        {
+          band: "RFQ header",
+          rows: [
+            { label: "Material", value: "MRO-CONV-BELT-36IN-HD" },
+            { label: "Quantity", value: "1 EA · 18 m roll" },
+            { label: "Specification", value: 'Conveyor belt 36" HD rubber' },
+            { label: "Need-by", value: "2026-07-03" },
+            { label: "Terms", value: "Net 30 · FCA" },
+          ],
+        },
+        {
+          band: "Suppliers solicited",
+          rows: [
+            { label: "Midwest Belting Co.", value: "Distributor · off-contract" },
+            { label: "ConveyorCore", value: "OEM · manufacturer" },
+            { label: "Benchmark", value: "Apex on SA-MRO-07 · $4,180 / EA" },
+          ],
+        },
+      ],
+    }}
+  />
+);
+const beltRfqResultDoc = (
+  <RecordDoc
+    d={{
+      tcode: "ME47",
+      tname: "Maintain Quotations",
+      number: "RFQ-48630",
+      status: "Quotes in · on-contract is best value",
+      docType: "RFQ quotation comparison",
+      system: "Purchasing · RFQ",
+      createdOn: "2026-06-24 · 11:02",
+      createdBy: "Sourcing & contract agent",
+      sections: [
+        {
+          band: "Quotes received",
+          rows: [
+            { label: "Apex · on-contract", value: "$4,180 / EA · SA-MRO-07 · 5-day lead" },
+            { label: "Midwest · negotiated", value: "$4,510 / EA · off-contract · 7-day lead" },
+            { label: "ConveyorCore · OEM", value: "$5,160 / EA · list · 3-day lead" },
+          ],
+        },
+      ],
+      determination: {
+        ok: true,
+        text: "Competitive quotes confirm the Apex contract price ($4,180 on SA-MRO-07) beats the negotiated Midwest quote by $330 and the OEM list by $980. The on-contract route is best value — proceeding to the vendor decision.",
+      },
+    }}
+  />
+);
+
+/* ── Vendor quotation PDFs (the RFQ replies) — the detailed quotes the two
+ * off-contract suppliers email back, previewable from the RFQ vendor cards.
+ * External letterhead style (DocShell with no SAP tcode chrome). ─────────────── */
+const buildQuoteDoc = (q: {
+  vendor: string;
+  quoteNo: string;
+  issued: string;
+  validUntil: string;
+  unit: string;
+  total: string;
+  terms: { label: string; value: string }[];
+  note: string;
+}) => (
+  <DocShell>
+    <DocTitleBand
+      number={q.quoteNo}
+      status="Issued"
+      docType="Vendor quotation · PDF"
+      system={q.vendor}
+      createdOn={q.issued}
+      createdBy="Sales desk"
+    />
+    <SectionBand>Quotation</SectionBand>
+    <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
+      <Field label="Quote ref" value={q.quoteNo} mono />
+      <Field label="In response to" value="RFQ-48630" mono />
+      <Field label="Buyer" value="Northgate Paper Co." />
+      <Field label="Valid until" value={q.validUntil} mono />
+    </div>
+    <SectionBand>Line item</SectionBand>
+    <table className="w-full text-[12px] border-collapse">
+      <thead>
+        <tr className="bg-[#eef1f5] text-left text-[#5b6b7b]">
+          {["Item", "Description", "Qty", "Unit price", "Line total"].map((h) => (
+            <th
+              key={h}
+              className="px-3 py-2 text-[10px] tracking-[0.04em] uppercase font-medium border-b border-divider whitespace-nowrap"
+            >
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        <tr className="text-ink align-top">
+          <td className="px-3 py-2.5 border-b border-divider tabular-nums">10</td>
+          <td className="px-3 py-2.5 border-b border-divider">Conveyor belt 36&quot; HD rubber · 18 m roll</td>
+          <td className="px-3 py-2.5 border-b border-divider tabular-nums">1 EA</td>
+          <td className="px-3 py-2.5 border-b border-divider tabular-nums text-right">{q.unit}</td>
+          <td className="px-3 py-2.5 border-b border-divider tabular-nums text-right">{q.total}</td>
+        </tr>
+        <tr className="text-ink font-bold">
+          <td className="px-3 py-2.5" colSpan={4}>
+            Total quoted (USD)
+          </td>
+          <td className="px-3 py-2.5 tabular-nums text-right">{q.total}</td>
+        </tr>
+      </tbody>
+    </table>
+    <SectionBand>Commercial terms</SectionBand>
+    <div className="px-4 py-3 grid grid-cols-3 gap-x-4 gap-y-3">
+      {q.terms.map((t) => (
+        <Field key={t.label} label={t.label} value={t.value} mono />
+      ))}
+    </div>
+    <div className="px-4 py-3 text-[12px] text-mute border-t border-divider leading-snug">{q.note}</div>
+  </DocShell>
+);
+
+const midwestQuoteDoc = buildQuoteDoc({
+  vendor: "Midwest Belting Co.",
+  quoteNo: "QT-MW-3382",
+  issued: "2026-06-24 · 11:00",
+  validUntil: "2026-07-08",
+  unit: "4,510.00",
+  total: "4,510.00",
+  terms: [
+    { label: "Unit price", value: "$4,510.00 / EA" },
+    { label: "Lead time", value: "7 days" },
+    { label: "Payment terms", value: "Net 30" },
+    { label: "Incoterms", value: "FCA · Midwest DC" },
+    { label: "Price basis", value: "Off-contract · negotiated" },
+    { label: "Validity", value: "14 days" },
+  ],
+  note: "Listed at $4,650; revised to $4,510 / EA after negotiation. Off-contract — not on outline agreement SA-MRO-07.",
+});
+
+const conveyorcoreQuoteDoc = buildQuoteDoc({
+  vendor: "ConveyorCore (OEM)",
+  quoteNo: "QT-CC-7741",
+  issued: "2026-06-24 · 10:58",
+  validUntil: "2026-07-15",
+  unit: "5,160.00",
+  total: "5,160.00",
+  terms: [
+    { label: "Unit price", value: "$5,160.00 / EA" },
+    { label: "Lead time", value: "3 days" },
+    { label: "Payment terms", value: "Net 30" },
+    { label: "Incoterms", value: "FCA · OEM plant" },
+    { label: "Price basis", value: "OEM list · no discount" },
+    { label: "Validity", value: "30 days" },
+  ],
+  note: "Manufacturer list price; no distributor or contract discount available. Fastest lead time at 3 days.",
+});
+
+/* ── Example 1 · conveyor belt — 6 steps (RFQ+vendor merged into one sourcing
+ * step, conditional on the off-contract choice; + invoice four-way match) ─────── */
 
 export const beltPrSteps: RunStep[] = [
   step({
@@ -809,6 +1308,8 @@ export const beltPrSteps: RunStep[] = [
     n: 1,
     title: "Structure & code the request",
     sub: "Turns the free-text note into a coded PR",
+    aiThought:
+      "An email just came in from the Sorting Line 2 plant engineer — their conveyor belt is torn and jamming material, and they need a replacement fast. It's free text with no part number, so let me read it and structure it into a coded requisition.",
     reasoning: [
       "Reading the engineer's free-text note from Sorting Line 2",
       "Extracting specs — ~35–36 in, rubber, heavy duty",
@@ -818,33 +1319,108 @@ export const beltPrSteps: RunStep[] = [
     ],
     docLabel: "PR-48630 · structured requisition",
     document: beltStructuredDoc,
+    altDocument: beltStructuredDocOffContract,
     sources: [
       { id: "belt-freetext", label: "Free-text PR", meta: "Intake portal · 10:40", kind: "email", body: beltFreeText },
+      { id: "belt-requestor", label: "Requisitioner & org", meta: "plant directory", kind: "master", body: beltRequestorRef },
+      { id: "belt-coding-ref", label: "Master-data lookup", meta: "MM · cost centers · G/L", kind: "master", body: beltCodingRef },
+      { id: "belt-agreement", label: "ME33K · SA-MRO-07", meta: "price · vendor · terms", kind: "contract", body: beltOutlineAgreement },
     ],
     recommendation:
       "Structured and coded to MRO-CONV-BELT-36IN-HD. One open item — the engineer gave a 35–36 in range with no part number, so the width is unconfirmed. Drafted clean, routed for the checks.",
     stages: [
       {
         sourceId: "belt-freetext",
-        reasoning: "Extracting specs from the free-text note",
+        reasoning: "Extracting the item from the free-text note",
         title: "Item — what's needed",
         fields: [
           { label: "Material", value: "Conveyor belt · rubber · HD" },
           { label: "Face width", value: "36 in (from \"35–36 in\")" },
           { label: "Quantity", value: "1 EA · 18 m roll" },
-          { label: "Plant", value: "Recycling · Sorting Line 2" },
+          { label: "UoM", value: "EA (roll)" },
+          { label: "Delivery", value: "ASAP · production at risk" },
+          { label: "Delivery date", value: "2026-07-03", type: "date" },
+          { label: "Requisitioner", value: "Plant engineer · Sorting Line 2" },
         ],
       },
       {
-        sourceId: "belt-freetext",
-        reasoning: "Coding the account assignment",
+        sourceId: "belt-requestor",
+        reasoning: "Setting the requisition header from the plant directory",
+        title: "Requisition header",
+        fields: [
+          { label: "PR type", value: "NB · Standard requisition" },
+          { label: "Requestor", value: "Plant engineer · Sorting Line 2" },
+          { label: "Purch. org", value: "1000 · Northgate Procurement" },
+          { label: "Purch. group", value: "200 · MRO / Maintenance" },
+        ],
+      },
+      {
+        sourceId: "belt-coding-ref",
+        reasoning: "Coding the account assignment against master data",
         title: "Account assignment",
         fields: [
           { label: "Material code", value: "MRO-CONV-BELT-36IN-HD" },
+          { label: "Plant", value: "Recycling facility · Sorting Line 2" },
           { label: "Cost center", value: COST_CENTER },
           { label: "G/L account", value: GL },
-          { label: "Confidence", value: "86% · confirm width" },
+          { label: "Material group", value: "MRO · Conveyor & belting" },
         ],
+      },
+      {
+        sourceId: "belt-agreement",
+        reasoning: "Choosing the source of supply — on-contract or a competitive RFQ",
+        title: "Source of supply",
+        choice: {
+          searchModal: {
+            title: "Searching for an existing vendor",
+            sub: "Scanning the supplier master and active outline agreements for an on-contract source…",
+          },
+          recommendation:
+            "I found this belt on an active outline agreement — Apex Industrial Supply on SA-MRO-07 at $4,180/EA (−19% vs the OEM list, Net 30), the preferred on-contract source. I recommend buying on the contract and skipping the RFQ. If you'd rather test the market, I can run a competitive RFQ off-contract instead — that adds a sourcing step.",
+          recommendedId: "on-contract",
+          options: [
+            {
+              id: "on-contract",
+              name: "Use the on-contract vendor",
+              meta: "Apex Industrial Supply · SA-MRO-07",
+              badges: ["Preferred", "On-contract"],
+              stats: [
+                { label: "Price", value: "$4,180 / EA" },
+                { label: "Lead", value: "5 days" },
+                { label: "Agreement", value: "SA-MRO-07" },
+                { label: "Sourcing", value: "Skip the RFQ" },
+              ],
+              fields: [
+                { label: "Unit price", value: "$4,180.00 / EA" },
+                { label: "Total value", value: "$4,180.00" },
+                { label: "Vendor", value: "Apex Industrial Supply" },
+                { label: "Outline agreement", value: "SA-MRO-07 · item 40" },
+                { label: "Info record", value: "5300004180" },
+                { label: "Payment terms", value: "NT30 · Net 30", options: PAYMENT_TERMS },
+              ],
+            },
+            {
+              id: "off-contract",
+              name: "Source off-contract",
+              meta: "Run a competitive RFQ",
+              badges: ["Competitive", "Adds RFQ step"],
+              stats: [
+                { label: "Price", value: "By quote" },
+                { label: "Lead", value: "To be quoted" },
+                { label: "Agreement", value: "None" },
+                { label: "Sourcing", value: "Run the RFQ" },
+              ],
+              fields: [
+                { label: "Unit price", value: "Pending RFQ" },
+                { label: "Total value", value: "Pending RFQ" },
+                { label: "Vendor", value: "To be sourced · off-contract" },
+                { label: "Outline agreement", value: "Off-contract" },
+                { label: "Info record", value: "—" },
+                { label: "Payment terms", value: "NT30 · Net 30", options: PAYMENT_TERMS },
+              ],
+            },
+          ],
+        },
       },
     ],
   }),
@@ -854,6 +1430,8 @@ export const beltPrSteps: RunStep[] = [
     n: 2,
     title: "Master data, duplicate & inventory",
     sub: "Checks the SKU, duplicates and stock",
+    aiThought:
+      "The request is coded now. Let me confirm the material code in the master data, scan for any duplicate request already open, and check whether another plant already has this belt on the shelf before we buy.",
     reasoning: [
       "Reading structured PR-48630",
       "Confirming the mapped material code",
@@ -863,13 +1441,50 @@ export const beltPrSteps: RunStep[] = [
     ],
     docLabel: "VAL-48630-MD · master data",
     document: beltMasterDataDoc,
+    hasExceptions: true,
     sources: [
       { id: "belt-pr-handoff", label: "PR-48630", meta: "from PR Processing", kind: "sap", handoff: true, body: beltStructuredDoc },
       { id: "belt-matmaster", label: "MM03 · material master", meta: "MRO-CONV-BELT-36IN-HD", kind: "master", body: beltMaterialMaster },
+      { id: "belt-openpr", label: "ME5A · open requisitions", meta: "duplicate scan", kind: "sap", body: beltOpenPrList },
       { id: "belt-stock", label: "MB52 · stock overview", meta: "on-hand + interplant", kind: "master", body: beltStockOverview },
     ],
     recommendation:
       "Code is clean, no duplicate, no stock to draw from — the buy is justified. The only flag is the width range; confirm 36 in before release.",
+    stages: [
+      {
+        sourceId: "belt-matmaster",
+        reasoning: "Confirming the material code against the SAP material master",
+        title: "Material master · MM03",
+        fields: [
+          { label: "Material", value: "MRO-CONV-BELT-36IN-HD" },
+          { label: "Description", value: 'Conveyor belt 36" HD rubber' },
+          { label: "Valuation class", value: "3040 · MRO spares" },
+          { label: "Status", value: "Active · code valid" },
+        ],
+      },
+      {
+        sourceId: "belt-openpr",
+        reasoning: "Scanning open requisitions for a duplicate",
+        title: "Duplicate scan · ME5A",
+        fields: [
+          { label: "Open PRs scanned", value: "96" },
+          { label: "Same material", value: "0 open" },
+          { label: "Duplicate", value: "None found" },
+          { label: "Result", value: "Single demand · clear to buy" },
+        ],
+      },
+      {
+        sourceId: "belt-stock",
+        reasoning: "Checking on-hand and interplant stock",
+        title: "Stock overview · MB52",
+        fields: [
+          { label: "On-hand · Northgate", value: "0 EA" },
+          { label: "Eastbrook mill", value: "0 EA" },
+          { label: "Westport", value: "0 EA" },
+          { label: "Transfer possible", value: "No · new buy justified" },
+        ],
+      },
+    ],
   }),
   step({
     id: "invoice",
@@ -877,6 +1492,8 @@ export const beltPrSteps: RunStep[] = [
     n: 3,
     title: "Warranty & coverage",
     sub: "Confirms it's a buy, not a claim",
+    aiThought:
+      "Before I treat this as a new purchase, let me check whether the conveyor is still under warranty — if the failure is a covered defect, this should be a claim, not a buy.",
     reasoning: [
       "Checking the conveyor's OEM warranty status",
       "Belt is a wear part — not covered equipment",
@@ -890,27 +1507,213 @@ export const beltPrSteps: RunStep[] = [
       { id: "belt-warranty-rec", label: "Warranty record", meta: "Sorting Line 2 conveyor", kind: "kb", body: beltWarrantyRecord },
     ],
     recommendation: "Wear-and-tear on a wear part — no warranty claim applies. Proceed as a new-buy.",
+    stages: [
+      {
+        sourceId: "belt-warranty-rec",
+        reasoning: "Reading the equipment warranty record",
+        title: "Warranty & coverage · IQS3",
+        fields: [
+          { label: "Equipment", value: "Sorting Line 2 conveyor" },
+          { label: "OEM warranty", value: "Expired · > 12 mo" },
+          { label: "Service contract", value: "None on belt" },
+          { label: "Failure type", value: "Wear & tear · not a defect" },
+          { label: "Claimable", value: "No · consumable wear part" },
+          { label: "Outcome", value: "New buy · not a claim" },
+        ],
+      },
+    ],
   }),
   step({
     id: "sourcing",
     agentName: "Sourcing & contract agent",
     n: 4,
-    title: "Vendor, contract & price",
-    sub: "Validates vendor, agreement and price",
+    title: "RFQ, vendor & price",
+    sub: "Sources quotes, then picks the vendor & price",
+    aiThought:
+      "We're sourcing this off-contract, so let me run a competitive RFQ — search suppliers, send the request and collect quotes — then line up the approved vendors and recommend the right one at the right price.",
     reasoning: [
-      "Confirming Apex Industrial Supply is approved & preferred",
-      "Distributor route −19% vs the OEM",
-      "Checking sourcing agreement SA-MRO-07",
-      "Price $4,180 matches the contract · Net 30",
+      "Drafting the RFQ and collecting competitive quotes",
+      "Comparing the approved suppliers against the quotes",
+      "Recommending the vendor at the best total value",
+      "Pricing the pick against the outline agreement",
     ],
     docLabel: "VAL-48630-VEN · vendor & price",
     document: beltVendorDoc,
     sources: [
-      { id: "belt-wty-handoff", label: "VAL-48630-WTY", meta: "from Warranty desk", kind: "sap", handoff: true, body: beltWarrantyDoc },
+      { id: "belt-rfq-handoff", label: "VAL-48630-WTY", meta: "from Warranty desk", kind: "sap", handoff: true, body: beltWarrantyDoc },
+      { id: "belt-rfq-doc", label: "RFQ-48630", meta: "ME41N · request for quote", kind: "sap", body: beltRfqDoc },
+      { id: "belt-rfq-quotes", label: "RFQ-48630 · quotes", meta: "ME47 · comparison", kind: "sap", body: beltRfqResultDoc },
       { id: "belt-agreement", label: "ME33K · SA-MRO-07", meta: "outline agreement", kind: "contract", body: beltOutlineAgreement },
       { id: "belt-vendor-rec", label: "Vendor master · Apex", meta: "approved supplier", kind: "master", body: beltVendorRecord },
     ],
-    recommendation: "Vendor approved, on-contract, price-matched at $4,180 — no off-contract leakage.",
+    recommendation:
+      "RFQ complete — Midwest quoted $4,510 (off-contract, negotiated from $4,650) and ConveyorCore $5,160 (OEM list), both above the Apex contract price of $4,180 on SA-MRO-07. Apex is approved, on-contract and price-matched — recommended at $4,180 with no off-contract leakage.",
+    rfq: {
+      fields: [
+        { label: "Material", value: "MRO-CONV-BELT-36IN-HD" },
+        { label: "Quantity", value: "1 EA · 18 m roll" },
+        { label: "Specification", value: 'Conveyor belt 36" · rubber · HD' },
+        { label: "Need-by date", value: "2026-07-03" },
+        { label: "Benchmark price", value: "$4,180 / EA · SA-MRO-07" },
+        { label: "Suppliers to solicit", value: "2 · off-contract + OEM" },
+      ],
+      search: {
+        query: "36-inch heavy-duty rubber conveyor belt · approved + web suppliers",
+        results: [
+          { name: "Apex Industrial Supply", via: "supplier master", note: "on SA-MRO-07" },
+          { name: "Midwest Belting Co.", via: "web · distributor", note: "approved" },
+          { name: "ConveyorCore", via: "web · OEM", note: "manufacturer" },
+        ],
+      },
+      rfqDoc: beltRfqDoc,
+      vendors: [
+        {
+          id: "midwest",
+          name: "Midwest Belting Co.",
+          via: "distributor · web",
+          draft: {
+            subject: "RFQ-48630 — 36in HD conveyor belt · request for quote",
+            lines: ["Please quote 1 EA, delivery by 2026-07-03, terms Net 30."],
+          },
+          negotiating: true,
+          quote: {
+            headline: "$4,510 / EA · 7-day lead",
+            lines: ["Opened at $4,650 · negotiated to $4,510 · off-contract."],
+          },
+          reply: {
+            from: "Midwest Belting Co. · Sales",
+            fromAddr: "sales@midwestbelting.example",
+            receivedMeta: "Outlook · 2026-06-24 · 11:00",
+            subject: "RE: RFQ-48630 — 36in HD conveyor belt · our quote",
+            lines: [
+              "Thanks for the RFQ — our quotation for the 36-inch heavy-duty rubber conveyor belt is attached.",
+              "We sharpened our pencil: opened at $4,650, revised to $4,510 / EA on a 7-day lead, Net 30. This is an off-contract price — we're not on your SA-MRO-07 agreement.",
+              "Quote valid 14 days; happy to discuss volume terms.",
+            ],
+            attachment: midwestQuoteDoc,
+            attachmentLabel: "QT-MW-3382 · Midwest quotation",
+            headline: "Midwest Belting Co. sent their quote",
+            previewNote: "PDF · click to preview the quotation",
+            cta: "Back to the quotes",
+          },
+        },
+        {
+          id: "conveyorcore",
+          name: "ConveyorCore (OEM)",
+          via: "manufacturer · web",
+          draft: {
+            subject: "RFQ-48630 — 36in HD conveyor belt · request for quote",
+            lines: ["Please quote 1 EA, delivery by 2026-07-03, terms Net 30."],
+          },
+          quote: {
+            headline: "$5,160 / EA · 3-day lead",
+            lines: ["OEM list price · no contract discount."],
+          },
+          reply: {
+            from: "ConveyorCore · OEM Sales",
+            fromAddr: "quotes@conveyorcore.example",
+            receivedMeta: "Outlook · 2026-06-24 · 10:58",
+            subject: "RE: RFQ-48630 — 36in HD conveyor belt · OEM quotation",
+            lines: [
+              "Please find our OEM quotation attached for the 36-inch heavy-duty conveyor belt.",
+              "Unit price $5,160 / EA on a 3-day lead (our fastest), Net 30. This is manufacturer list — no distributor or contract discount applies.",
+              "Quote valid 30 days.",
+            ],
+            attachment: conveyorcoreQuoteDoc,
+            attachmentLabel: "QT-CC-7741 · ConveyorCore quotation",
+            headline: "ConveyorCore sent their quote",
+            previewNote: "PDF · click to preview the quotation",
+            cta: "Back to the quotes",
+          },
+        },
+      ],
+    },
+    stages: [
+      {
+        sourceId: "belt-vendor-rec",
+        reasoning: "Comparing approved suppliers and recommending one",
+        title: "Vendor selection · XK03",
+        choice: {
+          recommendation:
+            "Three approved suppliers carry this belt. I recommend Apex Industrial Supply — it's the only one on the active outline agreement SA-MRO-07 at the contracted $4,180/EA (−19% vs the OEM list), 5-day lead. Midwest is approved but off-contract (+8% over the agreement); ConveyorCore is the OEM at list price.",
+          recommendedId: "apex",
+          options: [
+            {
+              id: "apex",
+              name: "Apex Industrial Supply",
+              meta: "Preferred distributor · on SA-MRO-07",
+              badges: ["Approved", "Preferred", "On-contract"],
+              stats: [
+                { label: "Price", value: "$4,180 / EA" },
+                { label: "Lead", value: "5 days" },
+                { label: "Contract", value: "SA-MRO-07" },
+                { label: "vs OEM list", value: "−19%" },
+              ],
+              fields: [
+                { label: "Vendor", value: "Apex Industrial Supply" },
+                { label: "BP role", value: "Vendor · distributor" },
+                { label: "Approved", value: "Yes · MRO belting" },
+                { label: "Preferred", value: "Yes · on SA-MRO-07" },
+                { label: "Lead time", value: "5 days" },
+                { label: "Off-contract leakage", value: "None · on-contract" },
+              ],
+            },
+            {
+              id: "midwest",
+              name: "Midwest Belting Co.",
+              meta: "Approved distributor · off-contract",
+              badges: ["Approved", "Off-contract"],
+              stats: [
+                { label: "Price", value: "$4,510 / EA" },
+                { label: "Lead", value: "7 days" },
+                { label: "Contract", value: "None" },
+                { label: "vs OEM list", value: "−12%" },
+              ],
+              fields: [
+                { label: "Vendor", value: "Midwest Belting Co." },
+                { label: "BP role", value: "Vendor · distributor" },
+                { label: "Approved", value: "Yes · MRO belting" },
+                { label: "Preferred", value: "No · off-contract" },
+                { label: "Lead time", value: "7 days" },
+                { label: "Off-contract leakage", value: "+8% vs SA-MRO-07" },
+              ],
+            },
+            {
+              id: "conveyorcore",
+              name: "ConveyorCore (OEM)",
+              meta: "Manufacturer · list price",
+              badges: ["Approved", "OEM"],
+              stats: [
+                { label: "Price", value: "$5,160 / EA" },
+                { label: "Lead", value: "3 days" },
+                { label: "Contract", value: "List" },
+                { label: "vs OEM list", value: "list" },
+              ],
+              fields: [
+                { label: "Vendor", value: "ConveyorCore" },
+                { label: "BP role", value: "Vendor · manufacturer (OEM)" },
+                { label: "Approved", value: "Yes · OEM" },
+                { label: "Preferred", value: "No · OEM list price" },
+                { label: "Lead time", value: "3 days" },
+                { label: "Off-contract leakage", value: "+23% vs SA-MRO-07" },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        sourceId: "belt-agreement",
+        reasoning: "Pricing against the outline agreement",
+        title: "Price · ME33K SA-MRO-07",
+        fields: [
+          { label: "Contract price", value: "$4,180.00 / EA" },
+          { label: "PR price", value: "$4,180.00 · matches" },
+          { label: "Agreement", value: "SA-MRO-07 · item 40" },
+          { label: "Payment terms", value: "NT30 · Net 30", options: PAYMENT_TERMS },
+          { label: "Off-contract leakage", value: "None · 0%" },
+        ],
+      },
+    ],
   }),
   step({
     id: "orchestrator",
@@ -918,6 +1721,8 @@ export const beltPrSteps: RunStep[] = [
     n: 5,
     title: "Approval & routing",
     sub: "Cost center, DOA and the open spec item",
+    aiThought:
+      "Everything clears except the belt width. Let me confirm the 36-inch spec with the engineer and route the requisition for release.",
     reasoning: [
       "Confirming cost center 10034 / GL 600450",
       "On-contract — competitive bidding not required",
@@ -926,48 +1731,93 @@ export const beltPrSteps: RunStep[] = [
     ],
     docLabel: "VAL-48630-APR · approval",
     document: beltApprovalDoc,
+    hasExceptions: true,
     sources: [
-      { id: "belt-ven-handoff", label: "VAL-48630-VEN", meta: "from Sourcing", kind: "sap", handoff: true, body: beltVendorDoc },
+      { id: "belt-ven-handoff", label: "VAL-48630-VEN", meta: "vendor & price", kind: "sap", handoff: true, body: beltVendorDoc },
       { id: "belt-doa", label: "DOA release routing", meta: "WF-48630-REL", kind: "policy", body: beltApprovalRouting },
     ],
     email: {
       cta: "Send the spec confirmation",
+      attachment: beltStructuredDoc,
+      attachmentLabel: "PR-48630 · ME51N",
       to: "Plant engineer · Sorting Line 2",
-      subject: "PR-48630 — confirm belt face width before release",
+      subject: "PR-48630 — belt face width coded to 36 in · releasing",
       lines: [
-        "I've structured and coded your request to MRO-CONV-BELT-36IN-HD, on-contract via Apex at $4,180, Net 30 — everything checks out except one item.",
-        "You gave a 35–36 in width with no part number. I've coded it to a 36 in face width for Sorting Line 2; please confirm so we don't ship a wrong-fit belt that fails on install.",
-        "Reply to confirm and I'll release the PR immediately.",
+        "I've structured and coded your request to MRO-CONV-BELT-36IN-HD, on-contract via Apex at $4,180, Net 30 — everything checks out.",
+        "You gave a 35–36 in width with no part number; I've coded it to a 36 in face width for Sorting Line 2 to match the conveyor.",
+        "I'm releasing PR-48630 to Apex now — flag me only if 36 in is wrong.",
       ],
-      toastTitle: "Width confirmed",
-      toastBody: "The engineer confirmed 36 in for Sorting Line 2 — reply added to your sources.",
+      toastTitle: "Spec confirmation sent",
+      toastBody: "Sent to the plant engineer · PR-48630 released to Apex on-contract at $4,180.",
       resolvedDocument: beltApprovalDocResolved,
-      reply: {
-        from: "Plant engineer · Sorting Line 2",
-        receivedMeta: "Outlook · 11:02",
-        subject: "RE: PR-48630 — confirm belt face width",
-        lines: ["Confirmed — 36 in face width is correct for Sorting Line 2. Please release."],
-        source: {
-          id: "belt-spec-ack",
-          label: "Engineer confirmation",
-          meta: "Outlook · 11:02",
-          kind: "email",
-          body: (
-            <EmailDoc
-              from="Plant engineer · Sorting Line 2"
-              fromAddr="engineer@northgatepaper.com"
-              to="Approval & routing"
-              sent="2026-06-20 · 11:02"
-              subject="RE: PR-48630 — confirm belt face width"
-              tone="inbound"
-              lines={["Confirmed — 36 in face width is correct for Sorting Line 2. Please release."]}
-            />
-          ),
-        },
-      },
     },
     recommendation:
-      "Everything clears except the width. Send the engineer the spec confirmation; on their reply, release PR-48630 to Apex on-contract at $4,180.",
+      "Everything clears; the only open item was the width, coded to 36 in. On approve, the agent emails the engineer the spec confirmation and releases PR-48630 to Apex on-contract at $4,180.",
+  }),
+  step({
+    id: "invoice",
+    agentName: "Invoice Matching agent",
+    n: 6,
+    title: "Invoice four-way match",
+    sub: "Four-way matches the belt invoice",
+    aiThought:
+      "Apex has emailed their invoice for the belt. Let me four-way match it against the PO, the goods receipt and the contract before we clear it for payment.",
+    inboundEmail: {
+      from: "Apex Industrial Supply · AR",
+      fromAddr: "ar@apexindustrial.com",
+      receivedMeta: "Outlook · 2026-06-24 · 06:38",
+      subject: "Invoice BPI-5567 · PO-77310 · conveyor belt 36in HD",
+      lines: [
+        "Please find attached our invoice BPI-5567 for the heavy-duty conveyor belt shipped against your PO-77310.",
+        "1 EA · $4,180.00 net · Net 30 · tax code U1. Goods were received at Sorting Line 2 on 2026-06-23.",
+        "Thank you for your business — remit per the terms on the invoice.",
+      ],
+      attachment: beltInvoiceDoc,
+      attachmentLabel: "BPI-5567 · Apex invoice",
+      cta: "Continue to the four-way match",
+    },
+    reasoning: [
+      "Reading the captured Apex invoice BPI-5567",
+      "Running the four-way match — contract ↔ PO ↔ goods receipt ↔ invoice",
+      "Checking price and quantity — $4,180 · 1 EA · all agree",
+      "Applying tolerance — variance $0.00, within threshold",
+      "Clearing the belt invoice for today's AP batch",
+    ],
+    docLabel: "INV-BPI-5567 · four-way match",
+    document: beltMatchResultDoc,
+    sources: [
+      { id: "belt-inv-handoff", label: "INV-BPI-5567", meta: "Apex invoice · captured", kind: "invoice", handoff: true, body: beltInvoiceDoc },
+      { id: "belt-po-match", label: "PO-77310", meta: "SAP ME23N", kind: "sap", body: beltPoDoc },
+      { id: "belt-gr-match", label: "GR-77310", meta: "SAP MB03 · plant-posted", kind: "sap", body: beltGrDoc },
+      { id: "belt-contract-match", label: "ME33K · SA-MRO-07", meta: "outline agreement", kind: "contract", body: beltOutlineAgreement },
+    ],
+    recommendation:
+      "Belt invoice is four-way clean — contract, PO, goods receipt and invoice agree at $4,180 with $0 variance, within tolerance. Cleared for today's AP batch; no exception to route.",
+    stages: [
+      {
+        sourceId: "belt-po-match",
+        reasoning: "Matching the invoice against PO-77310 — price, quantity, net value",
+        title: "Four-way match — invoice vs PO",
+        matchGrid: { columns: beltMatchColumns, rows: beltMatchRows, reveal: ["invoice", "po"] },
+      },
+      {
+        sourceId: "belt-gr-match",
+        reasoning: "Adding the goods receipt GR-77310 — received quantity",
+        title: "Four-way match — adding the goods receipt",
+        matchGrid: { columns: beltMatchColumns, rows: beltMatchRows, reveal: ["invoice", "po", "gr"] },
+      },
+      {
+        sourceId: "belt-contract-match",
+        reasoning: "Confirming the contract price and the four-way verdict",
+        title: "Four-way match — adding the contract · verdict",
+        matchGrid: {
+          columns: beltMatchColumns,
+          rows: beltMatchRows,
+          reveal: ["invoice", "po", "gr", "contract"],
+          verdict: "All four agree · variance USD 0.00 · contract −19% vs OEM list · clean",
+        },
+      },
+    ],
   }),
 ];
 
@@ -980,6 +1830,8 @@ export const rollerPrSteps: RunStep[] = [
     n: 1,
     title: "Structure & code the request",
     sub: "Turns the free-text note into a coded PR",
+    aiThought:
+      "The Sorting Line 1 engineer has emailed in — idler rollers are seizing on the OCC feed conveyor and they've asked for eight. It's free text, so let me read it and structure the requisition.",
     reasoning: [
       "Reading the engineer's free-text note from Sorting Line 1",
       "Extracting — 600 mm steel idler rollers, ~6–8 EA",
@@ -991,30 +1843,61 @@ export const rollerPrSteps: RunStep[] = [
     document: rollerStructuredDoc,
     sources: [
       { id: "roller-freetext", label: "Free-text PR", meta: "Intake portal · 11:04", kind: "email", body: rollerFreeText },
+      { id: "roller-requestor", label: "Requisitioner & org", meta: "plant directory", kind: "master", body: rollerRequestorRef },
+      { id: "roller-coding-ref", label: "Master-data lookup", meta: "MM · cost centers · G/L", kind: "master", body: rollerCodingRef },
+      { id: "roller-agreement", label: "ME33K · SA-MRO-07", meta: "price · vendor · terms", kind: "contract", body: rollerOutlineAgreement },
     ],
     recommendation:
       "Structured and coded to MRO-CONV-ROLLER-IDLER-STD at 8 EA. Matches the OCC feed conveyor — the downstream checks will test whether all 8 should actually be bought.",
     stages: [
       {
         sourceId: "roller-freetext",
-        reasoning: "Extracting specs from the free-text note",
+        reasoning: "Extracting the item from the free-text note",
         title: "Item — what's needed",
         fields: [
-          { label: "Material", value: "Idler roller · 600 mm · steel" },
+          { label: "Size", value: "600 mm · steel · heavy duty" },
           { label: "Quantity", value: "8 EA (from \"6–8\")" },
-          { label: "Plant", value: "Recycling · Sorting Line 1" },
+          { label: "UoM", value: "EACH" },
           { label: "Same as", value: "OCC feed conveyor rollers" },
+          { label: "Delivery", value: "Urgent · belt misalignment" },
+          { label: "Delivery date", value: "2026-06-30", type: "date" },
+          { label: "Requisitioner", value: "Plant engineer · Sorting Line 1" },
         ],
       },
       {
-        sourceId: "roller-freetext",
-        reasoning: "Coding the account assignment",
+        sourceId: "roller-requestor",
+        reasoning: "Setting the requisition header from the plant directory",
+        title: "Requisition header",
+        fields: [
+          { label: "PR type", value: "NB · Standard requisition" },
+          { label: "Requestor", value: "Plant engineer · Sorting Line 1" },
+          { label: "Purch. org", value: "1000 · Northgate Procurement" },
+          { label: "Purch. group", value: "200 · MRO / Maintenance" },
+        ],
+      },
+      {
+        sourceId: "roller-coding-ref",
+        reasoning: "Coding the account assignment against master data",
         title: "Account assignment",
         fields: [
           { label: "Material code", value: "MRO-CONV-ROLLER-IDLER-STD" },
+          { label: "Plant", value: "Recycling facility · Sorting Line 1" },
           { label: "Cost center", value: COST_CENTER },
           { label: "G/L account", value: GL },
-          { label: "Confidence", value: "94%" },
+          { label: "Material group", value: "MRO · Conveyor & rollers" },
+        ],
+      },
+      {
+        sourceId: "roller-agreement",
+        reasoning: "Pricing and sourcing from the outline agreement",
+        title: "Valuation & source of supply",
+        fields: [
+          { label: "Unit price", value: "$118.00 / EA" },
+          { label: "Total value", value: "$944.00 (8 EA)" },
+          { label: "Vendor", value: "Apex Industrial Supply" },
+          { label: "Outline agreement", value: "SA-MRO-07 · item 50" },
+          { label: "Info record", value: "5300004118" },
+          { label: "Payment terms", value: "NT30 · Net 30", options: PAYMENT_TERMS },
         ],
       },
     ],
@@ -1025,6 +1908,8 @@ export const rollerPrSteps: RunStep[] = [
     n: 2,
     title: "Master data, duplicate & inventory",
     sub: "Finds a duplicate and sister-plant stock",
+    aiThought:
+      "Eight is a lot to buy. Let me confirm the roller code, scan for a duplicate request, and check stock across the plants before we order any.",
     reasoning: [
       "Reading structured PR-48655",
       "Scanning open PRs — found PR-48641 for the same SKU",
@@ -1034,14 +1919,117 @@ export const rollerPrSteps: RunStep[] = [
     ],
     docLabel: "VAL-48655-MD · master data",
     document: rollerMasterDataDoc,
+    hasExceptions: true,
     sources: [
       { id: "roller-pr-handoff", label: "PR-48655", meta: "from PR Processing", kind: "sap", handoff: true, body: rollerStructuredDoc },
       { id: "roller-matmaster", label: "MM03 · material master", meta: "MRO-CONV-ROLLER-IDLER-STD", kind: "master", body: rollerMaterialMaster },
+      { id: "roller-openpr", label: "ME5A · open requisitions", meta: "duplicate found · PR-48641", kind: "sap", body: rollerOpenPrList },
       { id: "roller-stock", label: "MB52 · stock overview", meta: "6 EA at Eastbrook", kind: "master", body: rollerStockOverview },
       { id: "roller-sto", label: "ME23N · stock transfer", meta: "STO-48655 · 6 EA", kind: "sap", body: rollerStockTransfer },
     ],
     recommendation:
       "Two flags — a duplicate open PR (PR-48641) and 6 EA available at the Eastbrook mill store. Don't buy 8: transfer the 6 and cancel the duplicate.",
+    stages: [
+      {
+        sourceId: "roller-matmaster",
+        reasoning: "Confirming the material code against the SAP material master",
+        title: "Material master · MM03",
+        fields: [
+          { label: "Material", value: "MRO-CONV-ROLLER-IDLER-STD" },
+          { label: "Description", value: "Idler roller 600 mm steel" },
+          { label: "Valuation class", value: "3040 · MRO spares" },
+          { label: "Status", value: "Active · code valid" },
+        ],
+      },
+      {
+        sourceId: "roller-openpr",
+        reasoning: "Scanning open requisitions for a duplicate",
+        title: "Duplicate scan · ME5A",
+        fields: [
+          { label: "Open PRs scanned", value: "96" },
+          { label: "Same material", value: "1 open" },
+          { label: "Duplicate", value: "PR-48641 · 6 EA" },
+          { label: "Result", value: "Cancel the duplicate" },
+        ],
+      },
+      {
+        sourceId: "roller-stock",
+        reasoning: "Checking on-hand and interplant stock",
+        title: "Stock overview · MB52",
+        fields: [
+          { label: "On-hand · Northgate", value: "0 EA" },
+          { label: "Eastbrook mill", value: "6 EA · surplus" },
+          { label: "Transfer possible", value: "Yes · move 6 EA" },
+          { label: "Residual buy", value: "2 EA shortfall" },
+        ],
+      },
+      {
+        sourceId: "roller-sto",
+        reasoning: "Comparing fulfillment options — transfer vs a fresh buy",
+        title: "Fulfillment plan · interplant vs buy",
+        choice: {
+          recommendation:
+            "We need 8 idler rollers, but Eastbrook mill already has 6 surplus in its store. I recommend transferring those 6 by interplant movement and buying only the 2-unit shortfall on-contract ($236) — versus $944 to buy all 8 new. It cuts spend ~75% and draws down stock we've already paid for.",
+          recommendedId: "transfer",
+          options: [
+            {
+              id: "transfer",
+              name: "Transfer 6 + buy 2",
+              meta: "Interplant rebalancing",
+              badges: ["Recommended", "Uses surplus"],
+              stats: [
+                { label: "Cash buy", value: "$236" },
+                { label: "Transfer", value: "6 EA · Eastbrook" },
+                { label: "Lead", value: "This week" },
+                { label: "vs buy-all", value: "−75%" },
+              ],
+              fields: [
+                { label: "Plan", value: "Transfer 6 EA + buy 2 EA" },
+                { label: "Transfer from", value: "Eastbrook mill store · STO-48655" },
+                { label: "Fresh buy", value: "2 EA · $236 · Apex on-contract" },
+                { label: "Saving", value: "$708 vs buying all 8" },
+              ],
+            },
+            {
+              id: "buyall",
+              name: "Buy all 8 new",
+              meta: "Procure fresh · ignores surplus",
+              badges: ["Higher cost"],
+              stats: [
+                { label: "Cash buy", value: "$944" },
+                { label: "Transfer", value: "None" },
+                { label: "Lead", value: "7 days" },
+                { label: "vs buy-all", value: "—" },
+              ],
+              fields: [
+                { label: "Plan", value: "Buy 8 EA new" },
+                { label: "Transfer from", value: "None — surplus left idle" },
+                { label: "Fresh buy", value: "8 EA · $944 · Apex" },
+                { label: "Saving", value: "$0 vs buying all 8" },
+              ],
+            },
+            {
+              id: "transferonly",
+              name: "Transfer 6 only",
+              meta: "Defer the 2-unit shortfall",
+              badges: ["Leaves a gap"],
+              stats: [
+                { label: "Cash buy", value: "$0" },
+                { label: "Transfer", value: "6 EA · Eastbrook" },
+                { label: "Lead", value: "This week" },
+                { label: "vs buy-all", value: "−100%" },
+              ],
+              fields: [
+                { label: "Plan", value: "Transfer 6 EA · no buy" },
+                { label: "Transfer from", value: "Eastbrook mill store · STO-48655" },
+                { label: "Fresh buy", value: "None · 2 EA still short" },
+                { label: "Saving", value: "$944, but 2 EA unfilled" },
+              ],
+            },
+          ],
+        },
+      },
+    ],
   }),
   step({
     id: "invoice",
@@ -1049,6 +2037,8 @@ export const rollerPrSteps: RunStep[] = [
     n: 3,
     title: "Warranty & coverage",
     sub: "Checks if the seizures are covered",
+    aiThought:
+      "Let me check the conveyor's warranty — if these seizures are a covered defect, the failed units should be a claim, not a purchase.",
     reasoning: [
       "Reading the OCC feed conveyor's commissioning date",
       "Commissioned 2026-01-15 — inside the 12-month parts warranty",
@@ -1057,12 +2047,28 @@ export const rollerPrSteps: RunStep[] = [
     ],
     docLabel: "VAL-48655-WTY · warranty",
     document: rollerWarrantyDoc,
+    hasExceptions: true,
     sources: [
       { id: "roller-md-handoff", label: "VAL-48655-MD", meta: "from Master Data", kind: "sap", handoff: true, body: rollerMasterDataDoc },
       { id: "roller-warranty-rec", label: "Warranty record", meta: "OCC feed conveyor · in warranty", kind: "kb", body: rollerWarrantyRecord },
     ],
     recommendation:
       "The OCC feed conveyor is inside its 12-month parts warranty and the seizures look like a defect — raise a warranty claim on the covered units rather than buying them.",
+    stages: [
+      {
+        sourceId: "roller-warranty-rec",
+        reasoning: "Reading the equipment warranty record",
+        title: "Warranty & coverage · IQS3",
+        fields: [
+          { label: "Equipment", value: "OCC feed conveyor" },
+          { label: "Commissioned", value: "2026-01-15" },
+          { label: "OEM warranty", value: "In warranty · 12-mo parts" },
+          { label: "Failure type", value: "Premature seizure · defect" },
+          { label: "Claimable", value: "Yes · ConveyorCore OEM" },
+          { label: "Outcome", value: "Claim the covered units" },
+        ],
+      },
+    ],
   }),
   step({
     id: "sourcing",
@@ -1070,6 +2076,8 @@ export const rollerPrSteps: RunStep[] = [
     n: 4,
     title: "Vendor, contract & price",
     sub: "Prices only the residual buy",
+    aiThought:
+      "For the few units we actually need to buy, let me confirm the approved vendor, the contract and the price.",
     reasoning: [
       "Confirming Apex Industrial Supply is approved & preferred",
       "Distributor route −22% vs the OEM",
@@ -1085,6 +2093,31 @@ export const rollerPrSteps: RunStep[] = [
     ],
     recommendation:
       "If any units are bought, Apex is approved and on-contract at $118/EA — but transfer and warranty cover most of the demand, so price only the residual.",
+    stages: [
+      {
+        sourceId: "roller-vendor-rec",
+        reasoning: "Confirming the approved vendor",
+        title: "Vendor master · XK03",
+        fields: [
+          { label: "Vendor", value: "Apex Industrial Supply" },
+          { label: "BP role", value: "Vendor · distributor" },
+          { label: "Approved", value: "Yes · MRO rollers" },
+          { label: "Preferred", value: "Yes · on SA-MRO-07" },
+        ],
+      },
+      {
+        sourceId: "roller-agreement",
+        reasoning: "Pricing the residual buy against the agreement",
+        title: "Price · ME33K SA-MRO-07",
+        fields: [
+          { label: "Contract price", value: "$118.00 / EA" },
+          { label: "Distributor route", value: "−22% vs OEM" },
+          { label: "Agreement", value: "SA-MRO-07 · item 50" },
+          { label: "Priced for", value: "2 EA residual only" },
+          { label: "Payment terms", value: "NT30 · Net 30", options: PAYMENT_TERMS },
+        ],
+      },
+    ],
   }),
   step({
     id: "orchestrator",
@@ -1092,6 +2125,8 @@ export const rollerPrSteps: RunStep[] = [
     n: 5,
     title: "Approval & routing",
     sub: "Re-scopes the buy and cancels the duplicate",
+    aiThought:
+      "I've re-scoped this from an eight-unit buy down to a transfer, a warranty claim and a two-unit buy. Let me send the plan and route it.",
     reasoning: [
       "Confirming cost center 10034 / GL 600450",
       "Routing 6 EA as an interplant transfer from Northgate",
@@ -1106,42 +2141,21 @@ export const rollerPrSteps: RunStep[] = [
     ],
     email: {
       cta: "Send the re-scoped plan",
+      attachment: rollerStructuredDoc,
+      attachmentLabel: "PR-48655 · ME51N",
       to: "Plant engineer · Sorting Line 1",
       subject: "PR-48655 — re-scoped: transfer + warranty claim + 2-unit buy",
       lines: [
         "Before raising an 8-unit buy: 6 of these rollers are in stock at the Eastbrook mill store, and the OCC feed conveyor is inside its 12-month parts warranty — so the seizures should be a warranty claim, not a purchase.",
         "Plan: transfer 6 EA by interplant movement (here this week), raise a warranty claim with ConveyorCore on the seized units, and buy only the 2 EA shortfall from Apex on-contract ($236). I've also drafted a cancellation for the duplicate PR-48641.",
-        "Reply to approve and I'll route the transfer, the claim and the 2-unit PR.",
+        "I'm routing the transfer, the claim and the 2-unit PR now — flag me if you'd rather buy all 8.",
       ],
-      toastTitle: "Re-scoped plan approved",
-      toastBody: "The engineer approved the transfer + claim + 2-unit buy — reply added to your sources.",
+      toastTitle: "Re-scoped plan sent",
+      toastBody: "Sent to the engineer · transfer + claim + 2-unit buy routed; duplicate PR-48641 cancelled.",
       resolvedDocument: rollerApprovalDocResolved,
-      reply: {
-        from: "Plant engineer · Sorting Line 1",
-        receivedMeta: "Outlook · 11:31",
-        subject: "RE: PR-48655 — re-scoped plan",
-        lines: ["Approved — transfer the 6, raise the claim, buy the 2. Thanks for catching the duplicate."],
-        source: {
-          id: "roller-plan-ack",
-          label: "Engineer approval",
-          meta: "Outlook · 11:31",
-          kind: "email",
-          body: (
-            <EmailDoc
-              from="Plant engineer · Sorting Line 1"
-              fromAddr="engineer@northgatepaper.com"
-              to="Approval & routing"
-              sent="2026-06-20 · 11:31"
-              subject="RE: PR-48655 — re-scoped plan"
-              tone="inbound"
-              lines={["Approved — transfer the 6, raise the claim, buy the 2. Thanks for catching the duplicate."]}
-            />
-          ),
-        },
-      },
     },
     recommendation:
-      "Re-scope from an 8-unit buy to a 6-unit interplant transfer + a warranty claim + a 2-unit on-contract buy ($236), and cancel the duplicate PR-48641. Send the plan; on approval, route all three.",
+      "Re-scope from an 8-unit buy to a 6-unit interplant transfer + a warranty claim + a 2-unit on-contract buy ($236), and cancel the duplicate PR-48641. On approve, the agent sends the plan and routes all three.",
   }),
 ];
 
@@ -1189,19 +2203,95 @@ const riskConsumptionFeed = (
 
 const riskSupplierLead = (
   <EmailDoc
-    from="Supply · procurement market desk"
-    fromAddr="market@northgatepaper.com"
+    from="Sourcing · supplier management"
+    fromAddr="sourcing@northgatepaper.com"
     to="MRO risk sensing"
     sent="2026-06-24 · 07:20"
-    subject="Lead time & market — GearTech OEM seal kit"
+    subject="Lead time — GearTech OEM seal kit"
     tone="inbound"
     lines={[
-      "GearTech is the single-source OEM for the seal/bearing kit · current lead time 9 weeks.",
-      "Bearing-alloy market +7% with allocation tightening — price and availability risk rising.",
-      "No alternate qualified source on file.",
+      "GearTech is the single-source OEM for the seal/bearing kit · current lead time 9 weeks (~63 days).",
+      "No alternate qualified source on file — replenishment can only come from GearTech.",
+      "A reorder fired today would not land before the predicted stock-out.",
     ]}
   />
 );
+
+const riskCriticalitySignal = (
+  <EmailDoc
+    from="Asset Register · reliability engineering"
+    fromAddr="assets@northgatepaper.com"
+    to="MRO risk sensing"
+    sent="2026-06-24 · 07:16"
+    subject="Criticality — boiler-feed-pump drive gearbox"
+    tone="inbound"
+    lines={[
+      "Drive gearbox classified A1 · single point of failure on the Recovery line — a seizure takes the whole line down.",
+      "No installed spare; the seal/bearing kit is the only field-replaceable protection. Any stock-out is a line-down risk.",
+    ]}
+  />
+);
+
+const riskMarketSignal = (
+  <EmailDoc
+    from="Commodity desk · procurement market intelligence"
+    fromAddr="commodity@northgatepaper.com"
+    to="MRO risk sensing"
+    sent="2026-06-24 · 07:22"
+    subject="Market — bearing alloy +7% · allocation tightening"
+    tone="inbound"
+    lines={[
+      "Bearing-alloy index +7% this quarter with mills moving to allocation — price and availability risk both rising.",
+      "Buying ahead of the move locks the current price and a delivery slot before allocation bites.",
+    ]}
+  />
+);
+
+/* Auto-pops the moment the risk flow opens — the agentic trigger: the system
+ * detected the risk and engaged the agent, with no human PR raised. */
+const riskPredictiveAlert = {
+  id: "risk-alert",
+  label: "Predictive stock-out alert",
+  meta: "SNOP & Asset-Risk Monitor · 07:14",
+  kind: "email" as const,
+  body: (
+    <EmailDoc
+      from="SNOP & Asset-Risk Monitor"
+      fromAddr="riskmonitor@northgatepaper.com"
+      to="MRO Risk Sensing"
+      sent="2026-06-24 · 07:14"
+      subject="Predicted stock-out — A1-critical drive-gearbox seal kit"
+      tone="inbound"
+      lines={[
+        "Predictive screen flagged the drive-gearbox seal kit (A1 · single point of failure) on the Recovery line: on-hand 1 EA vs 2 EA safety, consumption rising, and the S&OP ramp +18% next quarter.",
+        "No purchase requisition exists. Routing to the Risk Sensing agent to fuse the signals and assess a proactive pre-buy ahead of the 9-week single-source lead.",
+      ]}
+    />
+  ),
+};
+
+/* The proactive pre-buy authorization the reliability lead signs (manager-signs
+ * pattern, like the compliance budget approval) — the human gate on the override. */
+const riskPrebuyAuthorization: BudgetApproval = {
+  number: "WF-49001-REL",
+  title: "Proactive pre-buy authorization · RISK-49001",
+  sub: "Drive-gearbox seal kit · A1-critical · GearTech OEM · no PR raised",
+  rows: [
+    { label: "Amount", value: "$18,400.00 · 2 EA pre-buy" },
+    { label: "Asset · criticality", value: "Drive gearbox · A1 · single point of failure" },
+    { label: "Reorder override", value: "Deterministic point fires too late" },
+    { label: "Predicted stock-out", value: "Day 9 · vs 9-week lead" },
+    { label: "Vendor · contract", value: "GearTech · SA-MRO-11 · Net 60" },
+    { label: "Reliability Lead", value: "Your authorization" },
+  ],
+  body: [
+    "No PR was raised. The Risk Sensing agent predicted a stock-out on the A1-critical drive-gearbox seal kit by fusing the S&OP ramp, equipment criticality, rising consumption, a 9-week single-source lead and a tightening alloy market.",
+    "The deterministic reorder point fires only at on-hand 0 — too late for a 9-week lead — and no sister plant can cover. Authorizing overrides the reorder logic and releases a proactive 2-unit pre-buy ($18,400) ahead of the lead time to protect the recovery line.",
+  ],
+  signer: "Reliability Lead",
+  witness: "Risk Sensing agent",
+  date: "Today · 08:05",
+};
 
 const riskSignalDoc = (
   <StructuredPrDoc
@@ -1541,6 +2631,8 @@ export const riskPrSteps: RunStep[] = [
     n: 1,
     title: "Synthesise the risk signals",
     sub: "Fuses SNOP, criticality, consumption & lead time",
+    aiThought:
+      "No one raised a requisition — our monitor flagged a stock-out risk on the A1-critical drive-gearbox seal kit. Let me pull the five signals — demand ramp, criticality, consumption, lead time and market — and read them together.",
     reasoning: [
       "Reading the S&OP ramp signal for the recovery line",
       "Asset register — drive gearbox is A1, a single point of failure",
@@ -1550,31 +2642,45 @@ export const riskPrSteps: RunStep[] = [
     ],
     docLabel: "RISK-49001 · stock-out risk brief",
     document: riskSignalDoc,
+    inbound: { source: riskPredictiveAlert },
     sources: [
-      { id: "snop-signal", label: "S&OP demand signal", meta: "Planning · 07:15", kind: "kb", body: riskSnopSignal },
-      { id: "consumption-feed", label: "CMMS consumption", meta: "Reliability · 07:18", kind: "master", body: riskConsumptionFeed },
-      { id: "supplier-lead", label: "Supplier & market", meta: "Market desk · 07:20", kind: "external", body: riskSupplierLead },
+      { id: "snop-signal", label: "S&OP demand signal", meta: "Planning · 07:15", kind: "email", body: riskSnopSignal },
+      { id: "criticality-signal", label: "Equipment criticality", meta: "Asset register · 07:16", kind: "email", body: riskCriticalitySignal },
+      { id: "consumption-feed", label: "CMMS consumption", meta: "Reliability · 07:18", kind: "email", body: riskConsumptionFeed },
+      { id: "supplier-lead", label: "Supplier lead time", meta: "Sourcing · 07:20", kind: "email", body: riskSupplierLead },
+      { id: "market-signal", label: "Market conditions", meta: "Commodity desk · 07:22", kind: "email", body: riskMarketSignal },
     ],
     recommendation:
-      "Fused the SNOP ramp, A1 criticality, rising consumption, a 9-week lead and a tightening market: the drive-gearbox seal kit is predicted to stock out before any replenishment can land. No PR exists — proactively structured RISK-49001 for the checks.",
+      "Fused five signals — the S&OP ramp, A1 criticality, rising consumption, a 9-week single-source lead and a tightening alloy market: the drive-gearbox seal kit is predicted to stock out before any replenishment can land. No PR exists — proactively structured RISK-49001 for the checks.",
     stages: [
       {
         sourceId: "snop-signal",
-        reasoning: "Reading demand & criticality",
-        title: "Demand & criticality",
+        reasoning: "Signal 1 of 5 — reading the S&OP demand ramp",
+        title: "1 · Demand signal",
         fields: [
           { label: "Asset", value: "Boiler feed pump · drive gearbox" },
-          { label: "Criticality", value: "A1 · single point of failure" },
-          { label: "SNOP signal", value: "Recovery line ramp +18% next qtr" },
           { label: "Plant", value: "Northgate · Recovery line" },
+          { label: "S&OP ramp", value: "+18% next quarter" },
+          { label: "Demand read", value: "Consumption set to rise" },
+        ],
+      },
+      {
+        sourceId: "criticality-signal",
+        reasoning: "Signal 2 of 5 — reading the equipment criticality",
+        title: "2 · Criticality",
+        fields: [
+          { label: "Classification", value: "A1 · single point of failure" },
+          { label: "Failure mode", value: "Seizure trips the line" },
+          { label: "Installed spare", value: "None" },
+          { label: "Line impact", value: "Whole recovery line down" },
         ],
       },
       {
         sourceId: "consumption-feed",
-        reasoning: "Reading consumption & coverage",
-        title: "Consumption & coverage",
+        reasoning: "Signal 3 of 5 — reading the consumption trend",
+        title: "3 · Consumption",
         fields: [
-          { label: "On-hand", value: "1 EA" },
+          { label: "On-hand", value: "1 EA · below safety" },
           { label: "Safety stock", value: "2 EA · coverage 0.5×" },
           { label: "12-mo consumption", value: "2 EA · rising" },
           { label: "Reorder point", value: "Fires at on-hand 0" },
@@ -1582,13 +2688,24 @@ export const riskPrSteps: RunStep[] = [
       },
       {
         sourceId: "supplier-lead",
-        reasoning: "Reading lead time & market",
-        title: "Lead time & market",
+        reasoning: "Signal 4 of 5 — reading the supplier lead time",
+        title: "4 · Lead time",
         fields: [
           { label: "Supplier", value: "GearTech · OEM single-source" },
-          { label: "Lead time", value: "9 weeks" },
-          { label: "Market", value: "Bearing alloy +7% · tightening" },
-          { label: "Confidence", value: "91% · pre-buy recommended" },
+          { label: "Lead time", value: "9 weeks · ~63 days" },
+          { label: "Alternate source", value: "None qualified" },
+          { label: "Replenishment", value: "Lands after the stock-out" },
+        ],
+      },
+      {
+        sourceId: "market-signal",
+        reasoning: "Signal 5 of 5 — reading market conditions",
+        title: "5 · Market",
+        fields: [
+          { label: "Alloy index", value: "+7% · tightening" },
+          { label: "Allocation", value: "Mills moving to allocation" },
+          { label: "Price risk", value: "Buying now locks the price" },
+          { label: "Fused confidence", value: "91% · pre-buy recommended" },
         ],
       },
     ],
@@ -1599,6 +2716,8 @@ export const riskPrSteps: RunStep[] = [
     n: 2,
     title: "Predict the stock-out & override reorder",
     sub: "Tests reorder logic and interplant cover",
+    aiThought:
+      "Let me put the numbers side by side, predict when this actually stocks out, and check whether the normal reorder point or a sister plant could ever cover it in time.",
     reasoning: [
       "Reading the RISK-49001 signal brief",
       "Deterministic reorder point fires at on-hand 0 — too late for a 9-week lead",
@@ -1608,6 +2727,7 @@ export const riskPrSteps: RunStep[] = [
     ],
     docLabel: "VAL-49001-RISK · prediction",
     document: riskPredictionDoc,
+    hasExceptions: true,
     sources: [
       { id: "risk-handoff", label: "RISK-49001", meta: "from Risk Sensing", kind: "kb", handoff: true, body: riskSignalDoc },
       { id: "risk-matmaster", label: "MM03 · material master", meta: SEAL_KIT, kind: "master", body: riskMaterialMaster },
@@ -1615,6 +2735,96 @@ export const riskPrSteps: RunStep[] = [
     ],
     recommendation:
       "The reorder point would fire too late for a 9-week lead, and no sister plant can cover. Overriding the deterministic logic with a proactive pre-buy of the shortfall to safety plus a ramp buffer.",
+    stages: [
+      {
+        sourceId: "risk-matmaster",
+        reasoning: "Testing the deterministic reorder logic",
+        title: "Reorder logic · MM03",
+        fields: [
+          { label: "MRP type", value: "VB · reorder-point" },
+          { label: "Reorder point", value: "0 EA · fires at stock-out" },
+          { label: "Safety stock", value: "2 EA" },
+          { label: "Predicted stock-out", value: "Day 9 · before the 9-wk lead" },
+        ],
+      },
+      {
+        sourceId: "risk-stock",
+        reasoning: "Checking on-hand and interplant cover",
+        title: "Stock overview · MB52",
+        fields: [
+          { label: "On-hand · Recovery", value: "1 EA · below safety" },
+          { label: "Eastbrook mill", value: "0 EA" },
+          { label: "Westport", value: "0 EA" },
+          { label: "Transfer possible", value: "No · override reorder" },
+        ],
+      },
+      {
+        sourceId: "risk-stock",
+        reasoning: "Comparing the response options against the 9-day stock-out",
+        title: "Procurement response · pre-buy vs reorder",
+        choice: {
+          recommendation:
+            "On-hand is 1 EA against 2 EA safety, the stock-out is predicted at day 9, and the single-source lead is 9 weeks — no sister plant can cover. I recommend overriding the deterministic reorder point with a proactive 2-unit pre-buy now: it lands before the line trips and locks the price ahead of the alloy increase. Waiting for the reorder point fires far too late.",
+          recommendedId: "prebuy",
+          options: [
+            {
+              id: "prebuy",
+              name: "Proactive pre-buy",
+              meta: "Override reorder · buy 2 now",
+              badges: ["Recommended", "Protects the line"],
+              stats: [
+                { label: "Action", value: "Buy 2 EA now" },
+                { label: "Lands", value: "Before day 9" },
+                { label: "Carry", value: "+$18.4K" },
+                { label: "Line risk", value: "Covered" },
+              ],
+              fields: [
+                { label: "Response", value: "Proactive pre-buy · 2 EA" },
+                { label: "Reorder logic", value: "Overridden · fires too late" },
+                { label: "Lands by", value: "Ahead of the day-9 stock-out" },
+                { label: "Working capital", value: "+$18,400 · inside carry policy" },
+              ],
+            },
+            {
+              id: "reorder",
+              name: "Wait for reorder point",
+              meta: "Deterministic · fires at zero",
+              badges: ["Too late"],
+              stats: [
+                { label: "Action", value: "None until 0 EA" },
+                { label: "Lands", value: "9 wks after day 9" },
+                { label: "Carry", value: "$0" },
+                { label: "Line risk", value: "Stock-out" },
+              ],
+              fields: [
+                { label: "Response", value: "Standard reorder point" },
+                { label: "Reorder logic", value: "Fires at on-hand 0 — too late" },
+                { label: "Lands by", value: "~9 wks after the stock-out" },
+                { label: "Working capital", value: "$0 · but line-down risk" },
+              ],
+            },
+            {
+              id: "transfer",
+              name: "Interplant transfer",
+              meta: "Pull from a sister plant",
+              badges: ["No cover"],
+              stats: [
+                { label: "Action", value: "Transfer" },
+                { label: "Lands", value: "n/a" },
+                { label: "Carry", value: "$0" },
+                { label: "Line risk", value: "Stock-out" },
+              ],
+              fields: [
+                { label: "Response", value: "Interplant transfer" },
+                { label: "Reorder logic", value: "n/a" },
+                { label: "Lands by", value: "No stock at Eastbrook or Westport" },
+                { label: "Working capital", value: "$0 · not feasible" },
+              ],
+            },
+          ],
+        },
+      },
+    ],
   }),
   step({
     id: "invoice",
@@ -1622,6 +2832,8 @@ export const riskPrSteps: RunStep[] = [
     n: 3,
     title: "Coverage & working capital",
     sub: "Confirms it's a pre-buy, not a claim",
+    aiThought:
+      "Let me confirm the coverage position and what it costs in working capital to carry a proactive pre-buy.",
     reasoning: [
       "Checking OEM warranty / service contract — consumable spare, not claimable",
       "Working-capital impact +$18.4K — inside the MRO carry policy",
@@ -1636,6 +2848,19 @@ export const riskPrSteps: RunStep[] = [
     ],
     recommendation:
       "Not a warranty event — a consumable critical spare. The $18.4K pre-buy is inside the carrying-cost policy and trivial against a ~$1.4M/day trip exposure. The coverage gap is confirmed.",
+    stages: [
+      {
+        sourceId: "risk-warranty-rec",
+        reasoning: "Coverage & working-capital check",
+        title: "Coverage · consumable spare",
+        fields: [
+          { label: "OEM warranty", value: "Consumable · not claimable" },
+          { label: "Working capital", value: "+$18.4K · inside policy" },
+          { label: "Downtime exposure", value: "~$1.4M / day if it trips" },
+          { label: "Pre-buy buffer", value: "Safety 2 + 1 ramp" },
+        ],
+      },
+    ],
   }),
   step({
     id: "sourcing",
@@ -1643,6 +2868,8 @@ export const riskPrSteps: RunStep[] = [
     n: 4,
     title: "Source & price the pre-buy",
     sub: "Validates vendor, agreement and price",
+    aiThought:
+      "GearTech is the single-source OEM. Let me price the pre-buy against the agreement and check the market timing before it tightens.",
     reasoning: [
       "Confirming GearTech is the on-contract single-source OEM",
       "Checking sourcing agreement SA-MRO-11",
@@ -1658,6 +2885,31 @@ export const riskPrSteps: RunStep[] = [
     ],
     recommendation:
       "GearTech is the on-contract single-source OEM at $9,200/EA on SA-MRO-11; a 2-unit pre-buy ($18,400) on Net 60 also locks the price ahead of the forecast alloy increase.",
+    stages: [
+      {
+        sourceId: "risk-vendor-rec",
+        reasoning: "Confirming the single-source OEM",
+        title: "Vendor master · XK03",
+        fields: [
+          { label: "Vendor", value: "GearTech Drive Systems" },
+          { label: "BP role", value: "Vendor · OEM" },
+          { label: "Approved", value: "Yes · sole source" },
+          { label: "Alternate source", value: "None qualified" },
+        ],
+      },
+      {
+        sourceId: "risk-agreement",
+        reasoning: "Pricing the pre-buy against the agreement",
+        title: "Price · ME33K SA-MRO-11",
+        fields: [
+          { label: "Contract price", value: "$9,200.00 / EA" },
+          { label: "Pre-buy", value: "2 EA · $18,400" },
+          { label: "Payment terms", value: "NT60 · Net 60", options: PAYMENT_TERMS },
+          { label: "Need-by date", value: "2026-08-25", type: "date" },
+          { label: "Market timing", value: "Locks ahead of +7% alloy" },
+        ],
+      },
+    ],
   }),
   step({
     id: "orchestrator",
@@ -1665,6 +2917,8 @@ export const riskPrSteps: RunStep[] = [
     n: 5,
     title: "Approve & route the pre-buy",
     sub: "Cost center, DOA and the human authorization",
+    aiThought:
+      "This overrides the deterministic reorder logic, so it needs a person. Let me prepare the pre-buy authorization for the reliability lead to sign.",
     reasoning: [
       "Confirming cost center 10034 / GL 600450",
       "Single-source OEM — competitive bidding waived on file",
@@ -1673,42 +2927,48 @@ export const riskPrSteps: RunStep[] = [
     ],
     docLabel: "VAL-49001-APR · approval",
     document: riskApprovalDoc,
+    hasExceptions: true,
     sources: [
       { id: "ven-handoff", label: "VAL-49001-VEN", meta: "from Sourcing", kind: "sap", handoff: true, body: riskVendorDoc },
       { id: "risk-doa", label: "DOA release routing", meta: "WF-49001-REL", kind: "policy", body: riskApprovalRouting },
     ],
     email: {
-      cta: "Send the pre-buy recommendation",
+      cta: "Review & send for authorization",
+      attachment: <BudgetApprovalDoc a={riskPrebuyAuthorization} />,
+      attachmentLabel: "Pre-buy authorization · WF-49001-REL",
       to: "Reliability lead · Northgate Recovery line",
-      subject: "RISK-49001 — drive-gearbox seal kit predicted to stock out in 9 days · approve pre-buy",
+      subject: "RISK-49001 — drive-gearbox seal kit predicted to stock out in 9 days · authorize pre-buy",
       lines: [
-        "No PR was raised — I detected a stock-out risk on the A1-critical drive-gearbox seal kit by fusing the S&OP ramp, rising consumption, a 9-week single-source lead time and a tightening alloy market.",
-        "The deterministic reorder point fires at on-hand 0, which is too late for a 9-week lead, and no sister plant can cover. I'm recommending a proactive 2-unit pre-buy from GearTech on-contract ($18,400, Net 60) — inside the carry policy and trivial against a ~$1.4M/day line-down.",
-        "Reply to approve and I'll route the proactive PR on-contract ahead of the lead time.",
+        "No PR was raised — I detected a stock-out risk on the A1-critical drive-gearbox seal kit by fusing five signals: the S&OP ramp, equipment criticality, rising consumption, a 9-week single-source lead and a tightening alloy market.",
+        "The deterministic reorder point fires only at on-hand 0 — too late for a 9-week lead — and no sister plant can cover. I've attached a proactive pre-buy authorization for a 2-unit GearTech pre-buy ($18,400, Net 60) — inside the carry policy and trivial against a ~$1.4M/day line-down.",
+        "Please review and sign the attached authorization to override the reorder logic; on your sign-off I'll route the proactive PR ahead of the lead time.",
       ],
-      toastTitle: "Pre-buy approved",
-      toastBody: "The reliability lead approved the proactive pre-buy — reply added to your sources.",
+      toastTitle: "Pre-buy authorized",
+      toastBody: "The reliability lead signed the proactive pre-buy authorization — the override is approved.",
       resolvedDocument: riskApprovalDocResolved,
       reply: {
         from: "Reliability lead · Northgate Recovery line",
         receivedMeta: "Outlook · 08:05",
-        subject: "RE: RISK-49001 — approve pre-buy",
-        lines: ["Approved — pre-buy the 2 kits and protect the recovery line. Good catch ahead of the ramp."],
+        subject: "RE: RISK-49001 — authorization signed",
+        lines: ["Signed the attached authorization — pre-buy the 2 kits and protect the recovery line. Good catch ahead of the ramp."],
         source: {
-          id: "risk-approval-ack",
-          label: "Reliability lead approval",
-          meta: "Outlook · 08:05",
-          kind: "email",
+          id: "risk-prebuy-signed",
+          label: "Pre-buy authorization · signed",
+          meta: "Reliability lead · 08:05",
+          kind: "kb",
           body: (
-            <EmailDoc
-              from="Reliability lead · Northgate Recovery line"
-              fromAddr="reliability@northgatepaper.com"
-              to="Approval & routing"
-              sent="2026-06-24 · 08:05"
-              subject="RE: RISK-49001 — approve pre-buy"
-              tone="inbound"
-              lines={["Approved — pre-buy the 2 kits and protect the recovery line. Good catch ahead of the ramp."]}
-            />
+            <div className="space-y-3">
+              <EmailDoc
+                from="Reliability lead · Northgate Recovery line"
+                fromAddr="reliability@northgatepaper.com"
+                to="Approval & routing"
+                sent="2026-06-24 · 08:05"
+                subject="RE: RISK-49001 — authorization signed"
+                tone="inbound"
+                lines={["Signed the attached authorization — pre-buy the 2 kits and protect the recovery line. Good catch ahead of the ramp."]}
+              />
+              <BudgetApprovalDoc a={riskPrebuyAuthorization} signed />
+            </div>
           ),
         },
       },
@@ -1799,6 +3059,34 @@ const complianceAgreement = (
         { label: "Payment terms", value: "Net 60" },
         { label: "Incoterms", value: "FCA · GearTech works" },
         { label: "Renewal", value: "Flag · expires in 28 days" },
+      ],
+    }}
+  />
+);
+
+/* The renewed agreement the AI drafts and attaches to the manager for approval. */
+const complianceRenewedContract = (
+  <OutlineAgreementDoc
+    a={{
+      number: "SA-MRO-09 · R2",
+      status: "Renewal draft · pending approval",
+      createdOn: "Today · valid to 2027-12-31",
+      createdBy: "Compliance & Contract agent",
+      header: [
+        { label: "Vendor", value: "GearTech (OEM)" },
+        { label: "Vendor code", value: "0001000341" },
+        { label: "Purch. org", value: "1000 · Northgate" },
+        { label: "Valid from", value: "2026-07-21 · renewed" },
+        { label: "Valid to", value: "2027-12-31 · +18 mo" },
+        { label: "Target value", value: "$600,000" },
+      ],
+      items: [
+        { item: "20", material: "MRO-GEARBOX-REBUILD-KIT-OEM", description: "Drive-gearbox rebuild kit", targetQty: "8 EA / yr", netPrice: "$42,000.00", per: "1 EA" },
+      ],
+      conditions: [
+        { label: "Payment terms", value: "Net 60 · unchanged" },
+        { label: "Incoterms", value: "FCA · GearTech works" },
+        { label: "Renewal", value: "Updated date · manager to approve" },
       ],
     }}
   />
@@ -1909,6 +3197,51 @@ const complianceApprovalRouting = (
   />
 );
 
+const complianceBudgetApproval: BudgetApproval = {
+  number: "WF-48690-REL",
+  title: "Over-DOA budget approval · PO-77412",
+  sub: "PR-48690 → PO-77412 · Drive-gearbox rebuild kit · GearTech OEM",
+  rows: [
+    { label: "Amount", value: "$42,000.00" },
+    { label: "Plant DOA (L1)", value: "$10,000 · exceeded" },
+    { label: "Cost center / GL", value: "10052 / 600450" },
+    { label: "Vendor · contract", value: "GearTech · SA-MRO-09" },
+    { label: "L1 · Plant Maintenance", value: "Approved · HSE cleared" },
+    { label: "L2 · Procurement Manager", value: "Your sign-off" },
+  ],
+  body: [
+    "PR-48690 has cleared every compliance gate — contract (on SA-MRO-09), HSE & insurance for the on-site rebuild, GL/cost-center, and delivery feasibility against the planned outage.",
+    "At $42,000 the spend is over the plant-maintenance delegation of authority ($10,000), so it needs L2 authorization. Signing approves the over-DOA spend and releases PO-77412 to GearTech under the current agreement.",
+  ],
+  signer: "Procurement Manager · L2",
+  witness: "Compliance & Contract agent",
+  date: "Today · 14:20",
+};
+
+const complianceApprovalRoutingResolved = (
+  <ApprovalRoutingDoc
+    r={{
+      number: "WF-48690-REL",
+      status: "Released · L2 signed",
+      createdOn: "2026-06-22 · 14:20",
+      createdBy: "Approval & routing",
+      summary: [
+        { label: "Document", value: "PR-48690 → PO-77412" },
+        { label: "Requestor", value: "Reliability eng · Pulping" },
+        { label: "Category", value: "MRO · on-contract" },
+        { label: "Amount", value: "$42,000.00" },
+        { label: "Cost center / GL", value: "10052 / 600450" },
+        { label: "Vendor", value: "GearTech · SA-MRO-09" },
+      ],
+      chain: [
+        { level: "L1", approver: "Plant Maintenance Lead", role: "Maintenance", limit: "$10,000", status: "approved", when: "auto · on-contract, HSE cleared" },
+        { level: "L2", approver: "Procurement Manager", role: "Procurement", limit: "$50,000", status: "approved", when: "budget approval signed · 14:20" },
+      ],
+      validation: { ok: true, text: "L2 sign-off received — the over-DOA spend is authorized and PO-77412 can release to GearTech on SA-MRO-09." },
+    }}
+  />
+);
+
 const compliancePoFields = {
   header: [
     { label: "Vendor", value: "GearTech (OEM) · 0001000341" },
@@ -1961,6 +3294,124 @@ const compliancePoDocResolved = (
   />
 );
 
+/* Real SAP records the compliance orchestrator reads (clickable evidence). */
+
+const complianceHseRecord = (
+  <RecordDoc
+    d={{
+      tcode: "CV03N",
+      tname: "Display Document Info Record",
+      number: "HSE-48690",
+      status: "Cleared",
+      docType: "Contractor HSE & insurance clearance",
+      system: "EHS · contractor management",
+      createdOn: "2026-06-22 · 14:13",
+      createdBy: "HSE & Insurance desk",
+      sections: [
+        {
+          band: "On-site work",
+          rows: [
+            { label: "Work type", value: "On-site rebuild · drive line" },
+            { label: "HSE review", value: "Required · on-site" },
+            { label: "Permit", value: "Hot-work + LOTO" },
+          ],
+        },
+        {
+          band: "Contractor clearance",
+          rows: [
+            { label: "Contractor", value: "GearTech field service" },
+            { label: "HSE clearance", value: "Valid to 2026-12" },
+            { label: "Insurance cert.", value: "$5M general liability · on file" },
+            { label: "Method statement", value: "RAMS approved · lockout-tagout" },
+          ],
+        },
+      ],
+      determination: { ok: true, text: "Contractor HSE clearance, $5M insurance and an approved method statement are on file — the on-site rebuild is cleared to proceed." },
+    }}
+  />
+);
+
+const complianceDeliveryRecord = (
+  <RecordDoc
+    d={{
+      tcode: "FMAVCR",
+      tname: "Display Budget / Availability",
+      number: "GL-48690",
+      status: "Available",
+      docType: "Cost-centre · budget · delivery feasibility",
+      system: "FI-CO · controlling",
+      createdOn: "2026-06-22 · 14:16",
+      createdBy: "Cost & Delivery desk",
+      sections: [
+        {
+          band: "Account assignment",
+          rows: [
+            { label: "Cost center", value: "10052 · Pulping Maintenance" },
+            { label: "G/L account", value: "600450 · Repairs & Maintenance" },
+            { label: "Budget", value: "Available · committed" },
+          ],
+        },
+        {
+          band: "Delivery feasibility",
+          rows: [
+            { label: "Lead time", value: "4 weeks" },
+            { label: "Planned outage", value: "6 weeks out" },
+            { label: "Window", value: "Clears · feasible" },
+          ],
+        },
+      ],
+      determination: { ok: true, text: "GL/cost-center correct and in budget; the 4-week lead clears the 6-week planned outage — delivery is feasible." },
+    }}
+  />
+);
+
+/* ── PO commercial match (step 6) — PR ↔ contract ↔ PO ↔ budget tie-out ───────
+ * A closing four-way commercial reconciliation: the converted PO-77412 is tied
+ * back to the requisition PR-48690, the SA-MRO-09 agreement and the signed L2
+ * budget approval. Columns fill one document per stage. */
+const complianceMatchColumns = [
+  { key: "pr", label: "PR-48690" },
+  { key: "contract", label: "SA-MRO-09" },
+  { key: "po", label: "PO-77412" },
+  { key: "budget", label: "Budget" },
+];
+const complianceMatchRows = [
+  { dimension: "Unit price (USD)", cells: { pr: { value: "42,000.00", ok: true }, contract: { value: "42,000.00", ok: true }, po: { value: "42,000.00", ok: true }, budget: { value: "—", ok: false } } },
+  { dimension: "Quantity (EA)", cells: { pr: { value: "1", ok: true }, contract: { value: "1", ok: true }, po: { value: "1", ok: true }, budget: { value: "—", ok: false } } },
+  { dimension: "Net value (USD)", cells: { pr: { value: "42,000.00", ok: true }, contract: { value: "42,000.00", ok: true }, po: { value: "42,000.00", ok: true }, budget: { value: "42,000.00", ok: true } } },
+  { dimension: "Payment terms", cells: { pr: { value: "Net 60", ok: true }, contract: { value: "Net 60", ok: true }, po: { value: "Net 60", ok: true }, budget: { value: "—", ok: false } } },
+  { dimension: "Cost center", cells: { pr: { value: "10052", ok: true }, contract: { value: "—", ok: false }, po: { value: "10052", ok: true }, budget: { value: "10052", ok: true } } },
+];
+
+const complianceMatchResultDoc = (
+  <RecordDoc
+    d={{
+      tcode: "ME29N",
+      tname: "Purchase Order — Commercial Match",
+      number: "MATCH-48690",
+      status: "Matched · clean · L2 signed",
+      docType: "Four-way commercial match · PR ↔ contract ↔ PO ↔ budget",
+      system: "Purchasing · commercial compliance",
+      createdOn: "2026-06-22 · 14:50",
+      createdBy: "Commercial Orchestrator",
+      sections: [
+        {
+          band: "Four-way commercial match",
+          rows: [
+            { label: "Requisition", value: "PR-48690 · $42,000.00" },
+            { label: "Agreement", value: "SA-MRO-09 · $42,000.00" },
+            { label: "Purchase order", value: "PO-77412 · $42,000.00" },
+            { label: "Budget approval", value: "WF-48690-REL · $42,000 · signed" },
+            { label: "Price variance", value: "$0.00 · within tolerance" },
+            { label: "Cost center", value: "10052 · ties out" },
+          ],
+        },
+      ],
+      determination: { ok: true, text: "Four-way commercial match clean — PR, agreement, PO and the signed L2 budget approval all tie out at $42,000.00 on Net 60, cost center 10052. Cleared to release." },
+    }}
+  />
+);
+
 export const compliancePrSteps: RunStep[] = [
   step({
     id: "sourcing",
@@ -1968,6 +3419,9 @@ export const compliancePrSteps: RunStep[] = [
     n: 1,
     title: "Contract & commercial compliance",
     sub: "Validates the buy against the agreement",
+    aiThought:
+      "This requisition is validated and ready to become a PO. Let me read the agreement, confirm it's compliant, and flag the contract if it's close to expiring.",
+    flagged: true,
     reasoning: [
       "Reading validated PR-48690 · ready for PO conversion",
       "Confirming GearTech is approved and on SA-MRO-09",
@@ -1982,7 +3436,34 @@ export const compliancePrSteps: RunStep[] = [
       { id: "cc-agreement", label: "ME33K · SA-MRO-09", meta: "outline agreement · expiring", kind: "contract", body: complianceAgreement },
     ],
     recommendation:
-      "On-contract and price-compliant. The only flag is that SA-MRO-09 expires in 28 days — I'd lock this PO under the current agreement now and raise a renewal for the contract.",
+      "On-contract and price-compliant. The only flag is that SA-MRO-09 expires in 28 days — I've drafted a renewal to send the manager for approval, and I'd lock this PO under the current agreement now.",
+    email: {
+      cta: "Review & send the renewal",
+      to: "Procurement Manager · Pulping",
+      subject: "SA-MRO-09 expiring in 28 days — renewal for approval",
+      lines: [
+        "SA-MRO-09 (GearTech · drive-gearbox rebuild kit) expires in 28 days — before the PO-77412 delivery date. To avoid a lapse, I've drafted a renewal that extends the agreement to 2027-12-31 with price and terms unchanged.",
+        "I'm sending you the renewal to take forward with GearTech; I'll lock PO-77412 under the current agreement now so the rebuild isn't held up.",
+      ],
+      attachment: complianceRenewedContract,
+      attachmentLabel: "ME33K · SA-MRO-09 · renewed",
+      toastTitle: "Renewal sent",
+      toastBody: "Renewal sent to the Procurement Manager · PO-77412 locked under the current agreement.",
+    },
+    stages: [
+      {
+        sourceId: "cc-agreement",
+        reasoning: "Validating the buy against the outline agreement",
+        title: "Contract compliance · ME33K",
+        fields: [
+          { label: "Vendor", value: "GearTech (OEM) · approved" },
+          { label: "Agreement", value: "SA-MRO-09 · item 20" },
+          { label: "Price vs contract", value: "$42,000 · matches" },
+          { label: "Payment terms", value: "NT60 · Net 60", options: PAYMENT_TERMS },
+          { label: "Contract validity", value: "Expires in 28 days · flag renewal" },
+        ],
+      },
+    ],
   }),
   step({
     id: "invoice",
@@ -1990,6 +3471,8 @@ export const compliancePrSteps: RunStep[] = [
     n: 2,
     title: "HSE & insurance clearance",
     sub: "Clears the on-site rebuild work",
+    aiThought:
+      "The rebuild is on-site work, so let me check the contractor's HSE clearance, insurance and method statement before we let it proceed.",
     reasoning: [
       "Reading the contract-compliance handoff",
       "On-site rebuild on the drive line — HSE review required",
@@ -2001,9 +3484,24 @@ export const compliancePrSteps: RunStep[] = [
     document: complianceHseDoc,
     sources: [
       { id: "cc-cc-handoff", label: "VAL-48690-CC", meta: "from Compliance & Contract", kind: "sap", handoff: true, body: complianceContractDoc },
+      { id: "cc-hse-rec", label: "HSE clearance record", meta: "contractor · insurance · RAMS", kind: "kb", body: complianceHseRecord },
     ],
     recommendation:
       "The rebuild is on-site, so it needs HSE clearance — and the contractor's clearance, $5M insurance and an approved method statement are all on file. Cleared to proceed.",
+    stages: [
+      {
+        sourceId: "cc-hse-rec",
+        reasoning: "Clearing the on-site rebuild with HSE & insurance",
+        title: "HSE & insurance · clearance",
+        fields: [
+          { label: "On-site work", value: "Rebuild · HSE review required" },
+          { label: "HSE clearance", value: "Valid to 2026-12" },
+          { label: "Insurance cert.", value: "$5M general liability · on file" },
+          { label: "Method statement", value: "RAMS approved · lockout-tagout" },
+          { label: "Outcome", value: "Cleared to proceed" },
+        ],
+      },
+    ],
   }),
   step({
     id: "vendor",
@@ -2011,6 +3509,8 @@ export const compliancePrSteps: RunStep[] = [
     n: 3,
     title: "GL / cost-center & delivery",
     sub: "Confirms coding, budget and the outage window",
+    aiThought:
+      "Let me confirm the GL and cost center are right, the budget is committed, and the lead time clears the planned outage.",
     reasoning: [
       "Confirming cost center 10052 / GL 600450",
       "Budget available and committed",
@@ -2021,9 +3521,25 @@ export const compliancePrSteps: RunStep[] = [
     document: complianceDeliveryDoc,
     sources: [
       { id: "cc-hse-handoff", label: "VAL-48690-HSE", meta: "from HSE desk", kind: "sap", handoff: true, body: complianceHseDoc },
+      { id: "cc-del-rec", label: "Budget & delivery record", meta: "GL · cost center · outage", kind: "master", body: complianceDeliveryRecord },
     ],
     recommendation:
       "Cost center and GL are correct and in budget, and the 4-week lead clears the 6-week planned outage — delivery is feasible.",
+    stages: [
+      {
+        sourceId: "cc-del-rec",
+        reasoning: "Confirming coding, budget and the outage window",
+        title: "Cost / delivery · feasibility",
+        fields: [
+          { label: "Cost center / GL", value: "10052 / 600450 · correct" },
+          { label: "Budget", value: "Available · committed" },
+          { label: "Lead time", value: "4 weeks" },
+          { label: "Planned outage", value: "6 weeks out · clears" },
+          { label: "Delivery", value: "Feasible" },
+          { label: "Delivery date", value: "2026-07-20", type: "date" },
+        ],
+      },
+    ],
   }),
   step({
     id: "po",
@@ -2031,6 +3547,8 @@ export const compliancePrSteps: RunStep[] = [
     n: 4,
     title: "Approval hierarchy & sourcing rules",
     sub: "Routes the over-DOA sign-off",
+    aiThought:
+      "At $42,000 this is over the plant delegation of authority. Let me apply the approval hierarchy and route it for the L2 sign-off.",
     reasoning: [
       "Confirming approval hierarchy for $42,000",
       "L1 plant-maintenance approved · HSE cleared",
@@ -2039,12 +3557,90 @@ export const compliancePrSteps: RunStep[] = [
       "Routing to the Procurement Manager for L2 sign-off",
     ],
     docLabel: "WF-48690-REL · approval routing",
+    inbound: {
+      source: {
+        id: "cc-mgr-proceed",
+        label: "Manager · proceed",
+        meta: "Outlook · 14:18",
+        kind: "email",
+        body: (
+          <EmailDoc
+            from="Procurement Manager · Pulping"
+            fromAddr="procurement@northgatepaper.com"
+            to="Approval & routing"
+            sent="2026-06-22 · 14:18"
+            subject="PR-48690 — proceed with the PO"
+            tone="inbound"
+            lines={[
+              "Cleared on my side — proceed with PO-77412 under the current agreement.",
+              "I'll sign the new contract with GearTech using the renewal email you sent me, so coverage is in place before delivery.",
+            ]}
+          />
+        ),
+      },
+    },
     document: complianceApprovalRouting,
     sources: [
       { id: "cc-del-handoff", label: "VAL-48690-DEL", meta: "from Cost & Delivery", kind: "sap", handoff: true, body: complianceDeliveryDoc },
+      { id: "cc-pr-doa", label: "PR-48690", meta: "amount · cost center", kind: "sap", body: complianceTriggerPr },
     ],
     recommendation:
-      "Everything is compliant; the one human decision is the L2 sign-off — $42K is over the plant DOA, so it routes to the Procurement Manager before the PO releases.",
+      "Everything is compliant; the one human decision is the L2 sign-off — $42K is over the plant DOA. I've drafted the request and the budget approval; sign it to authorise the over-DOA spend and release the PO.",
+    email: {
+      cta: "Review & send for sign-off",
+      to: "Procurement Manager · Pulping",
+      subject: "PR-48690 → PO-77412 — $42,000 over plant DOA · sign to release",
+      lines: [
+        "PR-48690 has cleared every compliance gate — contract on SA-MRO-09, HSE & insurance for the on-site rebuild, GL/cost-center, and delivery against the planned outage.",
+        "At $42,000 it's over the plant-maintenance DOA ($10,000), so it needs your L2 sign-off. I've attached the budget approval — review and sign to authorise the over-DOA spend and release the PO to GearTech.",
+      ],
+      attachment: <BudgetApprovalDoc a={complianceBudgetApproval} />,
+      attachmentLabel: "Budget approval · WF-48690-REL",
+      toastTitle: "Budget approval signed",
+      toastBody: "The Procurement Manager signed the over-DOA budget approval — the L2 sign-off is in.",
+      resolvedDocument: complianceApprovalRoutingResolved,
+      reply: {
+        from: "Procurement Manager · Pulping",
+        receivedMeta: "Outlook · 14:22",
+        subject: "RE: PR-48690 — budget approval signed",
+        lines: ["Approved — signed the attached budget approval. Release PO-77412 to GearTech."],
+        source: {
+          id: "cc-budget-signed",
+          label: "Budget approval · signed",
+          meta: "Procurement Manager · 14:20",
+          kind: "kb",
+          body: (
+            <div className="space-y-3">
+              <EmailDoc
+                from="Procurement Manager · Pulping"
+                fromAddr="procurement@northgatepaper.com"
+                to="Approval & routing"
+                sent="2026-06-22 · 14:22"
+                subject="RE: PR-48690 — budget approval signed"
+                tone="inbound"
+                lines={["Approved — signed the attached budget approval. Release PO-77412 to GearTech."]}
+              />
+              <BudgetApprovalDoc a={complianceBudgetApproval} signed />
+            </div>
+          ),
+        },
+      },
+    },
+    stages: [
+      {
+        sourceId: "cc-pr-doa",
+        reasoning: "Applying the approval hierarchy to the amount",
+        title: "Approval routing · DOA",
+        fields: [
+          { label: "Document", value: "PR-48690 → PO-77412" },
+          { label: "Amount", value: "$42,000.00" },
+          { label: "Cost center / GL", value: "10052 / 600450" },
+          { label: "Plant DOA (L1)", value: "$10,000" },
+          { label: "Over DOA", value: "Yes · route to L2" },
+          { label: "L2 approver", value: "Procurement Manager" },
+        ],
+      },
+    ],
   }),
   step({
     id: "orchestrator",
@@ -2052,6 +3648,8 @@ export const compliancePrSteps: RunStep[] = [
     n: 5,
     title: "Convert to a compliant PO",
     sub: "Issues PO-77412 and routes the release",
+    aiThought:
+      "Every compliance gate is clear. Let me convert the requisition into a compliant PO and release it to GearTech.",
     reasoning: [
       "All compliance gates clear · contract, HSE, GL, delivery",
       "Converting PR-48690 to PO-77412 on SA-MRO-09",
@@ -2065,41 +3663,77 @@ export const compliancePrSteps: RunStep[] = [
     ],
     email: {
       cta: "Send for L2 sign-off",
+      attachment: compliancePoDoc,
+      attachmentLabel: "PO-77412 · ME23N",
       to: "Procurement Manager",
       subject: "PO-77412 — $42,000 over plant DOA · approve to release",
       lines: [
         "PR-48690 (pulping drive-gearbox rebuild kit) has cleared every compliance gate — on-contract via GearTech on SA-MRO-09, HSE and insurance cleared for the on-site rebuild, GL/cost-center correct, and the 4-week lead clears the planned outage.",
-        "I've converted it to PO-77412 ($42,000, Net 60). The only open item is the L2 sign-off: at $42K it's over the plant-maintenance DOA, and SA-MRO-09 expires in 28 days so I'd lock it now.",
-        "Approve to release the PO to GearTech.",
+        "I've converted it to PO-77412 ($42,000, Net 60); it cleared L2 in the budget approval, so I'm releasing it to GearTech now.",
+        "PO-77412 is on its way to GearTech — flag me if anything needs to change before the rebuild.",
       ],
       toastTitle: "PO released",
-      toastBody: "The Procurement Manager approved the L2 sign-off — PO-77412 released to GearTech.",
+      toastBody: "PO-77412 released to GearTech on SA-MRO-09 · $42,000 · Net 60.",
       resolvedDocument: compliancePoDocResolved,
-      reply: {
-        from: "Procurement Manager",
-        receivedMeta: "Outlook · 14:48",
-        subject: "RE: PO-77412 — approve to release",
-        lines: ["Approved — release PO-77412 to GearTech. Good call locking it before SA-MRO-09 expires; raise the renewal."],
-        source: {
-          id: "cc-po-ack",
-          label: "Procurement Manager approval",
-          meta: "Outlook · 14:48",
-          kind: "email",
-          body: (
-            <EmailDoc
-              from="Procurement Manager"
-              fromAddr="procurement@northgatepaper.com"
-              to="Commercial Orchestrator"
-              sent="2026-06-22 · 14:48"
-              subject="RE: PO-77412 — approve to release"
-              tone="inbound"
-              lines={["Approved — release PO-77412 to GearTech. Good call locking it before SA-MRO-09 expires; raise the renewal."]}
-            />
-          ),
-        },
-      },
     },
     recommendation:
-      "Every compliance gate clears — I've converted PR-48690 to a compliant PO-77412 ($42,000 on SA-MRO-09). Send the L2 request; on the Procurement Manager's approval, the PO releases to GearTech.",
+      "Every compliance gate clears — I've converted PR-48690 to a compliant PO-77412 ($42,000 on SA-MRO-09), L2-signed. On approve, the agent releases the PO to GearTech.",
+  }),
+  step({
+    id: "po",
+    agentName: "Commercial Match agent",
+    n: 6,
+    title: "PO commercial match",
+    sub: "Four-way ties PO to PR, contract & budget",
+    aiThought:
+      "Let me reconcile the released PO against the requisition, the agreement and the signed budget approval — a four-way commercial check before we close.",
+    reasoning: [
+      "Reading the released PO-77412 and the requisition PR-48690",
+      "Running the commercial match — PR ↔ contract ↔ PO ↔ budget",
+      "Checking price, terms and cost center — $42,000 · Net 60 · 10052",
+      "Confirming the signed L2 budget approval covers the spend",
+      "Tying out the four-way commercial match — clean",
+    ],
+    docLabel: "MATCH-48690 · commercial match",
+    document: complianceMatchResultDoc,
+    sources: [
+      { id: "cc-m-pr", label: "PR-48690", meta: "requisition · captured", kind: "sap", handoff: true, body: complianceTriggerPr },
+      { id: "cc-m-contract", label: "ME33K · SA-MRO-09", meta: "outline agreement", kind: "contract", body: complianceAgreement },
+      { id: "cc-m-po", label: "PO-77412", meta: "SAP ME23N · released", kind: "sap", body: compliancePoDoc },
+      { id: "cc-m-budget", label: "Budget approval · signed", meta: "WF-48690-REL · L2", kind: "budget", body: <BudgetApprovalDoc a={complianceBudgetApproval} signed /> },
+    ],
+    recommendation:
+      "Commercial match is four-way clean — PR-48690, SA-MRO-09, PO-77412 and the signed L2 budget approval all tie out at $42,000 on Net 60, cost center 10052. No commercial exception.",
+    stages: [
+      {
+        sourceId: "cc-m-pr",
+        reasoning: "Baselining the match on requisition PR-48690",
+        title: "Commercial match — PR baseline",
+        matchGrid: { columns: complianceMatchColumns, rows: complianceMatchRows, reveal: ["pr"] },
+      },
+      {
+        sourceId: "cc-m-contract",
+        reasoning: "Adding the SA-MRO-09 agreement — price & terms",
+        title: "Commercial match — adding the contract",
+        matchGrid: { columns: complianceMatchColumns, rows: complianceMatchRows, reveal: ["pr", "contract"] },
+      },
+      {
+        sourceId: "cc-m-po",
+        reasoning: "Adding the converted PO-77412 — price, terms, cost center",
+        title: "Commercial match — adding the PO",
+        matchGrid: { columns: complianceMatchColumns, rows: complianceMatchRows, reveal: ["pr", "contract", "po"] },
+      },
+      {
+        sourceId: "cc-m-budget",
+        reasoning: "Adding the signed L2 budget approval and the four-way verdict",
+        title: "Commercial match — adding the budget · verdict",
+        matchGrid: {
+          columns: complianceMatchColumns,
+          rows: complianceMatchRows,
+          reveal: ["pr", "contract", "po", "budget"],
+          verdict: "All four tie out · variance USD 0.00 · Net 60 · cost center 10052 · L2 signed",
+        },
+      },
+    ],
   }),
 ];

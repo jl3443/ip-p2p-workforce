@@ -374,3 +374,93 @@ export function PurchaseOrderDoc({ p }: { p: PurchaseOrder }) {
     </DocShell>
   );
 }
+
+/* ── ME5A · List display of purchase requisitions (duplicate scan) ──────────── */
+
+export type OpenPrRow = {
+  pr: string;
+  item: string;
+  material: string;
+  qty: string;
+  plant: string;
+  created: string;
+  /** "dup" = a duplicate of the requisition under review (highlighted red). */
+  tone?: "dup";
+};
+
+export type OpenPrList = {
+  createdOn: string;
+  createdBy: string;
+  /** Selection scope line under the title. */
+  scope: string;
+  rows: OpenPrRow[];
+  note?: string;
+};
+
+export function OpenPrListDoc({ l }: { l: OpenPrList }) {
+  return (
+    <DocShell tcode="ME5A" tname="List Display of Purchase Requisitions" status="Open requisitions listed">
+      <DocTitleBand number="ME5A" status="Display" docType="Purchase requisitions · open · list" system="Purchasing · requisitions" createdOn={l.createdOn} createdBy={l.createdBy} />
+      <div className="px-4 py-2 text-[12px] text-mute border-b border-divider">{l.scope}</div>
+      <table className="w-full text-[12px] border-collapse">
+        <thead>
+          <tr className="bg-[#eef1f5] text-left text-[#5b6b7b]">
+            {["PR", "Itm", "Material", "Qty", "Plant", "Created"].map((h) => (
+              <th key={h} className="px-3 py-2 text-[10px] tracking-[0.04em] uppercase font-medium border-b border-divider whitespace-nowrap">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {l.rows.map((r, i) => (
+            <tr key={i} className={cn("align-top", r.tone === "dup" && "bg-[#fdecec]")}>
+              <td className={cn("px-3 py-2.5 border-b border-divider tabular-nums", r.tone === "dup" ? "text-[#bb0000] font-semibold" : "text-ink")}>{r.pr}</td>
+              <td className="px-3 py-2.5 border-b border-divider tabular-nums text-ink">{r.item}</td>
+              <td className={cn("px-3 py-2.5 border-b border-divider", r.tone === "dup" ? "text-[#bb0000] font-semibold" : "text-ink")}>{r.material}</td>
+              <td className="px-3 py-2.5 border-b border-divider tabular-nums text-ink">{r.qty}</td>
+              <td className="px-3 py-2.5 border-b border-divider text-ink">{r.plant}</td>
+              <td className="px-3 py-2.5 border-b border-divider tabular-nums text-ink">{r.created}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {l.note && <div className="px-4 py-3 text-[12px] text-mute">{l.note}</div>}
+    </DocShell>
+  );
+}
+
+/* ── Generic SAP record (HSE clearance · cost/delivery feasibility · etc.) ──── */
+
+export type RecordSection = { band: string; rows: KV[] };
+
+export type RecordDocData = {
+  tcode: string;
+  tname: string;
+  number: string;
+  status: string;
+  docType: string;
+  system: string;
+  createdOn: string;
+  createdBy: string;
+  sections: RecordSection[];
+  determination?: { ok: boolean; text: string };
+};
+
+export function RecordDoc({ d }: { d: RecordDocData }) {
+  return (
+    <DocShell tcode={d.tcode} tname={d.tname} status={`${d.number} displayed`}>
+      <DocTitleBand number={d.number} status={d.status} docType={d.docType} system={d.system} createdOn={d.createdOn} createdBy={d.createdBy} />
+      {d.sections.map((s, i) => (
+        <React.Fragment key={i}>
+          <SectionBand>{s.band}</SectionBand>
+          <Grid rows={s.rows} />
+        </React.Fragment>
+      ))}
+      {d.determination && (
+        <>
+          <SectionBand>Determination</SectionBand>
+          <Status ok={d.determination.ok} text={d.determination.text} />
+        </>
+      )}
+    </DocShell>
+  );
+}

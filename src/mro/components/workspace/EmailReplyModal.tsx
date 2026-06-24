@@ -67,6 +67,9 @@ export function EmailReplyModal({ email, onClose }: { email: EmailAction; onClos
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Only a reply-gated email has a thread to show; one-way emails never open this.
+  if (!email.reply) return null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 py-[6vh]"

@@ -46,7 +46,7 @@ export function Cockpit() {
 
       <HeroBanner
         eyebrow="Autonomous MRO procurement"
-        summary={`$312K off-contract spend avoided and $148K duplicate spend caught this quarter · 68% of requisitions released touchless · ${pendingDecisions.length} decisions need you today.`}
+        summary={`$312K off-contract and $148K duplicate spend caught, $2.8M of downtime risk pre-empted this quarter · 68% of requisitions released touchless · ${pendingDecisions.length} decisions need you today.`}
         cta={<PillButton variant="deep" size="sm">+ New requisition</PillButton>}
         meta="Updated 1 min ago"
       />

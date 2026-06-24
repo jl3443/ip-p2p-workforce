@@ -32,6 +32,9 @@ export type FlowRun = {
   reviewPill: string;
   /** Note shown when the final step is approved (happy-path close). */
   completeNote: string;
+  /** For a flagged step (RunStep.flagged): the amber "continue despite the flag"
+   *  action — label + the toast shown when the run is carried on with it parked. */
+  holdContinue?: { label: string; toastTitle: string; toastBody: string };
   steps: RunStep[];
   /** Terminal pill once the run settles (halted or completed). */
   terminal: (decisions: Record<number, Decision>) => TerminalPill;
@@ -450,6 +453,11 @@ export const flowRuns: Record<FlowId, FlowRun> = {
     contextSub: "PR-48690 validated · ready for PO conversion · the orchestrator runs the compliance & commercial gate",
     reviewPill: "Compliance gate · in review",
     completeNote: "PO released · compliant PO-77412 issued to GearTech on-contract",
+    holdContinue: {
+      label: "Pending PO · continue the run",
+      toastTitle: "Flagged — continuing",
+      toastBody: "SA-MRO-09 expires in 28 days. The PO is parked pending the contract renewal, and the run carries on.",
+    },
     steps: compliancePrSteps,
     terminal: (d) =>
       halted(d)

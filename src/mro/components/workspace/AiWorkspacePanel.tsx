@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ThumbsUp, PauseCircle, ArrowUpRight, X, Sparkles } from "lucide-react";
+import { Check, ThumbsUp, PauseCircle, ArrowUpRight, X, Sparkles, AlertTriangle } from "lucide-react";
 import { cn } from "@/mro/lib/utils";
 import { AIDot } from "@/mro/components/ai/AIDot";
 import { Spinner } from "@/mro/components/ai/Spinner";
@@ -9,6 +9,7 @@ import { EmailReplyModal } from "@/mro/components/workspace/EmailReplyModal";
 import { AiDraftEmailCard } from "@/mro/components/workspace/AiDraftEmailCard";
 import { ExceptionResolutionCard } from "@/mro/components/workspace/ExceptionResolutionCard";
 import { ExtractionWizard } from "@/mro/components/workspace/ExtractionWizard";
+import { RfqFlow } from "@/mro/components/workspace/RfqFlow";
 import { StepProgress } from "@/mro/components/ai/StepProgress";
 import { agentsById } from "@/mro/data/agents";
 import type { AgentOutputStatus } from "@/mro/state";
@@ -40,35 +41,58 @@ export function AiWorkspacePanel({
   step,
   status,
   replied,
+  awaiting = false,
   resolved = false,
   isLast,
   completeNote = "Run complete · invoice released to AP, audit envelope closed",
-  onReplyReceived,
+  holdContinue,
+  sent = false,
   onDecision,
+  onHoldContinue,
   onWizardActive,
+  onChoice,
+  useAltDoc = false,
   staged = false,
 }: {
   step: RunStep;
   status: AgentOutputStatus;
   replied: boolean;
+  /** True after send while the reply is still in flight (drives the email card's waiting state). */
+  awaiting?: boolean;
+  /** For a flagged step: the amber "continue despite the flag" action label + toast. */
+  holdContinue?: { label: string; toastTitle: string; toastBody: string };
+  /** Advance the run past a flagged step (keeps it parked). */
+  onHoldContinue?: () => void;
   /** True once the reply email has been read & closed — swaps the produced doc to its resolved version. */
   resolved?: boolean;
   isLast: boolean;
   /** Note shown when the final step is approved (happy-path close). */
   completeNote?: string;
-  onReplyReceived: () => void;
+  /** True once the step's outbound email has been sent (drives the draft card state). */
+  sent?: boolean;
   onDecision: (status: Decision) => void;
   /** Tells the workspace whether the staged wizard is running (to hide the rail). */
   onWizardActive?: (active: boolean) => void;
+  /** Bubbles a choice-stage pick up to the run (e.g. on-contract → drop the RFQ step). */
+  onChoice?: (optionId: string) => void;
+  /** When true, render the step's altDocument (the off-contract PR doc with vendor
+   *  & price hidden) instead of the default produced document. */
+  useAltDoc?: boolean;
   /** True when this step plays the staged wizard (L2/L3); false reveals directly (L4). */
   staged?: boolean;
 }) {
   const agent = agentsById[step.id];
   const hasWizard = staged && Boolean(step.stages);
+  const hasRfq = staged && Boolean(step.rfq);
   const resolvedDoc = step.email?.resolvedDocument;
   const showResolved = resolved && !!resolvedDoc;
+  // Off-contract branch swaps in the alternate produced doc (vendor & price hidden).
+  const producedDoc = useAltDoc && step.altDocument ? step.altDocument : step.document;
 
-  const [phase, setPhase] = React.useState<Phase>(hasWizard ? "loading" : "revealed");
+  const [phase, setPhase] = React.useState<Phase>(hasWizard || hasRfq ? "loading" : "revealed");
+  // For a merged sourcing step (rfq + stages): the RFQ plays first, then the
+  // vendor-selection wizard. This flips once the RFQ hands off.
+  const [rfqDone, setRfqDone] = React.useState(false);
   const [recTyped, setRecTyped] = React.useState(false);
   const [detailsShown, setDetailsShown] = React.useState(false);
   // 0 → 1 over the recommendation's typing duration; drives the reasoning checks.
@@ -132,16 +156,18 @@ export function AiWorkspacePanel({
     return () => window.clearTimeout(t);
   }, [recTyped]);
 
+  // The step's outbound email now fires from the Approve action itself (see
+  // Workspace.onDecision): the draft auto-pops the moment the human approves, so
+  // there's no separate "send" button to hunt for and the draft never gets
+  // skipped on the way to the close.
+
   // Keep the rail hidden for the staged lead-in + wizard, so the spinner shares
   // the wizard's wide layout rather than sitting on a separate rail'd page.
   React.useEffect(() => {
-    onWizardActive?.(hasWizard && (phase === "loading" || phase === "working"));
+    onWizardActive?.((hasWizard || hasRfq) && (phase === "loading" || phase === "working"));
     return () => onWizardActive?.(false);
-  }, [phase, hasWizard, onWizardActive]);
+  }, [phase, hasWizard, hasRfq, onWizardActive]);
 
-  const sendEmail = () => {
-    if (!replied) onReplyReceived();
-  };
   const viewThread = () => setEmailOpen(true);
 
   return (
@@ -174,6 +200,18 @@ export function AiWorkspacePanel({
       </header>
 
       <div className="p-5 space-y-4">
+        {/* The agent's opening thought — it reads & interprets the request in
+            plain English (the NLP read) before it starts the structured work. */}
+        {step.aiThought && (
+          <div className="flex items-start gap-2.5 rounded-md bg-surface-mint/30 border border-surface-mint/70 px-3.5 py-2.5">
+            <span className="mt-[1px] grid h-5 w-5 shrink-0 place-items-center rounded-full bg-surface-deep text-ink-inverse">
+              <Sparkles size={11} />
+            </span>
+            <p className="text-[13px] text-ink leading-relaxed min-h-[1.2em]">
+              <StreamingText text={step.aiThought} cps={52} startDelay={150} />
+            </p>
+          </div>
+        )}
         {phase === "loading" ? (
           /* Lead-in spinner — fills to 100%, then hands off to the wizard. */
           <StepProgress
@@ -183,12 +221,18 @@ export function AiWorkspacePanel({
             durationMs={LEAD_MS}
             onDone={() => setPhase("working")}
           />
+        ) : phase === "working" && step.rfq && !rfqDone ? (
+          /* The RFQ flow — search → RFQ → send 2 vendor emails → quotes. When the
+             step also carries stages (the merged sourcing step), hand off to the
+             vendor-selection wizard next; otherwise straight to the reveal. */
+          <RfqFlow rfq={step.rfq} onComplete={() => (step.stages ? setRfqDone(true) : setPhase("revealed"))} />
         ) : phase === "working" && step.stages ? (
           /* The extraction wizard — validate each stage, then straight to reveal. */
           <ExtractionWizard
             stages={step.stages}
             sources={step.sources}
             onComplete={() => setPhase("revealed")}
+            onChoice={onChoice}
           />
         ) : (
           /* The reveal — reasoning lines and the recommendation animate together. */
@@ -242,18 +286,20 @@ export function AiWorkspacePanel({
                   {showResolved ? (
                     <SpringIn key="resolved-doc">{resolvedDoc}</SpringIn>
                   ) : (
-                    step.document
+                    producedDoc
                   )}
                 </div>
 
-                {/* Email round-trip — the agent drafts it, the buyer reviews and sends */}
+                {/* The agent's email — drafted here, but it auto-pops & sends from
+                    the Approve action, so this card is a passive preview. */}
                 {step.email && (
                   <AiDraftEmailCard
                     email={step.email}
-                    sent={replied}
-                    onSend={sendEmail}
-                    onViewThread={viewThread}
-                    sendLabel={step.email.cta}
+                    sent={sent}
+                    replied={replied}
+                    awaiting={awaiting}
+                    hasReply={!!step.email.reply}
+                    onViewThread={step.email.reply ? viewThread : undefined}
                   />
                 )}
 
@@ -271,15 +317,39 @@ export function AiWorkspacePanel({
                   <ExceptionResolutionCard ex={step.exception} />
                 )}
 
-                {!(decided && status === "approved") && (
+                {!(decided && status === "approved") && !awaiting && (
                   <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => onDecision("approved")}
-                      className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-surface-deep text-ink-inverse hover:bg-accent-green"
-                    >
-                      <ThumbsUp size={14} /> {decided ? "Approve anyway" : "Approve & hand off"}
-                    </button>
+                    {step.flagged && holdContinue ? (
+                      <button
+                        type="button"
+                        onClick={onHoldContinue}
+                        className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-[#c2740c] text-white hover:bg-[#a8640a]"
+                      >
+                        <AlertTriangle size={14} /> {holdContinue.label}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onDecision("approved")}
+                        className={cn(
+                          "ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold whitespace-nowrap",
+                          step.hasExceptions
+                            ? "bg-[#c2740c] text-white hover:bg-[#a8640a]"
+                            : "bg-surface-deep text-ink-inverse hover:bg-accent-green",
+                        )}
+                      >
+                        {step.hasExceptions ? <AlertTriangle size={14} /> : <ThumbsUp size={14} />}{" "}
+                        {decided
+                          ? "Approve anyway"
+                          : step.hasExceptions
+                            ? isLast
+                              ? "Approve with flags & proceed"
+                              : "Approve with flags & hand off"
+                            : isLast
+                              ? "Approve & proceed"
+                              : "Approve & hand off"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onDecision("pending")}

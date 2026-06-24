@@ -6,13 +6,12 @@
  * operational health (touchless release · capacity freed).
  *
  * NOTE: flow ids belt/pump/gearbox/collect are inherited from the base; `risk`
- * is the new UC2 predictive flow (steps in prCases.tsx `riskPrSteps`). MRO
- * content: pump = conveyor-belt PR (PR-48630), gearbox = idler-roller PR
- * (PR-48655), risk = drive-gearbox stock-out pre-buy (RISK-49001), compliance =
- * PR→PO commercial gate (PR-48690 → PO-77412); belt/collect hold leftover base
- * content and are NOT surfaced. The cockpit surfaces eight decisions: RISK-49001
- * drives `risk`, PR-48690 drives `compliance`; the four cross-functional cards
- * (PR-48201, INV-ADS-4419, INV-BPI-5567, PR-48634) reuse pump/gearbox.
+ * is the UC2 predictive flow (steps in prCases.tsx `riskPrSteps`). The cockpit
+ * surfaces exactly the FOUR worked use cases, one decision card + one KPI tile
+ * each: pump = conveyor-belt free-text PR (PR-48630), gearbox = idler-roller
+ * duplicate/transfer PR (PR-48655), risk = drive-gearbox stock-out pre-buy
+ * (RISK-49001), compliance = PR→PO commercial gate (PR-48690 → PO-77412).
+ * belt/collect hold leftover base content and are NOT surfaced.
  */
 
 import type { View } from "@/mro/state";
@@ -20,9 +19,11 @@ import type { AgentId } from "@/mro/data/agents";
 import type { KPI } from "@/mro/components/blocks/KPIStrip";
 
 /**
- * Top KPI strip — outcome-led, money first. The two left tiles carry the value
- * story (off-contract spend avoided · duplicate spend caught) and deep-link to
- * the worked requisitions; the two right tiles read operational health.
+ * Top KPI strip — one tile per worked flow, each deep-linking to its use case:
+ *   PRs structured        → conveyor-belt free-text intake  (pump)
+ *   Off-contract avoided  → compliant PR→PO gate            (compliance)
+ *   Duplicate spend caught→ idler-roller transfer + claim   (gearbox)
+ *   Downtime risk avoided → predictive stock-out pre-buy    (risk)
  */
 export const cockpitKpis: KPI[] = [
   {
@@ -31,6 +32,7 @@ export const cockpitKpis: KPI[] = [
     suffix: " today",
     trend: { delta: "+18", direction: "up" },
     spark: [38, 47, 55, 63, 71, 80, 88, 96],
+    target: { kind: "workspace", flow: "pump" },
   },
   {
     label: "Off-contract avoided",
@@ -39,7 +41,7 @@ export const cockpitKpis: KPI[] = [
     suffix: "K",
     trend: { delta: "this quarter", direction: "up" },
     spark: [44, 82, 118, 161, 203, 244, 281, 312],
-    target: { kind: "workspace", flow: "pump" },
+    target: { kind: "workspace", flow: "compliance" },
   },
   {
     label: "Duplicate spend caught",
@@ -51,11 +53,14 @@ export const cockpitKpis: KPI[] = [
     target: { kind: "workspace", flow: "gearbox" },
   },
   {
-    label: "Capacity freed",
-    value: 58,
-    suffix: " FTE",
-    trend: { delta: "+14", direction: "up" },
-    spark: [22, 28, 34, 40, 46, 51, 55, 58],
+    label: "Downtime risk avoided",
+    value: 2.8,
+    decimals: 1,
+    prefix: "$",
+    suffix: "M",
+    trend: { delta: "this quarter", direction: "up" },
+    spark: [0.4, 0.8, 1.2, 1.6, 2.0, 2.3, 2.6, 2.8],
+    target: { kind: "workspace", flow: "risk" },
   },
 ];
 
@@ -93,7 +98,6 @@ export type PendingDecision = {
   site: string;
   urgency: "critical" | "high" | "medium";
   title: string;
-  sub: string;
   dueLabel: string;
   dueWhen: string;
   target: View;
@@ -105,8 +109,7 @@ export const pendingDecisions: PendingDecision[] = [
     type: "Predictive risk · auto-procurement",
     site: "Northgate · Recovery line",
     urgency: "critical",
-    title: "Drive-gearbox seal kit — stock-out predicted in 9 days · pre-buy recommended",
-    sub: "No PR raised · agent fused SNOP + criticality + consumption + 9-wk lead + market · overrode the reorder point · proactive 2-unit pre-buy ($18,400) for your approval",
+    title: "Drive-gearbox seal kit — projected shortage in 9 days; early purchase recommended",
     dueLabel: "Pre-empt",
     dueWhen: "Now",
     target: { kind: "workspace", flow: "risk" },
@@ -116,63 +119,17 @@ export const pendingDecisions: PendingDecision[] = [
     type: "PR → PO · compliance & commercial",
     site: "Pulping · Drive line",
     urgency: "high",
-    title: "Gearbox rebuild kit — $42,000 · ready for PO, compliance run",
-    sub: "Validated PR ready for PO conversion · contract expiring · on-site HSE work · over the plant DOA · the orchestrator runs the compliance & commercial gate, then issues a compliant PO",
+    title: "Gearbox rebuild kit — $42,000; ready for purchase order and compliance review",
     dueLabel: "Convert",
     dueWhen: "Today",
     target: { kind: "workspace", flow: "compliance" },
-  },
-  {
-    id: "PR-48201",
-    type: "Procurement ops · upstream",
-    site: "Containerboard mill",
-    urgency: "critical",
-    title: "Corrugator No.2 double-backer belt — $48,200",
-    sub: "Onboard → requisition → contract & PO → goods receipt · the 4 upstream stages · above your touchless limit",
-    dueLabel: "Needed",
-    dueWhen: "Today",
-    target: { kind: "workspace", flow: "pump" },
-  },
-  {
-    id: "INV-ADS-4419",
-    type: "Payment exception · resolve",
-    site: "Containerboard mill",
-    urgency: "critical",
-    title: "Drive gearbox invoice — short receipt + bank-change fraud",
-    sub: "See the exception, then resolve via the existing agents · verify bank → short-pay → release on replacement · back-office",
-    dueLabel: "Resolve",
-    dueWhen: "Now",
-    target: { kind: "workspace", flow: "gearbox" },
-  },
-  {
-    id: "INV-BPI-5567",
-    type: "Accounts payable · downstream",
-    site: "Containerboard mill",
-    urgency: "high",
-    title: "Invoice INV-BPI-5567 · PO-77310 — match, post & pay",
-    sub: "Goods received · capture → match → exception → post → pay · the 5 downstream stages · closes the finance↔procurement loop",
-    dueLabel: "Due",
-    dueWhen: "Today",
-    target: { kind: "workspace", flow: "gearbox" },
-  },
-  {
-    id: "PR-48634",
-    type: "Off-contract spot-buy",
-    site: "Power House",
-    urgency: "high",
-    title: "Boiler feed pump — $96,400",
-    sub: "Off-contract · single compliant bid · 24% over benchmark · front-office review",
-    dueLabel: "Due",
-    dueWhen: "Today",
-    target: { kind: "workspace", flow: "pump" },
   },
   {
     id: "PR-48630",
     type: "PR intake & validation · MRO",
     site: "Recycling · Sorting Line 2",
     urgency: "high",
-    title: "Conveyor belt PR — free text, no part number, width unconfirmed",
-    sub: "AI structured & coded it on-contract ($4,180) · one open item: confirm 36 in face width before release",
+    title: "Conveyor-belt request — specification incomplete, needs confirmation",
     dueLabel: "Due",
     dueWhen: "Today",
     target: { kind: "workspace", flow: "pump" },
@@ -182,8 +139,7 @@ export const pendingDecisions: PendingDecision[] = [
     type: "PR intake & validation · MRO",
     site: "Recycling · Sorting Line 1",
     urgency: "high",
-    title: "Idler roller PR — 8 requested, but stock + warranty cover most",
-    sub: "AI found a duplicate PR + 6 in stock at a sister plant + warranty cover · re-scoped to a 2-unit buy",
+    title: "Idler-roller request — mostly covered by existing stock and warranty",
     dueLabel: "Review",
     dueWhen: "Today",
     target: { kind: "workspace", flow: "gearbox" },

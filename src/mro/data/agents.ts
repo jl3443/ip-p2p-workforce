@@ -252,7 +252,7 @@ export const agents: AgentSpec[] = [
   {
     id: "orchestrator",
     name: "Procurement Orchestrator",
-    menuLabel: "Approvals",
+    menuLabel: "Analysis",
     icon: Workflow,
     purpose:
       "Coordinates the five specialist agents end-to-end — releasing clean, on-contract requisitions touchless with a full audit trail, and routing every exception to a managed lane with a recommended action and drafted communications.",

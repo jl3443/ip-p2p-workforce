@@ -28,8 +28,6 @@ const HERO_COLUMNS = [
   { label: "Invoices & cash", src: "/hero-paper.jpg" },
 ];
 
-const ACCENT = { hex: "#14b8a6", halo: "rgba(20,184,166,0.45)" };
-
 type Persona = {
   id: Product;
   icon: typeof ShoppingCart;
@@ -37,6 +35,8 @@ type Persona = {
   name: string;
   capabilities: string[];
   userId: string;
+  /** Per-persona accent — MRO teal, Tactical amber, Freight blue. */
+  accent: { hex: string; halo: string };
 };
 
 const PERSONAS: Persona[] = [
@@ -51,6 +51,7 @@ const PERSONAS: Persona[] = [
       "Every requisition released with a full audit trail",
     ],
     userId: "mrobuyer01",
+    accent: { hex: "#14b8a6", halo: "rgba(20,184,166,0.45)" },
   },
   {
     id: "p2p",
@@ -63,6 +64,7 @@ const PERSONAS: Persona[] = [
       "Every order issued with a full audit trail",
     ],
     userId: "buyer01",
+    accent: { hex: "#f59e0b", halo: "rgba(245,158,11,0.45)" },
   },
   {
     id: "freight",
@@ -75,6 +77,7 @@ const PERSONAS: Persona[] = [
       "Every overcharge recovered with a full audit trail",
     ],
     userId: "freightops01",
+    accent: { hex: "#3b82f6", halo: "rgba(59,130,246,0.45)" },
   },
 ];
 
@@ -238,6 +241,7 @@ function PersonaCard({ persona, onPick }: { persona: Persona; onPick: (p: Produc
   const [user, setUser] = useState(persona.userId);
   const [pwd, setPwd] = useState("agentic-demo");
   const Icon = persona.icon;
+  const ACCENT = persona.accent;
 
   return (
     <article

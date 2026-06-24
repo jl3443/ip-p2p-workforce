@@ -46,7 +46,7 @@ export function PendingDecisionsPanel({ className }: { className?: string }) {
         <article
           key={p.id}
           className={cn(
-            "px-4 py-3.5 flex items-center justify-between gap-5 transition-colors",
+            "px-4 py-2.5 flex items-center justify-between gap-5 transition-colors",
             p._completed
               ? "bg-surface-mint/30 hover:bg-surface-mint/45"
               : "bg-white hover:bg-surface-mint/40",
@@ -64,17 +64,14 @@ export function PendingDecisionsPanel({ className }: { className?: string }) {
               {p._completed ? "Done" : p.urgency}
             </span>
             <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[12px] text-mute mb-1">
+              <div className="flex items-center gap-2 text-[12px] text-mute mb-0.5">
                 <span>{p.id}</span>
                 <span aria-hidden>·</span>
                 <span className="text-surface-deep">{p.type}</span>
                 <span aria-hidden>·</span>
                 <span>{p.site}</span>
               </div>
-              <div className="text-[15px] font-bold text-ink">{p.title}</div>
-              <div className="text-[12px] text-mute mt-0.5">
-                {p._completed ? "Approved · audit logged · agent executing" : p.sub}
-              </div>
+              <div className="text-[15px] font-bold text-ink leading-snug">{p.title}</div>
             </div>
           </div>
           <div className="flex items-center gap-4 shrink-0">
