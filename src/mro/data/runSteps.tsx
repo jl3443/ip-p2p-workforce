@@ -222,6 +222,24 @@ export type RunStep = {
   /** Runs the RFQ / request-for-quote flow (auto-fill → web search for suppliers →
    *  generate RFQ → send two vendor RFQ emails → wait for quotes) before revealing. */
   rfq?: RfqSpec;
+  /** Renders the signal-fusion view (a list of previewable evidence rows + a fused
+   *  AI analysis) instead of the extraction wizard — used by the predictive risk step. */
+  signals?: SignalSpec;
+};
+
+/** One fused risk signal — a previewable evidence email plus the agent's one-line read.
+ *  Extends SourceArtifact so the row opens in the shared SourceArtifactModal. */
+export type RiskSignal = SourceArtifact & {
+  /** The one-line read shown on the signal row. */
+  summary: string;
+};
+
+/** The signal-fusion spec: the agent reads N evidence signals (previewable rows),
+ *  then types a fused analysis before the step reveals its prediction. */
+export type SignalSpec = {
+  signals: RiskSignal[];
+  /** The fused AI analysis, typed out once all signals are read. */
+  analysis: string;
 };
 
 /** One vendor solicited in the RFQ flow. */

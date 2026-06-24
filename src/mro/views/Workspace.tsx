@@ -90,7 +90,9 @@ export function Workspace({ flow }: { flow: FlowId }) {
   const emailSent = !!sent[selectedStep];
   // Autonomy level drives the run experience: L2/L3 supervise via the staged
   // wizard; L4 (Autonomous) skips it and reveals the finished document directly.
-  const staged = (Boolean(step.stages) || Boolean(step.rfq)) && agentConfig[step.id].level !== 4;
+  const staged =
+    (Boolean(step.stages) || Boolean(step.rfq) || Boolean(step.signals)) &&
+    agentConfig[step.id].level !== 4;
 
   const sources =
     step.email?.reply && replied ? [...step.sources, step.email.reply.source] : step.sources;

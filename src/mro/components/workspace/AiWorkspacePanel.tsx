@@ -10,6 +10,7 @@ import { AiDraftEmailCard } from "@/mro/components/workspace/AiDraftEmailCard";
 import { ExceptionResolutionCard } from "@/mro/components/workspace/ExceptionResolutionCard";
 import { ExtractionWizard } from "@/mro/components/workspace/ExtractionWizard";
 import { RfqFlow } from "@/mro/components/workspace/RfqFlow";
+import { SignalFusion } from "@/mro/components/workspace/SignalFusion";
 import { StepProgress } from "@/mro/components/ai/StepProgress";
 import { agentsById } from "@/mro/data/agents";
 import type { AgentOutputStatus } from "@/mro/state";
@@ -84,12 +85,13 @@ export function AiWorkspacePanel({
   const agent = agentsById[step.id];
   const hasWizard = staged && Boolean(step.stages);
   const hasRfq = staged && Boolean(step.rfq);
+  const hasSignals = staged && Boolean(step.signals);
   const resolvedDoc = step.email?.resolvedDocument;
   const showResolved = resolved && !!resolvedDoc;
   // Off-contract branch swaps in the alternate produced doc (vendor & price hidden).
   const producedDoc = useAltDoc && step.altDocument ? step.altDocument : step.document;
 
-  const [phase, setPhase] = React.useState<Phase>(hasWizard || hasRfq ? "loading" : "revealed");
+  const [phase, setPhase] = React.useState<Phase>(hasWizard || hasRfq || hasSignals ? "loading" : "revealed");
   // For a merged sourcing step (rfq + stages): the RFQ plays first, then the
   // vendor-selection wizard. This flips once the RFQ hands off.
   const [rfqDone, setRfqDone] = React.useState(false);
@@ -164,9 +166,9 @@ export function AiWorkspacePanel({
   // Keep the rail hidden for the staged lead-in + wizard, so the spinner shares
   // the wizard's wide layout rather than sitting on a separate rail'd page.
   React.useEffect(() => {
-    onWizardActive?.((hasWizard || hasRfq) && (phase === "loading" || phase === "working"));
+    onWizardActive?.((hasWizard || hasRfq || hasSignals) && (phase === "loading" || phase === "working"));
     return () => onWizardActive?.(false);
-  }, [phase, hasWizard, hasRfq, onWizardActive]);
+  }, [phase, hasWizard, hasRfq, hasSignals, onWizardActive]);
 
   const viewThread = () => setEmailOpen(true);
 
@@ -221,6 +223,10 @@ export function AiWorkspacePanel({
             durationMs={LEAD_MS}
             onDone={() => setPhase("working")}
           />
+        ) : phase === "working" && step.signals ? (
+          /* The signal-fusion view — read N evidence signals as previewable rows,
+             fuse them into an analysis, then reveal the prediction. */
+          <SignalFusion spec={step.signals} onComplete={() => setPhase("revealed")} />
         ) : phase === "working" && step.rfq && !rfqDone ? (
           /* The RFQ flow — search → RFQ → send 2 vendor emails → quotes. When the
              step also carries stages (the merged sourcing step), hand off to the

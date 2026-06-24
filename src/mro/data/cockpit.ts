@@ -105,13 +105,23 @@ export type PendingDecision = {
 
 export const pendingDecisions: PendingDecision[] = [
   {
+    id: "PR-48630",
+    type: "PR intake & validation · MRO",
+    site: "Recycling · Sorting Line 2",
+    urgency: "critical",
+    title: "Conveyor-belt request — line down; specification needs confirmation to release",
+    dueLabel: "Confirm",
+    dueWhen: "Now",
+    target: { kind: "workspace", flow: "pump" },
+  },
+  {
     id: "RISK-49001",
     type: "Predictive risk · auto-procurement",
     site: "Northgate · Recovery line",
-    urgency: "critical",
+    urgency: "high",
     title: "Drive-gearbox seal kit — projected shortage in 9 days; early purchase recommended",
     dueLabel: "Pre-empt",
-    dueWhen: "Now",
+    dueWhen: "Today",
     target: { kind: "workspace", flow: "risk" },
   },
   {
@@ -123,16 +133,6 @@ export const pendingDecisions: PendingDecision[] = [
     dueLabel: "Convert",
     dueWhen: "Today",
     target: { kind: "workspace", flow: "compliance" },
-  },
-  {
-    id: "PR-48630",
-    type: "PR intake & validation · MRO",
-    site: "Recycling · Sorting Line 2",
-    urgency: "high",
-    title: "Conveyor-belt request — specification incomplete, needs confirmation",
-    dueLabel: "Due",
-    dueWhen: "Today",
-    target: { kind: "workspace", flow: "pump" },
   },
   {
     id: "PR-48655",
@@ -194,13 +194,13 @@ export type OverdueRow = {
 };
 
 export const overduePayments = {
-  alert: { count: 5, amount: "$148K", lead: "Sorting Line 1 · $1.4K · idler rollers in stock + warranty · 2 days" },
+  alert: { count: 5, amount: "$148K", lead: "Sorting Line 1 · $708 · idler rollers in stock + warranty · 2 days" },
   rows: [
     {
       id: "PR-48655",
       customer: "Sorting Line 1 · idler rollers",
       aging: "2 days open",
-      amount: "$1.4K",
+      amount: "$708",
       tier: "Transfer + warranty claim",
       status: "drafted · needs you",
       actionable: true,
@@ -211,7 +211,7 @@ export const overduePayments = {
       id: "PR-48641",
       customer: "Sorting Line 1 · idler rollers",
       aging: "6 days open",
-      amount: "$944",
+      amount: "$708",
       tier: "Duplicate of PR-48655",
       status: "cancellation drafted",
       tone: "critical",

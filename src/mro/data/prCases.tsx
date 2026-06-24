@@ -15,7 +15,7 @@
  */
 
 import type { ReactNode } from "react";
-import type { RunStep } from "@/mro/data/runSteps";
+import type { RunStep, RiskSignal } from "@/mro/data/runSteps";
 import { StructuredPrDoc, ValidationDoc } from "@/mro/components/docs/pr/PrDocs";
 import {
   MaterialMasterDoc,
@@ -183,7 +183,7 @@ const beltStructuredDoc = (
       deliveryTerms: [
         { label: "Incoterms", value: "FCA · Apex DC" },
         { label: "Payment terms", value: "Net 30" },
-        { label: "Deliv. date", value: "ASAP · 2026-06-23" },
+        { label: "Deliv. date", value: "ASAP · 2026-07-03" },
       ],
     }}
   />
@@ -229,7 +229,7 @@ const beltStructuredDocOffContract = (
       deliveryTerms: [
         { label: "Incoterms", value: "Per quote · TBD" },
         { label: "Payment terms", value: "Net 30" },
-        { label: "Deliv. date", value: "ASAP · 2026-06-23" },
+        { label: "Deliv. date", value: "ASAP · 2026-07-03" },
       ],
     }}
   />
@@ -437,6 +437,33 @@ const beltStockOverview = (
       ],
       note: "Belt is line-specific (36 in face width) — no on-hand and no interplant stock to transfer; a new buy is justified.",
     }}
+  />
+);
+
+/* The stock-on-hand workbook the PR-intake agent reads — an Excel view of current
+ * stock + safety stock across plants, with the agent's safety-stock recommendation. */
+const beltStockSheet = (
+  <LookupSheetDoc
+    sheets={[
+      {
+        file: "stock-on-hand.xlsx",
+        tab: "MRO inventory · belting",
+        columns: ["Plant", "Material", "On-hand", "Safety stock", "UoM"],
+        usedNote: "→ 0 on-hand · 0 safety · no interplant cover",
+        rows: [
+          { cells: ["Northgate · Sorting Line 2", "MRO-CONV-BELT-36IN-HD", "0", "0", "EA"], matched: true },
+          { cells: ["Eastbrook mill", "MRO-CONV-BELT-36IN-HD", "0", "0", "EA"], matched: false },
+          { cells: ["Westport", "MRO-CONV-BELT-36IN-HD", "0", "0", "EA"], matched: false },
+        ],
+      },
+    ]}
+    footer={
+      <>
+        No on-hand and no interplant stock — a new buy is justified. Safety stock is currently 0 for this
+        line-specific belt; the agent recommends setting a safety stock of <strong>1 EA</strong> so the next
+        failure doesn&apos;t stop Sorting Line 2.
+      </>
+    }
   />
 );
 
@@ -802,20 +829,30 @@ const rollerMaterialMaster = (
   />
 );
 
-const rollerStockOverview = (
-  <StockOverviewDoc
-    s={{
-      number: "MRO-CONV-ROLLER-IDLER-STD",
-      description: "Conveyor Idler Roller — 600 mm — Steel",
-      createdOn: "2026-06-20 · 11:12",
-      createdBy: "Master Data agent",
-      rows: [
-        { plant: "Northgate · Recycling", storageLoc: "MRO-01", onHand: "0", safety: "2", uom: "EA", tone: "short" },
-        { plant: "Eastbrook mill", storageLoc: "MRO-01", onHand: "6", safety: "2", uom: "EA", tone: "surplus" },
-        { plant: "Westport", storageLoc: "MRO-01", onHand: "0", safety: "0", uom: "EA" },
-      ],
-      note: "6 EA surplus at the Eastbrook mill store — transfer before buying. The network already holds what Sorting Line 1 needs.",
-    }}
+/* Cross-plant inventory the Master Data agent reads — an Excel view of enterprise
+ * stock, with the Eastbrook surplus row highlighted + the agent's transfer recommendation. */
+const rollerInventorySheet = (
+  <LookupSheetDoc
+    sheets={[
+      {
+        file: "stock-on-hand.xlsx",
+        tab: "MRO inventory · rollers",
+        columns: ["Plant", "Material", "On-hand", "Safety", "UoM"],
+        usedNote: "→ 6 EA surplus at Eastbrook · transfer before buying",
+        rows: [
+          { cells: ["Northgate · Sorting Line 1", "MRO-CONV-ROLLER-IDLER-STD", "0", "2", "EA"], matched: false },
+          { cells: ["Eastbrook mill", "MRO-CONV-ROLLER-IDLER-STD", "6", "2", "EA"], matched: true },
+          { cells: ["Westport", "MRO-CONV-ROLLER-IDLER-STD", "0", "0", "EA"], matched: false },
+        ],
+      },
+    ]}
+    footer={
+      <>
+        The network already holds what Sorting Line 1 needs — <strong>6 EA surplus at the Eastbrook mill</strong>.
+        Transfer those 6 by interplant movement and buy only the 2-unit shortfall on-contract ($236), versus
+        $944 to buy all 8 new — avoiding $708 of duplicate spend.
+      </>
+    }
   />
 );
 
@@ -837,7 +874,7 @@ const rollerStockTransfer = (
       items: [
         { item: "10", material: "MRO-CONV-ROLLER-IDLER-STD", description: "Idler roller 600 mm steel", qty: "6 EA", from: "Eastbrook", to: "Northgate" },
       ],
-      note: "Transfers the 6 EA surplus from Eastbrook instead of a fresh buy — avoids $708 of duplicate spend.",
+      note: "Transfers the 6 EA surplus from Eastbrook instead of a fresh buy — avoids $708 of duplicate spend. On posting, Eastbrook stock draws down and a goods receipt is scheduled at Sorting Line 1, so inventory and logistics records update across both plants.",
     }}
   />
 );
@@ -984,6 +1021,7 @@ type StepSpec = {
   inbound?: RunStep["inbound"];
   inboundEmail?: RunStep["inboundEmail"];
   rfq?: RunStep["rfq"];
+  signals?: RunStep["signals"];
 };
 
 const step = (s: StepSpec): RunStep => s;
@@ -1324,6 +1362,7 @@ export const beltPrSteps: RunStep[] = [
       { id: "belt-freetext", label: "Free-text PR", meta: "Intake portal · 10:40", kind: "email", body: beltFreeText },
       { id: "belt-requestor", label: "Requisitioner & org", meta: "plant directory", kind: "master", body: beltRequestorRef },
       { id: "belt-coding-ref", label: "Master-data lookup", meta: "MM · cost centers · G/L", kind: "master", body: beltCodingRef },
+      { id: "belt-stock", label: "Stock on hand", meta: "stock-on-hand.xlsx", kind: "master", body: beltStockSheet },
       { id: "belt-agreement", label: "ME33K · SA-MRO-07", meta: "price · vendor · terms", kind: "contract", body: beltOutlineAgreement },
     ],
     recommendation:
@@ -1364,6 +1403,20 @@ export const beltPrSteps: RunStep[] = [
           { label: "Cost center", value: COST_CENTER },
           { label: "G/L account", value: GL },
           { label: "Material group", value: "MRO · Conveyor & belting" },
+        ],
+      },
+      {
+        sourceId: "belt-stock",
+        reasoning: "Reading the stock-on-hand workbook + the safety-stock policy",
+        title: "Stock on hand",
+        narrative:
+          "I read the stock-on-hand workbook: there's nothing to draw from — 0 EA on hand at Sorting Line 2 and 0 across the network (Eastbrook mill, Westport), and the belt is line-specific so there's no interplant unit to transfer in. A new buy is justified. I'd also flag that safety stock is set to 0 on this critical wear part — I recommend holding a safety stock of 1 EA so the next failure doesn't stop the line.",
+        fields: [
+          { label: "On-hand · this plant", value: "0 EA · Sorting Line 2" },
+          { label: "Interplant (Eastbrook · Westport)", value: "0 EA · no cover" },
+          { label: "Current safety stock", value: "0 EA" },
+          { label: "Recommended safety stock", value: "1 EA · critical wear part" },
+          { label: "Verdict", value: "No stock · new buy justified" },
         ],
       },
       {
@@ -1860,7 +1913,7 @@ export const rollerPrSteps: RunStep[] = [
           { label: "UoM", value: "EACH" },
           { label: "Same as", value: "OCC feed conveyor rollers" },
           { label: "Delivery", value: "Urgent · belt misalignment" },
-          { label: "Delivery date", value: "2026-06-30", type: "date" },
+          { label: "Delivery date", value: "2026-06-22", type: "date" },
           { label: "Requisitioner", value: "Plant engineer · Sorting Line 1" },
         ],
       },
@@ -1924,7 +1977,7 @@ export const rollerPrSteps: RunStep[] = [
       { id: "roller-pr-handoff", label: "PR-48655", meta: "from PR Processing", kind: "sap", handoff: true, body: rollerStructuredDoc },
       { id: "roller-matmaster", label: "MM03 · material master", meta: "MRO-CONV-ROLLER-IDLER-STD", kind: "master", body: rollerMaterialMaster },
       { id: "roller-openpr", label: "ME5A · open requisitions", meta: "duplicate found · PR-48641", kind: "sap", body: rollerOpenPrList },
-      { id: "roller-stock", label: "MB52 · stock overview", meta: "6 EA at Eastbrook", kind: "master", body: rollerStockOverview },
+      { id: "roller-stock", label: "Stock on hand", meta: "stock-on-hand.xlsx", kind: "master", body: rollerInventorySheet },
       { id: "roller-sto", label: "ME23N · stock transfer", meta: "STO-48655 · 6 EA", kind: "sap", body: rollerStockTransfer },
     ],
     recommendation:
@@ -1954,11 +2007,14 @@ export const rollerPrSteps: RunStep[] = [
       },
       {
         sourceId: "roller-stock",
-        reasoning: "Checking on-hand and interplant stock",
-        title: "Stock overview · MB52",
+        reasoning: "Checking enterprise inventory across the plants",
+        title: "Inventory across plants",
+        narrative:
+          "I checked enterprise inventory across the plants: Sorting Line 1 is at 0 on-hand, but the Eastbrook mill store holds 6 surplus of this exact roller. The network already has most of what's needed — I recommend transferring those 6 by interplant movement and buying only the 2-unit shortfall, instead of buying all 8 new. That avoids $708 of duplicate spend and draws down stock we've already paid for.",
         fields: [
-          { label: "On-hand · Northgate", value: "0 EA" },
+          { label: "On-hand · Sorting Line 1", value: "0 EA" },
           { label: "Eastbrook mill", value: "6 EA · surplus" },
+          { label: "Westport", value: "0 EA" },
           { label: "Transfer possible", value: "Yes · move 6 EA" },
           { label: "Residual buy", value: "2 EA shortfall" },
         ],
@@ -2175,12 +2231,12 @@ const riskSnopSignal = (
     fromAddr="planning@northgatepaper.com"
     to="MRO risk sensing"
     sent="2026-06-24 · 07:15"
-    subject="Demand signal — recovery line ramp next quarter"
+    subject="Demand signal — Recovery line ramp, FY-Q3"
     tone="inbound"
     lines={[
-      "Recovery line is scheduled to ramp +18% next quarter on the new OCC contract.",
-      "Asset register flags the boiler-feed-pump drive gearbox as A1 critical — a single point of failure on the recovery line.",
-      "Raising for spares-coverage review ahead of the ramp.",
+      "Flagging a forward demand change on the Recovery line for spares-coverage review.",
+      "The line is scheduled to ramp +18% next quarter under the new OCC contract, which raises duty on its critical drives — including the boiler-feed-pump drive gearbox, classified A1 (single point of failure) on the asset register.",
+      "Please confirm spares coverage on the gearbox's seal & bearing kit before the ramp begins.",
     ]}
   />
 );
@@ -2191,12 +2247,12 @@ const riskConsumptionFeed = (
     fromAddr="cmms@northgatepaper.com"
     to="MRO risk sensing"
     sent="2026-06-24 · 07:18"
-    subject="Consumption & coverage — drive-gearbox seal kit"
+    subject="Coverage & consumption — drive-gearbox seal & bearing kit"
     tone="inbound"
     lines={[
-      "Seal/bearing kit on-hand: 1 EA · safety stock 2 EA — coverage at 0.5× safety.",
-      "12-month consumption: 2 EA and rising (two recovery-line trips this quarter).",
-      "Deterministic reorder point would only fire at on-hand 0.",
+      "Summarising current coverage on the drive-gearbox seal & bearing kit for the spares review.",
+      "On-hand stands at 1 EA against a safety stock of 2 EA (coverage 0.5×), and trailing 12-month consumption is 2 EA and rising, with two Recovery-line trips already this quarter.",
+      "Please note the deterministic reorder point only triggers at on-hand 0 — the system will not reorder until we are already out of stock.",
     ]}
   />
 );
@@ -2207,12 +2263,12 @@ const riskSupplierLead = (
     fromAddr="sourcing@northgatepaper.com"
     to="MRO risk sensing"
     sent="2026-06-24 · 07:20"
-    subject="Lead time — GearTech OEM seal kit"
+    subject="Replenishment lead time — GearTech OEM seal & bearing kit"
     tone="inbound"
     lines={[
-      "GearTech is the single-source OEM for the seal/bearing kit · current lead time 9 weeks (~63 days).",
-      "No alternate qualified source on file — replenishment can only come from GearTech.",
-      "A reorder fired today would not land before the predicted stock-out.",
+      "Confirming the replenishment position on the drive-gearbox seal & bearing kit.",
+      "GearTech is the single-source OEM; the current quoted lead time is 9 weeks (~63 days), and we hold no alternate qualified source on file — replenishment can only come from GearTech.",
+      "A reorder placed today would not land before the projected stock-out, so please factor this into the coverage decision.",
     ]}
   />
 );
@@ -2223,11 +2279,12 @@ const riskCriticalitySignal = (
     fromAddr="assets@northgatepaper.com"
     to="MRO risk sensing"
     sent="2026-06-24 · 07:16"
-    subject="Criticality — boiler-feed-pump drive gearbox"
+    subject="Criticality classification — boiler-feed-pump drive gearbox"
     tone="inbound"
     lines={[
-      "Drive gearbox classified A1 · single point of failure on the Recovery line — a seizure takes the whole line down.",
-      "No installed spare; the seal/bearing kit is the only field-replaceable protection. Any stock-out is a line-down risk.",
+      "Confirming the criticality classification for the boiler-feed-pump drive gearbox on the Recovery line.",
+      "It is class A1 — a single point of failure: a seizure takes the entire Recovery line down. There is no installed spare, so the seal & bearing kit is the only field-replaceable protection against an outage.",
+      "On that basis, any stock-out of the kit should be treated as a line-down exposure when prioritising spares.",
     ]}
   />
 );
@@ -2238,37 +2295,15 @@ const riskMarketSignal = (
     fromAddr="commodity@northgatepaper.com"
     to="MRO risk sensing"
     sent="2026-06-24 · 07:22"
-    subject="Market — bearing alloy +7% · allocation tightening"
+    subject="Market read — bearing alloy +7%, allocation tightening"
     tone="inbound"
     lines={[
-      "Bearing-alloy index +7% this quarter with mills moving to allocation — price and availability risk both rising.",
-      "Buying ahead of the move locks the current price and a delivery slot before allocation bites.",
+      "Sharing a market read relevant to the bearing-alloy spares ahead of the coverage decision.",
+      "The bearing-alloy index is up 7% this quarter and mills are moving onto allocation, so both price and availability risk are rising.",
+      "Securing the kit now would lock the current price and a delivery slot before allocation tightens further.",
     ]}
   />
 );
-
-/* Auto-pops the moment the risk flow opens — the agentic trigger: the system
- * detected the risk and engaged the agent, with no human PR raised. */
-const riskPredictiveAlert = {
-  id: "risk-alert",
-  label: "Predictive stock-out alert",
-  meta: "SNOP & Asset-Risk Monitor · 07:14",
-  kind: "email" as const,
-  body: (
-    <EmailDoc
-      from="SNOP & Asset-Risk Monitor"
-      fromAddr="riskmonitor@northgatepaper.com"
-      to="MRO Risk Sensing"
-      sent="2026-06-24 · 07:14"
-      subject="Predicted stock-out — A1-critical drive-gearbox seal kit"
-      tone="inbound"
-      lines={[
-        "Predictive screen flagged the drive-gearbox seal kit (A1 · single point of failure) on the Recovery line: on-hand 1 EA vs 2 EA safety, consumption rising, and the S&OP ramp +18% next quarter.",
-        "No purchase requisition exists. Routing to the Risk Sensing agent to fuse the signals and assess a proactive pre-buy ahead of the 9-week single-source lead.",
-      ]}
-    />
-  ),
-};
 
 /* The proactive pre-buy authorization the reliability lead signs (manager-signs
  * pattern, like the compliance budget approval) — the human gate on the override. */
@@ -2278,6 +2313,7 @@ const riskPrebuyAuthorization: BudgetApproval = {
   sub: "Drive-gearbox seal kit · A1-critical · GearTech OEM · no PR raised",
   rows: [
     { label: "Amount", value: "$18,400.00 · 2 EA pre-buy" },
+    { label: "Plant DOA (L1)", value: "$10,000 · exceeded" },
     { label: "Asset · criticality", value: "Drive gearbox · A1 · single point of failure" },
     { label: "Reorder override", value: "Deterministic point fires too late" },
     { label: "Predicted stock-out", value: "Day 9 · vs 9-week lead" },
@@ -2430,7 +2466,7 @@ const riskApprovalDoc = (
           rows: [
             { label: "Cost center / GL", expected: "Correct plant / class", found: "10034 / 600450 · correct", ok: true },
             { label: "Competitive bidding", expected: "3 quotes if > threshold", found: "Single-source OEM · waiver on file", ok: true },
-            { label: "DOA approval", expected: "Plant-maintenance limit", found: "$18.4K · within limit", ok: true },
+            { label: "DOA approval", expected: "Plant-maintenance limit", found: "$18.4K · over the $10K plant DOA", ok: false },
             { label: "Proactive-buy authorization", expected: "Human approves the pre-buy", found: "Pending · reorder override", ok: false },
           ],
         },
@@ -2455,7 +2491,7 @@ const riskApprovalDocResolved = (
           rows: [
             { label: "Cost center / GL", expected: "Correct plant / class", found: "10034 / 600450 · correct", ok: true },
             { label: "Competitive bidding", expected: "3 quotes if > threshold", found: "Single-source OEM · waiver on file", ok: true },
-            { label: "DOA approval", expected: "Plant-maintenance limit", found: "$18.4K · within limit", ok: true },
+            { label: "DOA approval", expected: "Plant-maintenance limit", found: "$18.4K · authorized over the $10K plant DOA", ok: true },
             { label: "Proactive-buy authorization", expected: "Human approves the pre-buy", found: "Approved · reliability lead", ok: true },
           ],
         },
@@ -2613,16 +2649,61 @@ const riskApprovalRouting = (
         { label: "Vendor", value: "GearTech · SA-MRO-11" },
       ],
       chain: [
-        { level: "L1", approver: "Plant Maintenance Lead", role: "Maintenance", limit: "$25,000", status: "approved", when: "value within limit · on-contract" },
-        { level: "L2", approver: "Reliability Lead", role: "Reliability · pre-buy owner", limit: "$50,000", status: "pending", when: "proactive override — needs sign-off" },
+        { level: "L1", approver: "Plant Maintenance Lead", role: "Maintenance", limit: "$10,000", status: "approved", when: "on-contract · within plant scope" },
+        { level: "L2", approver: "Reliability Lead", role: "Reliability · pre-buy owner", limit: "$50,000", status: "pending", when: "$18.4K over the plant DOA · proactive override" },
       ],
-      validation: { ok: true, text: "$18,400 within the plant-maintenance DOA ($25,000) and on-contract — competitive bidding waived (single-source OEM)." },
+      validation: { ok: false, text: "$18,400 exceeds the plant-maintenance DOA ($10,000) — routes to the Reliability Lead (L2) for the proactive-override authorization. Single-source OEM: competitive bidding waived." },
       action: "One open item: this is a proactive pre-buy ahead of the deterministic reorder point — the reliability lead must authorize the override.",
     }}
   />
 );
 
 /* ── Example 3 · drive-gearbox seal kit — 5 steps ──────────────────────────── */
+
+/* The five fused risk signals — shown as previewable rows on the Risk Sensing step
+ * (each opens its full email) and also surfaced in the source-files panel. */
+const riskSignals: RiskSignal[] = [
+  {
+    id: "snop-signal",
+    label: "S&OP demand signal",
+    meta: "Planning · 07:15",
+    kind: "email",
+    body: riskSnopSignal,
+    summary: "Recovery line ramps +18% next quarter — raises duty on the A1 drive gearbox",
+  },
+  {
+    id: "criticality-signal",
+    label: "Equipment criticality",
+    meta: "Asset register · 07:16",
+    kind: "email",
+    body: riskCriticalitySignal,
+    summary: "A1 · single point of failure — a seizure takes the whole Recovery line down",
+  },
+  {
+    id: "consumption-feed",
+    label: "CMMS consumption & coverage",
+    meta: "Reliability · 07:18",
+    kind: "email",
+    body: riskConsumptionFeed,
+    summary: "On-hand 1 EA vs 2 EA safety; consumption rising; reorder only fires at 0",
+  },
+  {
+    id: "supplier-lead",
+    label: "Supplier lead time",
+    meta: "Sourcing · 07:20",
+    kind: "email",
+    body: riskSupplierLead,
+    summary: "GearTech single-source · 9-week lead — a reorder today lands after the stock-out",
+  },
+  {
+    id: "market-signal",
+    label: "Market conditions",
+    meta: "Commodity desk · 07:22",
+    kind: "email",
+    body: riskMarketSignal,
+    summary: "Bearing alloy +7%, mills on allocation — buying now locks the price and a slot",
+  },
+];
 
 export const riskPrSteps: RunStep[] = [
   step({
@@ -2642,73 +2723,14 @@ export const riskPrSteps: RunStep[] = [
     ],
     docLabel: "RISK-49001 · stock-out risk brief",
     document: riskSignalDoc,
-    inbound: { source: riskPredictiveAlert },
-    sources: [
-      { id: "snop-signal", label: "S&OP demand signal", meta: "Planning · 07:15", kind: "email", body: riskSnopSignal },
-      { id: "criticality-signal", label: "Equipment criticality", meta: "Asset register · 07:16", kind: "email", body: riskCriticalitySignal },
-      { id: "consumption-feed", label: "CMMS consumption", meta: "Reliability · 07:18", kind: "email", body: riskConsumptionFeed },
-      { id: "supplier-lead", label: "Supplier lead time", meta: "Sourcing · 07:20", kind: "email", body: riskSupplierLead },
-      { id: "market-signal", label: "Market conditions", meta: "Commodity desk · 07:22", kind: "email", body: riskMarketSignal },
-    ],
+    sources: riskSignals,
     recommendation:
       "Fused five signals — the S&OP ramp, A1 criticality, rising consumption, a 9-week single-source lead and a tightening alloy market: the drive-gearbox seal kit is predicted to stock out before any replenishment can land. No PR exists — proactively structured RISK-49001 for the checks.",
-    stages: [
-      {
-        sourceId: "snop-signal",
-        reasoning: "Signal 1 of 5 — reading the S&OP demand ramp",
-        title: "1 · Demand signal",
-        fields: [
-          { label: "Asset", value: "Boiler feed pump · drive gearbox" },
-          { label: "Plant", value: "Northgate · Recovery line" },
-          { label: "S&OP ramp", value: "+18% next quarter" },
-          { label: "Demand read", value: "Consumption set to rise" },
-        ],
-      },
-      {
-        sourceId: "criticality-signal",
-        reasoning: "Signal 2 of 5 — reading the equipment criticality",
-        title: "2 · Criticality",
-        fields: [
-          { label: "Classification", value: "A1 · single point of failure" },
-          { label: "Failure mode", value: "Seizure trips the line" },
-          { label: "Installed spare", value: "None" },
-          { label: "Line impact", value: "Whole recovery line down" },
-        ],
-      },
-      {
-        sourceId: "consumption-feed",
-        reasoning: "Signal 3 of 5 — reading the consumption trend",
-        title: "3 · Consumption",
-        fields: [
-          { label: "On-hand", value: "1 EA · below safety" },
-          { label: "Safety stock", value: "2 EA · coverage 0.5×" },
-          { label: "12-mo consumption", value: "2 EA · rising" },
-          { label: "Reorder point", value: "Fires at on-hand 0" },
-        ],
-      },
-      {
-        sourceId: "supplier-lead",
-        reasoning: "Signal 4 of 5 — reading the supplier lead time",
-        title: "4 · Lead time",
-        fields: [
-          { label: "Supplier", value: "GearTech · OEM single-source" },
-          { label: "Lead time", value: "9 weeks · ~63 days" },
-          { label: "Alternate source", value: "None qualified" },
-          { label: "Replenishment", value: "Lands after the stock-out" },
-        ],
-      },
-      {
-        sourceId: "market-signal",
-        reasoning: "Signal 5 of 5 — reading market conditions",
-        title: "5 · Market",
-        fields: [
-          { label: "Alloy index", value: "+7% · tightening" },
-          { label: "Allocation", value: "Mills moving to allocation" },
-          { label: "Price risk", value: "Buying now locks the price" },
-          { label: "Fused confidence", value: "91% · pre-buy recommended" },
-        ],
-      },
-    ],
+    signals: {
+      signals: riskSignals,
+      analysis:
+        "Fusing the five signals — the +18% S&OP ramp, the A1 single-point-of-failure criticality, on-hand below safety with rising consumption, a 9-week single-source lead and a tightening alloy market — the drive-gearbox seal kit is predicted to stock out before any replenishment can land. No PR exists, so I've proactively structured RISK-49001 for the checks and the pre-buy recommendation.",
+    },
   }),
   step({
     id: "vendor",
@@ -2922,7 +2944,7 @@ export const riskPrSteps: RunStep[] = [
     reasoning: [
       "Confirming cost center 10034 / GL 600450",
       "Single-source OEM — competitive bidding waived on file",
-      "Within the plant-maintenance approval limit",
+      "Over the $10K plant DOA — routing the override to the reliability lead",
       "Holding for the reliability lead to authorize the proactive pre-buy",
     ],
     docLabel: "VAL-49001-APR · approval",

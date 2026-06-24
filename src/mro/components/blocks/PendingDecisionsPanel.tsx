@@ -6,7 +6,7 @@ import { AIDot } from "@/mro/components/ai/AIDot";
 
 const urgencyChip: Record<"critical" | "high" | "medium", string> = {
   critical: "bg-mark-red text-ink-inverse",
-  high: "bg-surface-deep text-ink-inverse",
+  high: "bg-[#b45309] text-ink-inverse",
   medium: "bg-surface-fog text-ink",
 };
 
