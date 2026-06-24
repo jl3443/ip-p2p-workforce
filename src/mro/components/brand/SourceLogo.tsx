@@ -7,6 +7,7 @@
  * an explicit `system` override.
  */
 
+import * as React from "react";
 import { FileCode2 } from "lucide-react";
 import type { SourceKind } from "@/mro/data/runSteps";
 
@@ -25,19 +26,34 @@ const KIND_TO_SYSTEM: Record<SourceKind, SourceSystem> = {
   edi: "edi",
 };
 
-const BRAND: Partial<Record<SourceSystem, { src: string; label: string }>> = {
-  sap: { src: "/logos/sap.svg", label: "SAP" },
-  outlook: { src: "/logos/outlook.svg", label: "Outlook" },
-  gmail: { src: "/logos/gmail.svg", label: "Gmail" },
+const BRAND: Partial<Record<SourceSystem, { src: string; label: string; tint: string }>> = {
+  sap: { src: "/logos/sap.svg", label: "SAP", tint: "#0a6ed1" },
+  outlook: { src: "/logos/outlook.svg", label: "Outlook", tint: "#0078d4" },
+  gmail: { src: "/logos/gmail.svg", label: "Gmail", tint: "#ea4335" },
 };
 
-function BrandImg({ src, label }: { src: string; label: string }) {
+function BrandImg({ src, label, tint }: { src: string; label: string; tint: string }) {
+  // If the SVG ever fails to load (cache miss, asset hiccup), fall back to a clean
+  // branded text chip rather than the browser's broken-image placeholder.
+  const [failed, setFailed] = React.useState(false);
+  if (failed) {
+    return (
+      <span
+        title={`Source · ${label}`}
+        className="inline-flex h-5 items-center rounded-[5px] px-1.5 text-[10px] font-bold tracking-[0.03em] text-white shrink-0 select-none"
+        style={{ background: tint }}
+      >
+        {label}
+      </span>
+    );
+  }
   return (
     <img
       src={src}
       alt={label}
       title={`Source · ${label}`}
       draggable={false}
+      onError={() => setFailed(true)}
       className="h-5 w-auto shrink-0 select-none"
     />
   );
@@ -47,7 +63,7 @@ function BrandImg({ src, label }: { src: string; label: string }) {
 export function SourceLogo({ system, kind }: { system?: SourceSystem; kind?: SourceKind }) {
   const s = system ?? (kind ? KIND_TO_SYSTEM[kind] : undefined) ?? "edi";
   const brand = BRAND[s];
-  if (brand) return <BrandImg src={brand.src} label={brand.label} />;
+  if (brand) return <BrandImg src={brand.src} label={brand.label} tint={brand.tint} />;
   return (
     <span
       title="Source · EDI / X12"
