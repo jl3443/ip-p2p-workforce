@@ -27,7 +27,8 @@ export function AiDraftEmailCard({
 }: {
   email: DraftEmailLike;
   sent: boolean;
-  onSend: () => void;
+  /** Optional manual send. When omitted, the email fires when the step is approved. */
+  onSend?: () => void;
   onViewThread?: () => void;
   sendLabel?: string;
   sentLabel?: string;
@@ -68,13 +69,20 @@ export function AiDraftEmailCard({
 
         <div className="px-4 py-3 border-t border-divider flex items-center gap-2">
           {!sent ? (
-            <button
-              type="button"
-              onClick={onSend}
-              className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-[#0a6ed1] text-white hover:bg-[#085bb0]"
-            >
-              <CornerUpRight size={14} /> {sendLabel}
-            </button>
+            onSend ? (
+              <button
+                type="button"
+                onClick={onSend}
+                className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-[#0a6ed1] text-white hover:bg-[#085bb0]"
+              >
+                <CornerUpRight size={14} /> {sendLabel}
+              </button>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 text-[11.5px] text-mute">
+                <CornerUpRight size={13} className="text-[#0a6ed1] shrink-0" />
+                Sends when you approve this step · awaits the reply
+              </div>
+            )
           ) : (
             <>
               <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-[#107e3e]">

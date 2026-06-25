@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ThumbsUp, PauseCircle, ArrowUpRight, X, Sparkles } from "lucide-react";
+import { Check, ThumbsUp, PauseCircle, ArrowUpRight, X, Sparkles, AlertTriangle } from "lucide-react";
 import { cn } from "@/freight/lib/utils";
 import { AIDot } from "@/freight/components/ai/AIDot";
 import { Spinner } from "@/freight/components/ai/Spinner";
@@ -42,7 +42,6 @@ export function AiWorkspacePanel({
   replied,
   isLast,
   completeNote = "Run complete · invoice released to AP, audit envelope closed",
-  onReplyReceived,
   onDecision,
   onWizardActive,
   staged = false,
@@ -53,7 +52,6 @@ export function AiWorkspacePanel({
   isLast: boolean;
   /** Note shown when the final step is approved (happy-path close). */
   completeNote?: string;
-  onReplyReceived: () => void;
   onDecision: (status: Decision) => void;
   /** Tells the workspace whether the staged wizard is running (to hide the rail). */
   onWizardActive?: (active: boolean) => void;
@@ -134,9 +132,6 @@ export function AiWorkspacePanel({
     return () => onWizardActive?.(false);
   }, [phase, hasWizard, onWizardActive]);
 
-  const sendEmail = () => {
-    if (!replied) onReplyReceived();
-  };
   const viewThread = () => setEmailOpen(true);
 
   return (
@@ -242,7 +237,6 @@ export function AiWorkspacePanel({
                   <AiDraftEmailCard
                     email={step.email}
                     sent={replied}
-                    onSend={sendEmail}
                     onViewThread={viewThread}
                     sendLabel={step.email.cta}
                   />
@@ -267,9 +261,18 @@ export function AiWorkspacePanel({
                     <button
                       type="button"
                       onClick={() => onDecision("approved")}
-                      className="ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold bg-surface-deep text-ink-inverse hover:bg-accent-green"
+                      className={cn(
+                        "ui-pill inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold",
+                        step.hasExceptions
+                          ? "bg-[#c2740c] text-white hover:bg-[#a8640a]"
+                          : "bg-surface-deep text-ink-inverse hover:bg-accent-green",
+                      )}
                     >
-                      <ThumbsUp size={14} /> {decided ? "Approve anyway" : "Approve & hand off"}
+                      {step.hasExceptions ? <AlertTriangle size={14} /> : <ThumbsUp size={14} />}{" "}
+                      {decided
+                        ? "Approve anyway"
+                        : step.approveLabel ??
+                          (step.hasExceptions ? "Approve with flags & hand off" : "Approve & hand off")}
                     </button>
                     <button
                       type="button"

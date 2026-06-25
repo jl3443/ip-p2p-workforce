@@ -42,8 +42,11 @@ export function Workspace({ flow }: { flow: FlowId }) {
   const [replies, setReplies] = React.useState<Record<number, boolean>>({});
   const [toast, setToast] = React.useState<ToastState>(null);
   const [handoff, setHandoff] = React.useState<
-    { from: AgentId; to?: AgentId; toName?: string; toLabel?: string } | null
+    { from: AgentId; to?: AgentId; toName?: string; toLabel?: string; docLabel?: string } | null
   >(null);
+  // Approve fires a step's AI-drafted email, then the handoff waits for the reply
+  // round-trip to land — never a separate "send" click. Guards re-entrancy.
+  const emailFlightRef = React.useRef(false);
   const [showComplete, setShowComplete] = React.useState(false);
   // True while the active step plays its staged wizard — the rail hides so the
   // form + source pane get the full width; restored once the document lands.
@@ -61,14 +64,12 @@ export function Workspace({ flow }: { flow: FlowId }) {
   const fireToast = (title: string, body: string) =>
     setToast((t) => ({ id: (t?.id ?? 0) + 1, title, body }));
 
-  const onDecision = (status: Decision) => {
-    const nextDecisions = { ...decisions, [selectedStep]: status };
-    const isLast = selectedStep === LAST;
-
-    // Approve an intermediate step → visible baton-pass to the next agent.
+  // The handoff / advance / settle once a step is committed (after any email round-trip).
+  const advance = (status: Decision, isLast: boolean, nextDecisions: Record<number, Decision>) => {
+    // Approve an intermediate step → visible baton-pass carrying the produced file.
     if (status === "approved" && !isLast) {
       const next = selectedStep + 1;
-      setHandoff({ from: step.id, to: steps[next].id });
+      setHandoff({ from: step.id, to: steps[next].id, docLabel: step.docLabel });
       window.setTimeout(() => {
         setFlowProgress(flow, { decisions: nextDecisions, activeStep: Math.max(activeStep, next) });
         setSelectedStep(next);
@@ -109,6 +110,7 @@ export function Workspace({ flow }: { flow: FlowId }) {
         from: step.id,
         toName: run.completion.routedTo,
         toLabel: run.completion.routedSub,
+        docLabel: step.docLabel,
       });
       window.setTimeout(() => {
         settle();
@@ -118,6 +120,28 @@ export function Workspace({ flow }: { flow: FlowId }) {
     } else {
       settle();
     }
+  };
+
+  const onDecision = (status: Decision) => {
+    const isLast = selectedStep === LAST;
+    const nextDecisions = { ...decisions, [selectedStep]: status };
+
+    // Approving a step whose AI-drafted email hasn't been sent → fire the email
+    // first (no separate "send" click), then wait for the reply round-trip to land
+    // before the handoff. One-shot: re-entrancy is guarded.
+    if (status === "approved" && step.email && !replied && !emailFlightRef.current) {
+      emailFlightRef.current = true;
+      window.setTimeout(() => {
+        onReplyReceived(); // the reply lands in the sources + toast
+        window.setTimeout(() => {
+          emailFlightRef.current = false;
+          advance("approved", isLast, nextDecisions);
+        }, 1100);
+      }, 900);
+      return;
+    }
+
+    advance(status, isLast, nextDecisions);
   };
 
   const onReplyReceived = () => {
@@ -171,7 +195,6 @@ export function Workspace({ flow }: { flow: FlowId }) {
               replied={replied}
               isLast={selectedStep === LAST}
               completeNote={run.completeNote}
-              onReplyReceived={onReplyReceived}
               onDecision={onDecision}
               onWizardActive={setWizardActive}
               staged={staged}
@@ -182,6 +205,7 @@ export function Workspace({ flow }: { flow: FlowId }) {
                 to={handoff.to}
                 toName={handoff.toName}
                 toLabel={handoff.toLabel}
+                docLabel={handoff.docLabel}
               />
             )}
           </div>

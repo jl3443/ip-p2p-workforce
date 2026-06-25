@@ -50,7 +50,7 @@ export const cockpitKpis: KPI[] = [
     suffix: "K",
     trend: { delta: "this quarter", direction: "up" },
     spark: [22, 48, 71, 96, 128, 159, 188, 214],
-    target: { kind: "workspace", flow: "gearbox" },
+    target: { kind: "workspace", flow: "belt" },
   },
   {
     label: "Touchless settlement",
@@ -58,6 +58,7 @@ export const cockpitKpis: KPI[] = [
     suffix: "%",
     trend: { delta: "+12 pts", direction: "up" },
     spark: [48, 52, 56, 59, 63, 66, 69, 71],
+    target: { kind: "workspace", flow: "settle" },
   },
   {
     label: "Capacity freed",
@@ -65,6 +66,7 @@ export const cockpitKpis: KPI[] = [
     suffix: " FTE",
     trend: { delta: "+15", direction: "up" },
     spark: [28, 34, 40, 46, 52, 57, 61, 64],
+    target: { kind: "workspace", flow: "settle" },
   },
 ];
 
@@ -90,7 +92,7 @@ export const pipelineStages: PipelineStage[] = [
   { n: 2, name: "Rate & surcharge", agent: "sourcing", volume: "94% on-contract", detail: "9 out of tolerance", status: "review" },
   { n: 3, name: "Carrier tender", agent: "po", volume: "41 tendered", detail: "6 need release", status: "running" },
   { n: 4, name: "Load capture", agent: "vendor", volume: "1,180 packets", detail: "31 missing evidence", status: "running" },
-  { n: 5, name: "Settlement match", agent: "invoice", volume: "1,640 lines", detail: "22 exceptions", status: "review" },
+  { n: 5, name: "Settlement match", agent: "invoice", volume: "1,580 lines", detail: "94% cleared touchless · 41 routed today", status: "review" },
   { n: 6, name: "Payment ready", agent: null, volume: "176 scheduled", detail: "$3.8M to AP", status: "idle" },
 ];
 
@@ -106,9 +108,22 @@ export type PendingDecision = {
   dueLabel: string;
   dueWhen: string;
   target: View;
+  /** A non-built use case shown greyed as "Not in scope" — not actionable. */
+  outOfScope?: boolean;
 };
 
 export const pendingDecisions: PendingDecision[] = [
+  {
+    id: "INV-IRN-2206",
+    type: "Settlement automation · carrier invoice",
+    site: "Ironwood Freight Lines · CHI→RIV",
+    urgency: "critical",
+    title: "Carrier invoice — 20 lines · 16 cleared touchless · 4 exceptions to route",
+    sub: "80% auto-cleared ($30.7K to AP) · $4.1K across 4 exception types routed to 4 teams · ready for you",
+    dueLabel: "Route",
+    dueWhen: "Now",
+    target: { kind: "workspace", flow: "settle" },
+  },
   {
     id: "FRT-48201",
     type: "Settlement exception · OCC live load",
@@ -121,26 +136,28 @@ export const pendingDecisions: PendingDecision[] = [
     target: { kind: "workspace", flow: "belt" },
   },
   {
-    id: "PR-48630",
-    type: "PR intake & validation · MRO",
-    site: "Recycling · Sorting Line 2",
-    urgency: "high",
-    title: "Conveyor belt PR — free text, no part number, width unconfirmed",
-    sub: "AI structured & coded it on-contract ($4,180) · one open item: confirm 36 in face width before release",
-    dueLabel: "Due",
-    dueWhen: "Today",
-    target: { kind: "workspace", flow: "pump" },
+    id: "UC-LANE",
+    type: "AI lane intake & carrier orchestration",
+    site: "Network · all lanes",
+    urgency: "medium",
+    title: "Lane intake & carrier orchestration — classify haul, score carriers, tender",
+    sub: "Recommends the optimal carrier and triggers tendering",
+    dueLabel: "Not in scope",
+    dueWhen: "—",
+    target: { kind: "cockpit" },
+    outOfScope: true,
   },
   {
-    id: "PR-48655",
-    type: "PR intake & validation · MRO",
-    site: "Recycling · Sorting Line 1",
-    urgency: "high",
-    title: "Idler roller PR — 8 requested, but stock + warranty cover most",
-    sub: "AI found a duplicate PR + 6 in stock at a sister plant + warranty cover · re-scoped to a 2-unit buy",
-    dueLabel: "Review",
-    dueWhen: "Today",
-    target: { kind: "workspace", flow: "gearbox" },
+    id: "UC-RATE",
+    type: "Dynamic rate card & surcharge intelligence",
+    site: "Network · all lanes",
+    urgency: "medium",
+    title: "Dynamic rate card & surcharge intelligence — standardise surcharges, benchmark rates",
+    sub: "Eliminates hidden charges, improves freight-cost transparency",
+    dueLabel: "Not in scope",
+    dueWhen: "—",
+    target: { kind: "cockpit" },
+    outOfScope: true,
   },
 ];
 

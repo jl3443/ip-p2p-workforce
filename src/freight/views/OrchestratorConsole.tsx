@@ -12,6 +12,7 @@ import { AgentChat, type ChatTurn } from "@/freight/components/agents/AgentChat"
 import { AgentFlowDiagram } from "@/freight/components/agents/AgentFlowDiagram";
 import { CardHeader } from "@/freight/components/agents/ConsoleKit";
 import { FreightDashboard } from "@/freight/components/blocks/FreightDashboard";
+import { SettlementBatchPanel } from "@/freight/components/blocks/SettlementBatchPanel";
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Freight Settlement Orchestrator console.
@@ -224,6 +225,7 @@ export function OrchestratorConsole() {
         <div className="space-y-3 min-w-0">
           <OrchestratorHero />
           <MetricsStrip />
+          <SettlementBatchPanel />
           <FreightDashboard />
           <AgentFlowDiagram />
           <div className="grid grid-cols-2 gap-3 items-stretch">

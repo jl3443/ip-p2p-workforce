@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, FileText } from "lucide-react";
 import { SpringIn } from "@/freight/components/ai/SpringIn";
 import { AIDot } from "@/freight/components/ai/AIDot";
 import { agentsById, type AgentId } from "@/freight/data/agents";
@@ -18,11 +18,14 @@ export function HandoffOverlay({
   to,
   toName,
   toLabel,
+  docLabel,
 }: {
   from: AgentId;
   to?: AgentId;
   toName?: string;
   toLabel?: string;
+  /** The produced artifact handed along the baton — shown gliding the conveyor. */
+  docLabel?: string;
 }) {
   const A = agentsById[from];
   const B = to ? agentsById[to] : null;
@@ -46,20 +49,22 @@ export function HandoffOverlay({
               </span>
             </div>
 
-            {/* animated conveyor */}
-            <svg width="96" height="24" viewBox="0 0 96 24" className="shrink-0 text-surface-deep">
-              <line x1="2" y1="12" x2="82" y2="12" stroke="#d6ded6" strokeWidth="2" />
-              <line
-                x1="2"
-                y1="12"
-                x2="82"
-                y2="12"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="hr-flow"
-              />
-              <path d="M82 6 L94 12 L82 18 Z" fill="currentColor" />
-            </svg>
+            {/* animated conveyor — the produced file glides across it */}
+            <div className="relative shrink-0" style={{ width: 96, height: 28 }}>
+              <svg width="96" height="24" viewBox="0 0 96 24" className="absolute top-[2px] left-0 text-surface-deep">
+                <line x1="2" y1="12" x2="82" y2="12" stroke="#d6ded6" strokeWidth="2" />
+                <line x1="2" y1="12" x2="82" y2="12" stroke="currentColor" strokeWidth="2" className="hr-flow" />
+                <path d="M82 6 L94 12 L82 18 Z" fill="currentColor" />
+              </svg>
+              {docLabel && (
+                <span
+                  className="hr-glide absolute top-0 left-0 grid h-5 w-5 place-items-center rounded bg-surface-deep text-ink-inverse shadow"
+                  aria-hidden
+                >
+                  <FileText size={11} />
+                </span>
+              )}
+            </div>
 
             {/* receiver — next agent, or the run's final owner — waking up */}
             <div className="flex flex-col items-center gap-1.5">
@@ -74,11 +79,26 @@ export function HandoffOverlay({
               </span>
             </div>
           </div>
+          {docLabel && (
+            <div className="inline-flex items-center gap-1.5 rounded-md border border-divider bg-surface-fog px-2.5 py-1 text-[11px] text-ink max-w-[280px]">
+              <FileText size={12} className="text-surface-deep shrink-0" />
+              <span className="font-medium truncate">{docLabel}</span>
+            </div>
+          )}
           <div className="text-[12.5px] text-ink text-center">
             Output handed off · <span className="font-bold">{receiverName}</span> is taking over
           </div>
         </div>
       </SpringIn>
+      <style>{`
+        @keyframes hr-glide {
+          0% { transform: translateX(0); opacity: 0; }
+          18% { opacity: 1; }
+          82% { opacity: 1; }
+          100% { transform: translateX(70px); opacity: 0; }
+        }
+        .hr-glide { animation: hr-glide 1200ms ease-in-out infinite; }
+      `}</style>
     </div>,
     document.body,
   );

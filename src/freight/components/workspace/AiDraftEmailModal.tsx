@@ -20,7 +20,7 @@ export function AiDraftEmailModal({
 }: {
   email: DraftEmailLike;
   sent: boolean;
-  onSend: () => void;
+  onSend?: () => void;
   sendLabel?: string;
   sentLabel?: string;
   onClose: () => void;
@@ -32,7 +32,7 @@ export function AiDraftEmailModal({
   }, [onClose]);
 
   const send = () => {
-    onSend();
+    onSend?.();
     onClose();
   };
 
@@ -80,17 +80,25 @@ export function AiDraftEmailModal({
           <div className="px-5 py-3.5 border-t border-divider flex items-center gap-3 shrink-0">
             {!sent ? (
               <>
-                <button
-                  type="button"
-                  onClick={send}
-                  className="ui-pill inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[13px] font-bold bg-[#0a6ed1] text-white hover:bg-[#085bb0]"
-                >
-                  <CornerUpRight size={15} /> {sendLabel}
-                </button>
+                {onSend && (
+                  <button
+                    type="button"
+                    onClick={send}
+                    className="ui-pill inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[13px] font-bold bg-[#0a6ed1] text-white hover:bg-[#085bb0]"
+                  >
+                    <CornerUpRight size={15} /> {sendLabel}
+                  </button>
+                )}
+                {!onSend && (
+                  <span className="inline-flex items-center gap-1.5 text-[12.5px] text-mute">
+                    <CornerUpRight size={14} className="text-[#0a6ed1]" />
+                    Sends when you approve this step
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={onClose}
-                  className="ui-pill rounded-full border border-ink/25 bg-white px-4 py-2.5 text-[13px] font-medium text-ink hover:bg-surface-fog"
+                  className="ui-pill ml-auto rounded-full border border-ink/25 bg-white px-4 py-2.5 text-[13px] font-medium text-ink hover:bg-surface-fog"
                 >
                   Close
                 </button>

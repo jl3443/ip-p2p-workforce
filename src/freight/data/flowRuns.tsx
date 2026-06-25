@@ -12,6 +12,7 @@
 
 import type { FlowId, Decision } from "@/freight/state";
 import { runSteps as beltSteps, type RunStep } from "@/freight/data/runSteps";
+import { settleSteps } from "@/freight/data/settleSteps";
 import { beltPrSteps, rollerPrSteps } from "@/freight/data/prCases";
 
 import { EmailDoc, SpendingPolicyDoc } from "@/freight/components/docs/sources";
@@ -373,6 +374,28 @@ export const flowRuns: Record<FlowId, FlowRun> = {
       ],
       caption:
         "In-tolerance lines posted to AP on net 30 · $1,816 disputed across 3 lines (surcharge mismatch, un-owed demurrage, cube-out weight) · carrier credit acknowledged · audit envelope closed.",
+    },
+  },
+  settle: {
+    id: "settle",
+    contextTitle: "Ironwood Freight Lines · carrier settlement invoice INV-IRN-2206 · lane CHI→RIV",
+    contextSub: "20 lines settled · 16 auto-cleared touchless · 4 exceptions triaged to 4 teams",
+    reviewPill: "Settlement automation · in review",
+    completeNote: "Run complete · 16 lines posted touchless, 4 exceptions routed, audit envelope sealed",
+    steps: settleSteps,
+    terminal: () => ({ label: "Posted · exceptions routed", kind: "ready" }),
+    completion: {
+      title: "INV-IRN-2206 · settled and routed",
+      tone: "ready",
+      routedTo: "Approval & Exception Router",
+      routedSub: "audit close",
+      stats: [
+        { value: "16", label: "posted touchless" },
+        { value: "80%", label: "touchless settlement" },
+        { value: "$4.1K", label: "routed to 4 teams" },
+      ],
+      caption:
+        "16 in-tolerance lines posted to AP touchless ($30.7K) · 4 exception lines bucketed and routed to Procurement, Finance master-data, Buyer-AP and the Freight desk with tracked SLAs · audit envelope sealed.",
     },
   },
   pump: {

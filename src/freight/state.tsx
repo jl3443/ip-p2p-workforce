@@ -7,7 +7,7 @@
 import * as React from "react";
 import { agents, type AgentId, type AutonomyLevel } from "@/freight/data/agents";
 
-export type FlowId = "belt" | "pump" | "gearbox" | "collect";
+export type FlowId = "belt" | "settle" | "pump" | "gearbox" | "collect";
 
 /** Lifecycle of an agent's output artifact — drives the handoff to the next agent. */
 export type AgentOutputStatus = "none" | "pending" | "approved" | "rejected" | "escalated";
@@ -96,6 +96,7 @@ const freshCollect = (): FlowProgress => ({
 
 const freshProgress = (): Record<FlowId, FlowProgress> => ({
   belt: freshFlow(),
+  settle: freshFlow(),
   pump: freshFlow(),
   gearbox: freshFlow(),
   collect: freshCollect(),

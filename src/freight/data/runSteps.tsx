@@ -22,13 +22,21 @@ import {
   RateValidationDoc,
   CarrierTenderDoc,
   LoadPacketDoc,
-  ThreeWayMatchDoc,
   CarrierInvoiceDoc,
   RateCardDoc,
   GateLogDoc,
   WeighTicketDoc,
 } from "@/freight/components/docs/freight/FreightDocs";
 import { EmailDoc } from "@/freight/components/docs/sources";
+import { ReconciliationBoard, type ReconLine } from "@/freight/components/workspace/recon/ReconciliationBoard";
+import { WeightRealityGauge } from "@/freight/components/workspace/recon/WeightRealityGauge";
+import { AccessorialScope } from "@/freight/components/workspace/recon/AccessorialScope";
+import { DetentionClock } from "@/freight/components/workspace/recon/DetentionClock";
+import { LeakageBridge } from "@/freight/components/workspace/recon/LeakageBridge";
+import {
+  DuplicateBillingRadar,
+  type SettledInvoiceRow,
+} from "@/freight/components/workspace/recon/DuplicateBillingRadar";
 
 export type SourceKind =
   | "sap"
@@ -118,6 +126,10 @@ export type RunStep = {
   recommendation: string;
   exception?: ExceptionResolution;
   stages?: ExtractStage[];
+  /** The produced report surfaced red exceptions → the primary action turns amber. */
+  hasExceptions?: boolean;
+  /** Overrides the primary-action button label (used with hasExceptions). */
+  approveLabel?: string;
 };
 
 /* ── Step 1 · Lane intake — FRT-48201 ─────────────────────────────────────── */
@@ -355,6 +367,115 @@ const vendorStep: RunStep = {
 
 /* ── Step 5 · Freight settlement — INV-SUM-5567 (HERO) ────────────────────── */
 
+/* Recently-settled Summit invoices the duplicate radar sweeps against — all
+ * distinct shipments, so this load reads as unique. */
+const sihHistory: SettledInvoiceRow[] = [
+  { invoice: "INV-SUM-5519", shipment: "SHP-54880", amount: "$14,920", lane: "CHI→RIV", settledOn: "2026-06-06", score: 8 },
+  { invoice: "INV-SUM-5531", shipment: "SHP-54941", amount: "$15,110", lane: "CHI→RIV", settledOn: "2026-06-11", score: 11 },
+  { invoice: "INV-SUM-5548", shipment: "SHP-54990", amount: "$12,740", lane: "DET→RIV", settledOn: "2026-06-15", score: 5 },
+  { invoice: "INV-SUM-5560", shipment: "SHP-55003", amount: "$15,205", lane: "CHI→RIV", settledOn: "2026-06-18", score: 12 },
+];
+
+/* The five invoice lines against contract + shipment-reality. Reality is the
+ * anchor; the three divergent lines each mount their own evidence visual. */
+const reconLines: ReconLine[] = [
+  {
+    id: "linehaul",
+    label: "Line haul",
+    contract: { display: "$11,200" },
+    reality: { display: "CHI→RIV confirmed", source: "Tender TND-77310" },
+    invoice: { display: "$11,200" },
+    status: "clears",
+  },
+  {
+    id: "fuel",
+    label: "Fuel surcharge",
+    contract: { display: "$2,464", basis: "22% of line haul" },
+    reality: { display: "index 22%", source: "Fuel index" },
+    invoice: { display: "flat $2,900" },
+    status: "flag",
+    delta: { amount: "+$436", sign: "over" },
+    evidenceNode: (
+      <AccessorialScope
+        contractBasis="22% of line haul"
+        contractValue="$2,464"
+        billedBasis="flat fee"
+        billedValue="$2,900"
+        delta="+$436"
+        note="Billed as a flat fee instead of the contracted percentage of line haul."
+      />
+    ),
+  },
+  {
+    id: "demurrage",
+    label: "Demurrage",
+    contract: { display: "free 2.0h" },
+    reality: { display: "gate 1.5h", source: "GATE-RIV-0620" },
+    invoice: { display: "$900" },
+    status: "flag",
+    delta: { amount: "$900", sign: "not-owed" },
+    evidenceNode: (
+      <DetentionClock gateIn="07:31" gateOut="09:01" onSiteH={1.5} freeH={2.0} billed="$900" log="GATE-RIV-0620" />
+    ),
+  },
+  {
+    id: "weight",
+    label: "Weight adj.",
+    contract: { display: "per-load" },
+    reality: { display: "scaled 20.0t", source: "WB-RIV-44812" },
+    invoice: { display: "22.0t · $480" },
+    status: "flag",
+    delta: { amount: "$480", sign: "over" },
+    evidenceNode: (
+      <WeightRealityGauge
+        claimT={22.0}
+        scaledT={20.0}
+        gross={34.4}
+        tare={14.4}
+        cubePctVolume={93}
+        cubePctWeight={91}
+        accessorialAtRisk="$480"
+        ticket="WB-RIV-44812"
+      />
+    ),
+  },
+  {
+    id: "booking",
+    label: "Booking / CC",
+    contract: { display: "1000 · CF" },
+    reality: { display: "SHP-55012", source: "Load packet" },
+    invoice: { display: "SHP-55012 · 1000" },
+    status: "clears",
+  },
+];
+
+/* The Reconciliation Cockpit — the hero working surface: the reality-lens board
+ * with inline evidence, the duplicate-billing radar and the leakage bridge. */
+const reconCockpit = (
+  <div className="space-y-4">
+    <ReconciliationBoard
+      lines={reconLines}
+      verdict="Two lines clear on-contract — $13,664 settled to AP. Three lines diverge from shipment reality: the surcharge basis (+$436), un-owed demurrage ($900) and a cube-out weight adjustment ($480) — $1,816 to dispute."
+    />
+    <DuplicateBillingRadar
+      current={{ invoice: "INV-SUM-5567", shipment: "SHP-55012", amount: "$15,480" }}
+      history={sihHistory}
+      verdict="unique"
+    />
+    <LeakageBridge
+      invoiced={15480}
+      deductions={[
+        { label: "Fuel surcharge", amount: 436, id: "fuel" },
+        { label: "Demurrage", amount: 900, id: "demurrage" },
+        { label: "Weight (cube-out)", amount: 480, id: "weight" },
+      ]}
+      clears={13664}
+      recoveredLabel="$1,816 recovered"
+      pctNote="≈3.5% of this invoice was leakage — network band 3–6%."
+    />
+  </div>
+);
+
 const invoiceStep: RunStep = {
   id: "invoice",
   n: 5,
@@ -368,8 +489,10 @@ const invoiceStep: RunStep = {
     "Flagging fuel surcharge, demurrage and the cube-out weight line",
     "Clearing $13,664 · drafting a $1,816 carrier dispute",
   ],
-  docLabel: "INV-SUM-5567 · Three-way check",
-  document: <ThreeWayMatchDoc />,
+  docLabel: "INV-SUM-5567 · Reconciliation cockpit",
+  hasExceptions: true,
+  approveLabel: "Approve with flags & send dispute",
+  document: reconCockpit,
   sources: [
     {
       id: "invoice-pdf",
