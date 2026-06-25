@@ -17,7 +17,8 @@
 import type { RunStep } from "@/freight/data/runSteps";
 import { DocShell, DocTitleBand, SectionBand, Field } from "@/freight/components/docs/sap/parts";
 import { EmailDoc } from "@/freight/components/docs/sources";
-import { TouchlessFunnel } from "@/freight/components/workspace/TouchlessFunnel";
+import { ToleranceGate } from "@/freight/components/workspace/ToleranceGate";
+import { SystemOfRecordCard } from "@/freight/components/workspace/SystemOfRecordCard";
 import { ToleranceGauge } from "@/freight/components/workspace/ToleranceGauge";
 import { ResolutionTracker } from "@/freight/components/workspace/ResolutionTracker";
 import { PostingEnvelopeCeremony } from "@/freight/components/workspace/PostingEnvelopeCeremony";
@@ -192,22 +193,26 @@ const sweepStep: RunStep = {
   title: "Settle the invoice",
   sub: "Three-way checks every line · auto-clears in tolerance",
   reasoning: [
-    `Reading the carrier settlement invoice ${INV} — 20 lines`,
-    "Running the three-way check across every line",
-    "Auto-clearing line haul + on-contract fuel inside ±2% tolerance",
-    "16 lines clear touchless (80%)",
-    "Isolating 4 lines that breach a control",
+    `Streaming the 20 lines of ${INV} through the ±2% tolerance gate`,
+    "Three-way checking each line — invoice vs PO vs rate card",
+    "16 lines on-contract and inside tolerance — auto-cleared touchless",
+    "4 lines breach a control — held at the gate",
+    "Line 7 references PO 4500-8821 — not in accruals",
+    "Line 12 coded to company code 2000 — not 1000",
+    "Line 15 sits $610 over its PO value",
+    "Line 4 line haul is 4.0% off contract — outside ±2%",
   ],
   docLabel: `${INV} · Touchless settlement`,
   document: (
-    <TouchlessFunnel
+    <ToleranceGate
       total={20}
-      touchless={16}
-      exceptions={4}
-      carriers={1}
-      clearedAmount="$30.7K"
-      atRiskAmount="$4.1K"
-      touchlessPct="80%"
+      cleared={16}
+      exceptions={[
+        { label: "L7", type: "missing PO" },
+        { label: "L12", type: "wrong company code" },
+        { label: "L15", type: "insufficient PO value" },
+        { label: "L4", type: "rate mismatch" },
+      ]}
     />
   ),
   sources: [
@@ -227,10 +232,11 @@ const scoreStep: RunStep = {
   title: "Score against tolerance",
   sub: "Normalises surcharges · plots the outliers on the band",
   reasoning: [
-    "Normalising every surcharge to a like-for-like basis",
-    "Scoring each line's variance against its lane tolerance band",
-    "16 lines land inside ±2% — median variance 0.4%",
-    "4 fall outside — plotting them by root cause",
+    "Normalising fuel + accessorials to a like-for-like basis per line",
+    "Scoring each line's variance against its ±2% lane band",
+    "16 lines land inside the band — median variance 0.4%",
+    "Line 4 plots at +4.0% · Line 15 at +5.1% — clear outliers",
+    "Lines 7 & 12 fail the match, not the rate — flagged separately",
   ],
   docLabel: `${INV} · Tolerance distribution`,
   document: <ToleranceGauge band="±2%" inCount={16} median="0.4%" outliers={tolOutliers} />,
@@ -250,10 +256,11 @@ const triageStep: RunStep = {
   title: "Triage the exceptions",
   sub: "Buckets the 4 flagged lines · routes only exceptions to the owning team",
   reasoning: [
-    "Root-causing each of the 4 exception lines",
-    "Bucketing — missing PO · wrong company code · insufficient PO value · rate mismatch",
-    "Matching each to the team that owns the fix",
-    "Drafting a routing slip per line",
+    "Line 7 → missing PO → Procurement owns the fix",
+    "Line 12 → wrong company code → Finance master-data",
+    "Line 15 → insufficient PO value → Buyer-AP",
+    "Line 4 → rate mismatch → Freight desk",
+    "Drafting one routing slip per line · $4,100 held",
   ],
   docLabel: `${INV} · Exception router`,
   hasExceptions: true,
@@ -276,10 +283,10 @@ const routeStep: RunStep = {
   title: "Set SLAs & route",
   sub: "Opens a tracked ticket per exception · notifies the 4 teams",
   reasoning: [
-    "Assigning an SLA per exception type from policy",
-    "Notifying the four owning teams with one consolidated digest",
-    "Opening a tracked ticket per exception line",
-    "Arming the resolution clock",
+    "Line 12 → 4h SLA · Lines 7 & 15 → 1 day · Line 4 → 2 days",
+    "Opening a tracked ticket against each of the 4 lines",
+    "Holding all 4 lines out of tonight's payment run",
+    "Notifying the four owning teams with one digest · arming the clock",
   ],
   docLabel: `${INV} · Resolution tracker`,
   document: (
@@ -345,21 +352,34 @@ const postStep: RunStep = {
   title: "Post & close the envelope",
   sub: "Posts the cleared lines · holds the 4 · seals the audit record",
   reasoning: [
-    "Posting the 16 cleared lines to SAP AP on net terms",
-    "Holding the 4 routed lines out of the payment run",
-    "Writing the immutable settlement audit record",
-    `Sealing the envelope — ${INV}`,
+    "Posting the 16 cleared lines to SAP AP doc 5105004471 on net terms",
+    "Holding the 4 routed lines out of tonight's payment run",
+    "Writing 4 exception tickets (EXC-2206-01…04) into the record",
+    `Sealing the immutable audit envelope — ${INV}`,
   ],
   docLabel: `${INV} · Audit envelope`,
   document: (
-    <PostingEnvelopeCeremony
-      runId={INV}
-      postedCount={16}
-      postedAmount="$30.7K"
-      heldCount={4}
-      routedAmount="$4.1K"
-      touchlessPct="80%"
-    />
+    <div className="space-y-4">
+      <PostingEnvelopeCeremony
+        runId={INV}
+        postedCount={16}
+        postedAmount="$30.7K"
+        heldCount={4}
+        routedAmount="$4.1K"
+        touchlessPct="80%"
+      />
+      <SystemOfRecordCard
+        apDoc="AP 5105004471"
+        postedCount={16}
+        postedAmount="$30.7K"
+        tickets={[
+          { id: "EXC-2206-01", team: "Procurement", type: "missing PO" },
+          { id: "EXC-2206-02", team: "Finance master-data", type: "wrong company code" },
+          { id: "EXC-2206-03", team: "Buyer-AP", type: "insufficient PO value" },
+          { id: "EXC-2206-04", team: "Freight desk", type: "rate mismatch" },
+        ]}
+      />
+    </div>
   ),
   sources: [
     { id: "post-handoff", label: "Resolution tracker", meta: "from Exception Router", kind: "sap", handoff: true, body: <SettlementInvoiceDoc /> },

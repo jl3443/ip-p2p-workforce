@@ -5,7 +5,7 @@ import { SpringIn } from "@/freight/components/ai/SpringIn";
 
 export type LeakageBridgeProps = {
   invoiced: number;
-  deductions: { label: string; amount: number; id: "fuel" | "demurrage" | "weight" }[];
+  deductions: { label: string; amount: number; id: string }[];
   clears: number;
   recoveredLabel: string;
   pctNote?: string;

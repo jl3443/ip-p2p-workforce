@@ -6,12 +6,12 @@
  * upstream evidence (clickable source files), streams its reasoning, produces a
  * freight artifact, and pauses for a human decision. Approve hands the output to
  * the next agent. The Settlement step runs the three-way check (Invoice ×
- * Shipment × Contract), clears the in-tolerance lines and drafts a carrier
- * dispute for the three flagged lines — the AI drafts it, the human sends it.
+ * Shipment × Contract), clears the in-tolerance line and drafts a carrier
+ * dispute for the five flagged lines — the AI drafts it, the human sends it.
  *
  * Process order — Lane Intake → Rate & Surcharge → Carrier Tender → Load Capture
- * → Freight Settlement. Every figure ties out: billed $15,480 · clears $13,664 ·
- * disputed $1,816.
+ * → Freight Settlement. Every figure ties out: billed $15,790 · clears $13,144 ·
+ * disputed $2,646.
  */
 
 import * as React from "react";
@@ -30,6 +30,7 @@ import {
 import { EmailDoc } from "@/freight/components/docs/sources";
 import { ReconciliationBoard, type ReconLine } from "@/freight/components/workspace/recon/ReconciliationBoard";
 import { WeightRealityGauge } from "@/freight/components/workspace/recon/WeightRealityGauge";
+import { ClassificationScope } from "@/freight/components/workspace/recon/ClassificationScope";
 import { AccessorialScope } from "@/freight/components/workspace/recon/AccessorialScope";
 import { DetentionClock } from "@/freight/components/workspace/recon/DetentionClock";
 import { LeakageBridge } from "@/freight/components/workspace/recon/LeakageBridge";
@@ -373,19 +374,30 @@ const sihHistory: SettledInvoiceRow[] = [
   { invoice: "INV-SUM-5519", shipment: "SHP-54880", amount: "$14,920", lane: "CHI→RIV", settledOn: "2026-06-06", score: 8 },
   { invoice: "INV-SUM-5531", shipment: "SHP-54941", amount: "$15,110", lane: "CHI→RIV", settledOn: "2026-06-11", score: 11 },
   { invoice: "INV-SUM-5548", shipment: "SHP-54990", amount: "$12,740", lane: "DET→RIV", settledOn: "2026-06-15", score: 5 },
-  { invoice: "INV-SUM-5560", shipment: "SHP-55003", amount: "$15,205", lane: "CHI→RIV", settledOn: "2026-06-18", score: 12 },
+  { invoice: "INV-SUM-5560", shipment: "SHP-55003", amount: "$15,205", lane: "CHI→RIV", settledOn: "2026-06-18", score: 86 },
 ];
 
 /* The five invoice lines against contract + shipment-reality. Reality is the
  * anchor; the three divergent lines each mount their own evidence visual. */
 const reconLines: ReconLine[] = [
   {
-    id: "linehaul",
-    label: "Line haul",
-    contract: { display: "$11,200" },
-    reality: { display: "CHI→RIV confirmed", source: "Tender TND-77310" },
-    invoice: { display: "$11,200" },
-    status: "clears",
+    id: "classification",
+    label: "Classification",
+    contract: { display: "Class 50 · $10,680", basis: "NMFC · baled OCC" },
+    reality: { display: "BOL: Class 50", source: "BOL-SUMC-44812" },
+    invoice: { display: "Class 55 · $11,200" },
+    status: "flag",
+    delta: { amount: "+$520", sign: "over" },
+    evidenceNode: (
+      <ClassificationScope
+        contractClass="Class 50"
+        contractValue="$10,680"
+        billedClass="Class 55"
+        billedValue="$11,200"
+        delta="+$520"
+        commodity="baled OCC"
+      />
+    ),
   },
   {
     id: "fuel",
@@ -440,6 +452,15 @@ const reconLines: ReconLine[] = [
     ),
   },
   {
+    id: "duplicate",
+    label: "Re-bill",
+    contract: { display: "—" },
+    reality: { display: "settled on INV-SUM-5560", source: "Settlement history" },
+    invoice: { display: "$310 lumper" },
+    status: "flag",
+    delta: { amount: "$310", sign: "over" },
+  },
+  {
     id: "booking",
     label: "Booking / CC",
     contract: { display: "1000 · CF" },
@@ -455,23 +476,25 @@ const reconCockpit = (
   <div className="space-y-4">
     <ReconciliationBoard
       lines={reconLines}
-      verdict="Two lines clear on-contract — $13,664 settled to AP. Three lines diverge from shipment reality: the surcharge basis (+$436), un-owed demurrage ($900) and a cube-out weight adjustment ($480) — $1,816 to dispute."
+      verdict="One line clears. Five diverge from contract and shipment reality — a Class-55-vs-50 mis-class (+$520), the surcharge basis (+$436), un-owed demurrage ($900), a cube-out weight adjustment ($480) and a $310 lumper already settled on INV-SUM-5560 — $2,646 to dispute, $13,144 to AP."
     />
     <DuplicateBillingRadar
-      current={{ invoice: "INV-SUM-5567", shipment: "SHP-55012", amount: "$15,480" }}
+      current={{ invoice: "INV-SUM-5567", shipment: "SHP-55012", amount: "$15,790" }}
       history={sihHistory}
-      verdict="unique"
+      verdict="duplicate"
     />
     <LeakageBridge
-      invoiced={15480}
+      invoiced={15790}
       deductions={[
+        { label: "Classification", amount: 520, id: "classification" },
         { label: "Fuel surcharge", amount: 436, id: "fuel" },
         { label: "Demurrage", amount: 900, id: "demurrage" },
         { label: "Weight (cube-out)", amount: 480, id: "weight" },
+        { label: "Duplicate re-bill", amount: 310, id: "duplicate" },
       ]}
-      clears={13664}
-      recoveredLabel="$1,816 recovered"
-      pctNote="≈3.5% of this invoice was leakage — network band 3–6%."
+      clears={13144}
+      recoveredLabel="$2,646 recovered"
+      pctNote="≈16.8% leakage on this invoice — an outlier vs the 3–6% network band."
     />
   </div>
 );
@@ -482,12 +505,13 @@ const invoiceStep: RunStep = {
   title: "Freight settlement — three-way check",
   sub: "Matches Invoice × Shipment × Contract and drafts the dispute",
   reasoning: [
-    "Extracting the carrier invoice INV-SUM-5567 — line by line",
-    "Matching each line to the shipment (SAP) and the contract (Excel)",
-    "Running the 6-point freight failure-point checklist — all clear",
-    "Clearing line haul — on-contract, in tolerance",
-    "Flagging fuel surcharge, demurrage and the cube-out weight line",
-    "Clearing $13,664 · drafting a $1,816 carrier dispute",
+    "Reading INV-SUM-5567 line by line against the contract and the shipment record",
+    "Line haul billed Class 55 — the BOL commodity is baled OCC, which rates Class 50: $520 mis-class",
+    "Fuel surcharge billed flat $2,900 vs the contracted 22% ($2,464): $436 over",
+    "Demurrage $900 — the gate log shows 1.5h on site vs 2.0h free: nothing owed",
+    "Weight adjustment billed on 22.0t — the weigh-bridge scaled 20.0t: $480 on a cube-out",
+    "Scanning settlement history — the $310 lumper was already settled on INV-SUM-5560: holding as a re-bill",
+    "One line clears · clearing $13,144 · drafting a $2,646 carrier dispute",
   ],
   docLabel: "INV-SUM-5567 · Reconciliation cockpit",
   hasExceptions: true,
@@ -527,20 +551,20 @@ const invoiceStep: RunStep = {
   email: {
     cta: "Send the carrier dispute",
     to: "Summit Carriers · billing@summitcarriers.example",
-    subject: "Dispute — INV-SUM-5567 · 3 lines · USD 1,816",
+    subject: "Dispute — INV-SUM-5567 · 5 lines · USD 2,646",
     lines: [
-      "We've settled the in-tolerance lines on INV-SUM-5567 ($13,664) on net 30. Three lines are disputed against the contract:",
-      "1) Fuel surcharge billed flat $2,900 vs the contracted 22% ($2,464) — $436 over. 2) Demurrage $900 — gate log shows 1.5 h on site vs 2.0 h free time, none owed. 3) Weight adjustment $480 — billed on 22 t vs the weigh-bridge scaled 20 t.",
-      "Please issue a credit of $1,816. Rate card, gate log and weigh ticket attached.",
+      "We've settled the in-tolerance line on INV-SUM-5567 ($13,144) on net 30. Five lines are disputed against the contract and the shipment record:",
+      "1) Line haul billed Class 55 vs the BOL commodity (baled OCC, Class 50) — $520 mis-class. 2) Fuel surcharge billed flat $2,900 vs the contracted 22% ($2,464) — $436 over. 3) Demurrage $900 — gate log shows 1.5 h on site vs 2.0 h free time, none owed. 4) Weight adjustment $480 — billed on 22 t vs the weigh-bridge scaled 20 t. 5) Lumper $310 — already settled on INV-SUM-5560, a re-bill.",
+      "Please issue a credit of $2,646. Rate card, BOL, gate log, weigh ticket and the prior settlement attached.",
     ],
     toastTitle: "Credit acknowledged",
-    toastBody: "Summit Carriers acknowledged the dispute and will credit $1,816 — reply added to your sources.",
+    toastBody: "Summit Carriers acknowledged the dispute and will credit $2,646 — reply added to your sources.",
     reply: {
       from: "Summit Carriers",
       receivedMeta: "Outlook · 11:18",
       subject: "RE: Dispute — INV-SUM-5567",
       lines: [
-        "Reviewed — you're right on all three. We'll issue a credit memo for $1,816 against INV-SUM-5567.",
+        "Reviewed — you're right on all five. We'll issue a credit memo for $2,646 against INV-SUM-5567.",
       ],
       source: {
         id: "dispute-ack",
@@ -556,7 +580,7 @@ const invoiceStep: RunStep = {
             subject="RE: Dispute — INV-SUM-5567"
             tone="inbound"
             lines={[
-              "Reviewed — you're right on all three. We'll issue a credit memo for $1,816 against INV-SUM-5567.",
+              "Reviewed — you're right on all five. We'll issue a credit memo for $2,646 against INV-SUM-5567.",
               "Surcharge will move to the contracted percentage on future invoices.",
             ]}
           />
@@ -565,7 +589,7 @@ const invoiceStep: RunStep = {
     },
   },
   recommendation:
-    "Two lines clear ($13,664, in tolerance). Three lines are above tolerance — surcharge +$436, demurrage $900 not owed, weight adjustment $480 on a cube-out. Settle the clean lines and send the drafted $1,816 dispute.",
+    "One line clears (booking, in tolerance). Five lines are flagged totalling $2,646 — Class-55-vs-50 mis-class +$520, surcharge +$436, demurrage $900 not owed, weight $480 on a cube-out, and a $310 lumper already settled on INV-SUM-5560. Settle $13,144 to AP and send the drafted $2,646 dispute.",
 };
 
 export const runSteps: RunStep[] = [

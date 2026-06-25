@@ -357,7 +357,7 @@ export const flowRuns: Record<FlowId, FlowRun> = {
   belt: {
     id: "belt",
     contextTitle: "Riverside mill · inbound OCC live load · lane CHI→RIV",
-    contextSub: "Carrier freight invoice INV-SUM-5567 arrived at 9:01 AM · three-way check found exceptions",
+    contextSub: "Carrier freight invoice INV-SUM-5567 arrived at 9:01 AM · the three-way check found 5 discrepancies — mis-class, surcharge, demurrage, cube-out weight and a re-bill",
     reviewPill: "Settlement run · in review",
     completeNote: "Run complete · clean lines settled to AP, carrier dispute sent, audit envelope closed",
     steps: beltSteps,
@@ -368,12 +368,12 @@ export const flowRuns: Record<FlowId, FlowRun> = {
       routedTo: "Approval & Exception Router",
       routedSub: "audit close",
       stats: [
-        { value: "5", label: "agents handed off" },
-        { value: "$13,664", label: "settled to AP" },
-        { value: "$1,816", label: "recovered via dispute" },
+        { value: "5", label: "lines flagged" },
+        { value: "$13,144", label: "settled to AP" },
+        { value: "$2,646", label: "recovered via dispute" },
       ],
       caption:
-        "In-tolerance lines posted to AP on net 30 · $1,816 disputed across 3 lines (surcharge mismatch, un-owed demurrage, cube-out weight) · carrier credit acknowledged · audit envelope closed.",
+        "In-tolerance portion posted to AP on net 30 ($13,144) · $2,646 disputed across 5 lines — a Class-55 mis-class, the surcharge basis, un-owed demurrage, a cube-out weight adjustment and a $310 re-bill already settled on INV-SUM-5560 · carrier credit acknowledged · audit envelope closed.",
     },
   },
   settle: {
